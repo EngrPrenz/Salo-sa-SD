@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Salo sa Antipolo — Admin Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="admin-login.css">
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-dots"></div>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<div class="page">
+  <!-- Left branding -->
+  <div class="left-panel">
+    <div class="left-eyebrow">Admin Control Center <span style="width:1px;height:1px;"></span></div>
+    <h1 class="left-title">Salo sa<br><em>Antipolo</em></h1>
+    <p class="left-loc">Antipolo City, Rizal</p>
+    <div class="divider"></div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-icon">🍽️</div>
+        <div class="stat-label">Tables</div>
+        <div class="stat-val">10</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">📋</div>
+        <div class="stat-label">Menu</div>
+        <div class="stat-val">Full</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">💰</div>
+        <div class="stat-label">Billing</div>
+        <div class="stat-val">Live</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">📊</div>
+        <div class="stat-label">Reports</div>
+        <div class="stat-val">Daily</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right form -->
+  <div class="right-panel">
+    <div class="form-box">
+      <div class="form-strip"></div>
+      <div class="form-eyebrow"><span></span>Admin Portal</div>
+      <h2 class="form-title">Administrator<br>Sign In</h2>
+      <p class="form-desc">Full access · Orders · Menu · Staff · Reports</p>
+
+      <div class="error-msg" id="errorMsg"><span>⚠</span><span id="errorText">Invalid credentials.</span></div>
+
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" placeholder="admin@email.com" autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="input-wrap">
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"/>
+          <button class="toggle-pw" id="togglePw" type="button">👁</button>
+        </div>
+      </div>
+
+      <button class="btn-login" id="loginBtn">
+        <span class="btn-text">Sign In as Admin</span>
+        <div class="btn-spinner"></div>
+      </button>
+
+      <div class="form-footer">
+        <span class="footer-text">Salo sa Antipolo © 2025</span>
+        <a href="waiter-login.html" class="switch-link">← Waiter Login</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Signing you in…</span></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const app  = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  const loginBtn=document.getElementById('loginBtn'), emailEl=document.getElementById('email'),
+        pwEl=document.getElementById('password'), errMsg=document.getElementById('errorMsg'),
+        errTxt=document.getElementById('errorText'), togglePw=document.getElementById('togglePw'),
+        toast=document.getElementById('toast'), toastMsg=document.getElementById('toastMsg');
+
+  togglePw.onclick = () => { const t=pwEl.type==='text'; pwEl.type=t?'password':'text'; togglePw.textContent=t?'👁':'🙈'; };
+
+  const showToast = m => { toastMsg.textContent=m; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),3000); };
+  const showError = m => { errTxt.textContent=m; errMsg.classList.remove('show'); requestAnimationFrame(()=>errMsg.classList.add('show')); };
+  const setLoad   = v => { loginBtn.disabled=v; loginBtn.classList.toggle('loading',v); };
+
+  loginBtn.onclick = async () => {
+    const email=emailEl.value.trim(), pw=pwEl.value;
+    errMsg.classList.remove('show');
+    if(!email||!pw){ showError('Please enter your email and password.'); return; }
+    setLoad(true);
+    try {
+      const cred = await signInWithEmailAndPassword(auth,email,pw);
+      const snap = await getDoc(doc(db,'Users',cred.user.uid));
+      if(!snap.exists()){ showError('Account not found. Please contact system admin.'); await auth.signOut(); setLoad(false); return; }
+      const data = snap.data();
+      if(data.role!=='admin'){ showError('This portal is for admins only. Use Waiter Login.'); await auth.signOut(); setLoad(false); return; }
+      sessionStorage.setItem('userRole','admin');
+      sessionStorage.setItem('userName', data.name||email);
+      sessionStorage.setItem('userId', cred.user.uid);
+      showToast('Welcome, '+(data.name||'Admin')+'! Loading dashboard…');
+      setTimeout(()=>window.location.href='admin.html',1500);
+    } catch(err) {
+      setLoad(false);
+      const c=err.code;
+      if(['auth/user-not-found','auth/wrong-password','auth/invalid-credential'].includes(c)) showError('Invalid email or password. Try again.');
+      else if(c==='auth/too-many-requests') showError('Too many attempts. Please wait and try again.');
+      else if(c==='auth/invalid-email') showError('Please enter a valid email address.');
+      else showError('Something went wrong. Please try again.');
+    }
+  };
+  [emailEl,pwEl].forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter')loginBtn.click();}));
+</script>
+</body>
+</html>
