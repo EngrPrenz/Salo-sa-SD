@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Salo sa Antipolo — Waiter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --black: #0a0a0a; --black-card: #141414; --black-mid: #1c1c1c; --black-light: #242424;
+      --border: #2a2a2a; --gold: #c9973a; --gold-light: #e8c07a; --gold-dim: rgba(201,151,58,0.12);
+      --white: #ffffff; --text-muted: #5e5e5e;
+      --red: #c0392b; --red-dim: rgba(192,57,43,0.15);
+      --green: #27ae60; --green-dim: rgba(39,174,96,0.15);
+      --blue: #2980b9; --blue-dim: rgba(41,128,185,0.15);
+      --orange: #e67e22;
+      --topbar-h: 62px;
+    }
+    html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--black); color: var(--white); overflow: hidden; }
+    .bg { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at 20% 40%, rgba(201,151,58,0.06) 0%, transparent 55%), var(--black); }
+
+    /* ── TOPBAR ── */
+    .topbar { position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h); z-index: 100; background: var(--black-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon { font-size: 22px; }
+    .brand-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--gold-light); }
+    .topbar-middle { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .step-pills { display: flex; align-items: center; gap: 0; }
+    .step-pill { display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 600; color: var(--text-muted); transition: all 0.3s; }
+    .step-pill.active { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(201,151,58,0.3); }
+    .step-pill.done { color: var(--green); }
+    .step-arrow { color: var(--border); font-size: 14px; margin: 0 2px; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .waiter-tag { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .waiter-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .logout-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); padding: 5px 10px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+    .logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── MAIN ── */
+    .main { position: fixed; top: var(--topbar-h); left: 0; right: 0; bottom: 0; z-index: 1; display: flex; overflow: hidden; }
+
+    /* ── STEP 1: TABLE SELECTION ── */
+    #stepTables { position: absolute; inset: 0; display: flex; flex-direction: column; transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.4s; }
+    #stepTables.out-left { transform: translateX(-100%); opacity: 0; pointer-events: none; }
+    #stepTables.hidden { display: none; }
+
+    .step-header { padding: 22px 24px 16px; display: flex; align-items: center; justify-content: space-between; }
+    .step-title { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: var(--white); }
+    .step-subtitle { font-size: 13px; color: var(--text-muted); font-weight: 300; margin-top: 2px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-dot.free { background: var(--green); }
+    .legend-dot.occupied { background: var(--orange); }
+    .legend-dot.yours { background: var(--gold); }
+
+    .tables-area { flex: 1; overflow-y: auto; padding: 0 24px 24px; }
+    .tables-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+    .table-tile { background: var(--black-card); border: 1px solid var(--border); border-radius: 16px; padding: 22px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; user-select: none; }
+    .table-tile:hover.free    { border-color: rgba(39,174,96,0.5); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .table-tile:hover.yours   { border-color: rgba(201,151,58,0.6); transform: translateY(-2px); }
+    .table-tile.free          { }
+    .table-tile.occupied      { opacity: 0.6; cursor: not-allowed; border-color: rgba(230,126,34,0.35); }
+    .table-tile.yours         { border-color: rgba(201,151,58,0.5); background: rgba(201,151,58,0.04); }
+    .table-num { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; color: var(--white); }
+    .table-icon { font-size: 36px; }
+    .table-status-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px; border-radius: 100px; }
+    .table-status-badge.free     { color: var(--green);  background: var(--green-dim); }
+    .table-status-badge.occupied { color: var(--orange); background: rgba(230,126,34,0.12); }
+    .table-status-badge.yours    { color: var(--gold);   background: var(--gold-dim); }
+    .table-meta { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+    .yours-indicator { position: absolute; top: 10px; right: 10px; font-size: 10px; font-weight: 700; color: var(--gold); letter-spacing: 0.1em; }
+
+    /* ── STEP 2: ORDER TAKING ── */
+    #stepOrder { position: absolute; inset: 0; display: none; flex-direction: column; transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.4s; }
+    #stepOrder.visible { display: flex; }
+    #stepOrder.in { transform: translateX(0); }
+
+    .order-layout { flex: 1; display: flex; overflow: hidden; }
+
+    /* Menu panel */
+    .menu-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+    .menu-topbar { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--black-card); }
+    .table-label { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--gold-light); }
+    .cat-scroll { display: flex; gap: 8px; overflow-x: auto; flex: 1; }
+    .cat-scroll::-webkit-scrollbar { height: 0; }
+    .cat-btn { flex-shrink: 0; padding: 6px 14px; border-radius: 100px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
+    .cat-btn.active { background: var(--gold-dim); border-color: rgba(201,151,58,0.3); color: var(--gold); }
+    .cat-btn:hover { color: var(--gold-light); border-color: rgba(201,151,58,0.2); }
+    .search-box { padding: 10px 20px; border-bottom: 1px solid var(--border); }
+    .search-inp { width: 100%; padding: 9px 14px; background: var(--black-mid); border: 1px solid var(--border); border-radius: 8px; color: var(--white); font-family: 'Outfit', sans-serif; font-size: 14px; outline: none; transition: border-color 0.15s; }
+    .search-inp::placeholder { color: #3a3a3a; }
+    .search-inp:focus { border-color: var(--gold); }
+
+    .menu-items { flex: 1; overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-content: start; }
+    .menu-item-card { background: var(--black-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; gap: 5px; position: relative; }
+    .menu-item-card:hover { border-color: rgba(201,151,58,0.4); transform: translateY(-1px); }
+    .menu-item-card.unavailable { opacity: 0.45; cursor: not-allowed; }
+    .menu-item-card.in-cart { border-color: rgba(201,151,58,0.5); background: rgba(201,151,58,0.04); }
+    .mic-cat { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); }
+    .mic-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--white); line-height: 1.1; }
+    .mic-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; flex: 1; }
+    .mic-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .mic-price { font-size: 15px; font-weight: 700; color: var(--gold-light); }
+    .mic-add { width: 28px; height: 28px; border-radius: 50%; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .mic-add:hover { background: var(--gold); color: var(--black); }
+    .cart-badge-pill { position: absolute; top: 10px; right: 10px; background: var(--gold); color: var(--black); font-size: 10px; font-weight: 700; border-radius: 100px; padding: 2px 7px; }
+    .unavail-tag { position: absolute; top: 10px; right: 10px; font-size: 9px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* Cart panel */
+    .cart-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--black-card); }
+    .cart-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .cart-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--white); }
+    .cart-count { background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 100px; }
+    .cart-items { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .cart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 14px; gap: 10px; }
+    .cart-empty-icon { font-size: 36px; opacity: 0.3; }
+    .cart-item { background: var(--black-mid); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+    .ci-info { flex: 1; min-width: 0; }
+    .ci-name { font-size: 13px; font-weight: 600; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ci-price { font-size: 11px; color: var(--text-muted); }
+    .ci-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .qty-btn { width: 24px; height: 24px; border-radius: 50%; background: var(--black-light); border: 1px solid var(--border); color: var(--white); font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .qty-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .qty-num { font-size: 13px; font-weight: 700; color: var(--white); min-width: 18px; text-align: center; }
+
+    .cart-note-section { padding: 0 14px 14px; }
+    .cart-note-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .cart-note { width: 100%; background: var(--black-mid); border: 1px solid var(--border); border-radius: 8px; color: var(--white); font-family: 'Outfit', sans-serif; font-size: 13px; padding: 9px 12px; outline: none; resize: none; transition: border-color 0.15s; }
+    .cart-note:focus { border-color: var(--gold); }
+
+    .cart-footer { padding: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+    .total-row { display: flex; align-items: center; justify-content: space-between; }
+    .total-label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
+    .total-val { font-family: 'Cormorant Garamond', serif; font-size: 28px; color: var(--gold-light); font-weight: 600; }
+    .btn-submit { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--gold), #a87820); color: var(--black); border: none; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+    .btn-submit::before { content:''; position:absolute; inset:0; background: linear-gradient(135deg,var(--gold-light),var(--gold)); opacity:0; transition:opacity 0.3s; }
+    .btn-submit:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(201,151,58,0.3); }
+    .btn-submit:hover::before { opacity:1; }
+    .btn-submit:disabled { opacity:0.45; cursor:not-allowed; transform:none; box-shadow:none; }
+    .btn-submit span { position:relative; z-index:1; }
+    .btn-clear { width: 100%; padding: 10px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-clear:hover { border-color: var(--red); color: var(--red); }
+    .btn-back-table { padding: 10px 18px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .btn-back-table:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── ORDER CONFIRMATION MODAL ── */
+    .modal-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: var(--black-card); border: 1px solid var(--border); border-radius: 18px; width: 100%; max-width: 400px; overflow: hidden; animation: modalIn 0.3s cubic-bezier(0.16,1,0.3,1); }
+    @keyframes modalIn { from{opacity:0;transform:scale(0.95)translateY(10px)} to{opacity:1;transform:none} }
+    .modal-strip { height: 3px; background: linear-gradient(90deg, transparent, var(--gold), var(--gold-light), var(--gold), transparent); }
+    .modal-header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--white); }
+    .modal-close-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; transition: color 0.15s; }
+    .modal-close-btn:hover { color: var(--red); }
+    .modal-body { padding: 20px 24px; max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    .confirm-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .confirm-row:last-child { border-bottom: none; }
+    .confirm-item { font-size: 14px; color: var(--white); }
+    .confirm-qty { font-size: 12px; color: var(--text-muted); }
+    .confirm-sub { font-size: 14px; font-weight: 600; color: var(--gold-light); }
+    .confirm-total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .confirm-total-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+    .confirm-total-val { font-family: 'Cormorant Garamond', serif; font-size: 24px; color: var(--gold-light); }
+    .modal-footer { padding: 16px 24px; display: flex; gap: 10px; border-top: 1px solid var(--border); }
+    .btn-cancel-modal { flex: 1; padding: 12px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-cancel-modal:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-confirm-order { flex: 2; padding: 12px; background: linear-gradient(135deg,var(--gold),#a87820); color: var(--black); border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+    .btn-confirm-order:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(201,151,58,0.3); }
+    .btn-confirm-order:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-conf-text { position: relative; z-index: 1; }
+    .btn-conf-spin { display: none; width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.2); border-top-color: var(--black); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto; position: relative; z-index: 1; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .btn-confirm-order.loading .btn-conf-text { display: none; }
+    .btn-confirm-order.loading .btn-conf-spin { display: block; }
+
+    /* ── SUCCESS FLASH ── */
+    .order-success { position: fixed; inset: 0; z-index: 600; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; }
+    .order-success.show { display: flex; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .order-success-icon { font-size: 64px; animation: bounce 0.6s cubic-bezier(0.16,1,0.3,1); }
+    @keyframes bounce { from{transform:scale(0)} to{transform:scale(1)} }
+    .order-success-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; color: var(--white); }
+    .order-success-sub { font-size: 14px; color: var(--text-muted); }
+
+    /* ── TOAST ── */
+    .toast { position: fixed; bottom: 24px; right: 24px; z-index: 999; padding: 11px 20px; background: var(--black-card); border: 1px solid var(--gold); color: var(--gold-light); border-radius: 12px; font-size: 13px; font-weight: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 10px; transform: translateY(80px); opacity: 0; transition: all 0.4s cubic-bezier(0.16,1,0.3,1); }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 720px) {
+      .cart-panel { width: 260px; }
+      .menu-items { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 560px) {
+      .order-layout { flex-direction: column; }
+      .menu-panel { border-right: none; border-bottom: 1px solid var(--border); flex: none; height: 55%; }
+      .cart-panel { width: 100%; flex: none; height: 45%; }
+      .menu-items { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+      .step-pills { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="bg"></div>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🍽️</div>
+    <div class="brand-name">Salo sa <em>Antipolo</em></div>
+  </div>
+  <div class="topbar-middle">
+    <div class="step-pills">
+      <div class="step-pill done" id="pill1">🪑 Select Table</div>
+      <span class="step-arrow">›</span>
+      <div class="step-pill" id="pill2">📋 Take Order</div>
+      <span class="step-arrow">›</span>
+      <div class="step-pill" id="pill3">✅ Submit</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="waiter-tag">
+      <div class="waiter-avatar" id="waiterAvatar">W</div>
+      <span id="waiterName" style="display:none;font-size:12px;"></span>
+    </div>
+    <button class="logout-btn" id="logoutBtn">⏏ Logout</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- STEP 1 — TABLE GRID -->
+  <div id="stepTables">
+    <div class="step-header">
+      <div>
+        <div class="step-title">Which table? 🪑</div>
+        <div class="step-subtitle">Tap a free table to start taking orders</div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot free"></div>Free</div>
+        <div class="legend-item"><div class="legend-dot occupied"></div>Occupied by others</div>
+        <div class="legend-item"><div class="legend-dot yours"></div>Your active order</div>
+      </div>
+    </div>
+    <div class="tables-area">
+      <div class="tables-grid" id="tablesGrid">
+        <div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">Loading tables…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 — ORDER TAKING -->
+  <div id="stepOrder">
+    <div class="order-layout">
+      <!-- Left: Menu -->
+      <div class="menu-panel">
+        <div class="menu-topbar">
+          <span class="table-label" id="selectedTableLabel">Table —</span>
+          <div class="cat-scroll" id="catScroll"></div>
+          <button class="btn-back-table" id="backToTablesBtn">← Tables</button>
+        </div>
+        <div class="search-box">
+          <input class="search-inp" id="menuSearch" placeholder="🔍  Search menu items…"/>
+        </div>
+        <div class="menu-items" id="menuGrid"></div>
+      </div>
+      <!-- Right: Cart -->
+      <div class="cart-panel">
+        <div class="cart-header">
+          <span class="cart-title">Order Summary</span>
+          <span class="cart-count" id="cartCount">0 items</span>
+        </div>
+        <div class="cart-items" id="cartItems">
+          <div class="cart-empty"><div class="cart-empty-icon">🛒</div>No items yet.<br><span style="font-size:12px">Tap menu items to add.</span></div>
+        </div>
+        <div class="cart-note-section">
+          <div class="cart-note-label">Special Instructions</div>
+          <textarea class="cart-note" id="orderNote" rows="2" placeholder="Allergies, preferences…"></textarea>
+        </div>
+        <div class="cart-footer">
+          <div class="total-row">
+            <span class="total-label">Total</span>
+            <span class="total-val" id="cartTotal">₱0.00</span>
+          </div>
+          <button class="btn-submit" id="submitOrderBtn" disabled><span>Place Order →</span></button>
+          <button class="btn-clear" id="clearCartBtn">Clear Cart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <div class="modal-strip"></div>
+    <div class="modal-header">
+      <span class="modal-title">Confirm Order</span>
+      <button class="modal-close-btn" id="confirmModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="confirmModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" id="confirmModalCancel">Edit</button>
+      <button class="btn-confirm-order" id="confirmOrderBtn">
+        <span class="btn-conf-text">Confirm & Send →</span>
+        <div class="btn-conf-spin"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS FLASH -->
+<div class="order-success" id="orderSuccess">
+  <div class="order-success-icon">🎉</div>
+  <div class="order-success-title">Order Sent!</div>
+  <div class="order-success-sub" id="orderSuccessSub">Kitchen has been notified.</div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc,
+    onSnapshot, query, orderBy, where, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const app  = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  const $ = id => document.getElementById(id);
+  const showToast = m => { $('toastMsg').textContent=m; $('toast').classList.add('show'); setTimeout(()=>$('toast').classList.remove('show'),3000); };
+
+  // ── State ──
+  let waiterName = '', waiterId = '', menuItems = [], cart = {}, selectedTable = null, activeCat = 'all';
+  let allOrders = [];
+
+  // ── Auth guard: must be waiter + approved ──
+  onAuthStateChanged(auth, async user => {
+    if (!user) { window.location.href = 'waiter-login.html'; return; }
+    const snap = await getDoc(doc(db, 'Users', user.uid));
+    if (!snap.exists()) { await signOut(auth); window.location.href = 'waiter-login.html'; return; }
+    const data = snap.data();
+    // Only waiters may access this page
+    if (data.role !== 'waiter') { await signOut(auth); window.location.href = 'waiter-login.html'; return; }
+    // Waiters specifically must be approved — admins never reach this check
+    if (data.status === 'pending') {
+      await signOut(auth);
+      alert('⏳ Your account is pending admin approval. Please wait for the manager to approve your registration.');
+      window.location.href = 'waiter-login.html';
+      return;
+    }
+    if (data.status === 'rejected') {
+      await signOut(auth);
+      alert('❌ Your registration was declined. Please contact the manager.');
+      window.location.href = 'waiter-login.html';
+      return;
+    }
+    waiterName = data.name || user.email;
+    waiterId   = user.uid;
+    $('waiterAvatar').textContent = waiterName[0].toUpperCase();
+    $('waiterName').textContent   = waiterName;
+    init();
+  });
+
+  $('logoutBtn').onclick = async () => { await signOut(auth); window.location.href = 'waiter-login.html'; };
+
+  async function init() {
+    await loadMenu();
+    // Live orders for table status
+    onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
+      allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      renderTables();
+    });
+  }
+
+  // ── TABLE SELECTION ──
+  function renderTables() {
+    const occupied = {};
+    allOrders.filter(o => ['pending','preparing','served'].includes(o.status)).forEach(o => {
+      if (o.tableNumber) occupied[o.tableNumber] = { status: o.status, waiterName: o.waiterName, waiterId: o.waiterId, orderId: o.id };
+    });
+    const grid = $('tablesGrid');
+    grid.innerHTML = Array.from({length:10}, (_,i) => {
+      const n = i + 1;
+      const info = occupied[n];
+      const isYours  = info && info.waiterId === waiterId;
+      const isTaken  = info && !isYours;
+      const stClass  = isYours ? 'yours' : isTaken ? 'occupied' : 'free';
+      const badge    = isYours ? 'yours' : isTaken ? 'occupied' : 'free';
+      const badgeLbl = isYours ? '✦ Your Table' : isTaken ? 'Occupied' : 'Available';
+      const meta     = isYours ? `Active order` : isTaken ? `${info.waiterName||'Another waiter'}` : 'Tap to start order';
+      const yoursInd = isYours ? `<div class="yours-indicator">YOURS</div>` : '';
+      return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}')">
+        ${yoursInd}
+        <div class="table-num">${n}</div>
+        <div class="table-icon">${stClass==='free'?'🪑':isYours?'🍽️':'🚫'}</div>
+        <span class="table-status-badge ${badge}">${badgeLbl}</span>
+        <div class="table-meta">${meta}</div>
+      </div>`;
+    }).join('');
+  }
+
+  window._selectTable = (num, stClass) => {
+    if (stClass === 'occupied') { showToast('⚠ This table is occupied by another waiter.'); return; }
+    selectedTable = num;
+    $('selectedTableLabel').textContent = `Table ${num}`;
+    pill1Done(); pill2Active();
+    // Slide in order view
+    const st = $('stepTables'), so = $('stepOrder');
+    st.classList.add('out-left');
+    so.classList.add('visible');
+    requestAnimationFrame(() => so.classList.add('in'));
+    setTimeout(() => st.classList.add('hidden'), 400);
+    renderMenuGrid();
+  };
+
+  $('backToTablesBtn').onclick = () => {
+    const st = $('stepTables'), so = $('stepOrder');
+    st.classList.remove('hidden', 'out-left');
+    so.classList.remove('in');
+    setTimeout(() => so.classList.remove('visible'), 400);
+    pill1Active(); pill2Reset();
+    selectedTable = null;
+  };
+
+  // ── STEP PILLS ──
+  function pill1Done()   { $('pill1').className='step-pill done'; }
+  function pill1Active() { $('pill1').className='step-pill active'; }
+  function pill2Active() { $('pill2').className='step-pill active'; }
+  function pill2Done()   { $('pill2').className='step-pill done'; }
+  function pill2Reset()  { $('pill2').className='step-pill'; }
+  function pill3Active() { $('pill3').className='step-pill active'; }
+  function pill3Reset()  { $('pill3').className='step-pill'; }
+
+  // ── MENU ──
+  async function loadMenu() {
+    const snap = await getDocs(collection(db, 'menu'));
+    menuItems = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(m => m.available !== false);
+    buildCategoryTabs();
+    renderMenuGrid();
+  }
+
+  function buildCategoryTabs() {
+    const cats = ['all', ...new Set(menuItems.map(m => m.category || 'Other'))];
+    $('catScroll').innerHTML = cats.map(c =>
+      `<button class="cat-btn${c==='all'?' active':''}" data-cat="${c}" onclick="window._setCat('${c}')">${c==='all'?'All':c}</button>`
+    ).join('');
+  }
+
+  window._setCat = cat => {
+    activeCat = cat;
+    $('catScroll').querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat===cat));
+    renderMenuGrid();
+  };
+
+  $('menuSearch').addEventListener('input', renderMenuGrid);
+
+  function renderMenuGrid() {
+    const q = $('menuSearch').value.toLowerCase().trim();
+    let items = activeCat === 'all' ? menuItems : menuItems.filter(m => (m.category||'Other') === activeCat);
+    if (q) items = items.filter(m => (m.name||'').toLowerCase().includes(q) || (m.description||'').toLowerCase().includes(q));
+    const grid = $('menuGrid');
+    if (!items.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No items found.</div>'; return; }
+    grid.innerHTML = items.map(m => {
+      const inCart = cart[m.id];
+      const unavail = m.available === false;
+      return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
+        ${inCart ? `<div class="cart-badge-pill">×${inCart.qty}</div>` : ''}
+        ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
+        <div class="mic-cat">${m.category||'Other'}</div>
+        <div class="mic-name">${m.name||'—'}</div>
+        <div class="mic-desc">${m.description||''}</div>
+        <div class="mic-footer">
+          <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+          ${!unavail ? `<button class="mic-add" onclick="event.stopPropagation();window._addToCart('${m.id}')">+</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  window._addToCart = id => {
+    const item = menuItems.find(m => m.id === id);
+    if (!item || item.available === false) return;
+    if (cart[id]) cart[id].qty++;
+    else cart[id] = { id, name: item.name, price: item.price, qty: 1, category: item.category||'Other' };
+    updateCart();
+    renderMenuGrid();
+  };
+
+  window._removeFromCart = id => {
+    if (!cart[id]) return;
+    cart[id].qty--;
+    if (cart[id].qty <= 0) delete cart[id];
+    updateCart();
+    renderMenuGrid();
+  };
+
+  $('clearCartBtn').onclick = () => { cart = {}; updateCart(); renderMenuGrid(); };
+
+  function updateCart() {
+    const items = Object.values(cart);
+    const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+    $('cartCount').textContent = `${items.reduce((s,i)=>s+i.qty,0)} items`;
+    $('cartTotal').textContent = `₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+    $('submitOrderBtn').disabled = items.length === 0;
+    const ci = $('cartItems');
+    if (!items.length) {
+      ci.innerHTML = '<div class="cart-empty"><div class="cart-empty-icon">🛒</div>No items yet.<br><span style="font-size:12px">Tap menu items to add.</span></div>';
+      return;
+    }
+    ci.innerHTML = items.map(i => `
+      <div class="cart-item">
+        <div class="ci-info">
+          <div class="ci-name">${i.name}</div>
+          <div class="ci-price">₱${(i.price*i.qty).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
+        </div>
+        <div class="ci-controls">
+          <button class="qty-btn" onclick="window._removeFromCart('${i.id}')">−</button>
+          <span class="qty-num">${i.qty}</span>
+          <button class="qty-btn" onclick="window._addToCart('${i.id}')">+</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── ORDER SUBMISSION ──
+  $('submitOrderBtn').onclick = () => {
+    const items = Object.values(cart);
+    if (!items.length || !selectedTable) return;
+    const total = items.reduce((s,i)=>s+i.price*i.qty,0);
+    $('confirmModalBody').innerHTML =
+      items.map(i => `<div class="confirm-row">
+        <div><div class="confirm-item">${i.name}</div><div class="confirm-qty">× ${i.qty}</div></div>
+        <div class="confirm-sub">₱${(i.price*i.qty).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
+      </div>`).join('') +
+      `<div class="confirm-total-row"><span class="confirm-total-label">Total</span><span class="confirm-total-val">₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>`;
+    $('confirmModal').classList.add('show');
+    pill2Done(); pill3Active();
+  };
+
+  $('confirmModalClose').onclick = $('confirmModalCancel').onclick = () => {
+    $('confirmModal').classList.remove('show');
+    pill2Active(); pill3Reset();
+  };
+
+  $('confirmOrderBtn').onclick = async () => {
+    const btn = $('confirmOrderBtn');
+    btn.disabled = true; btn.classList.add('loading');
+    const newItems = Object.values(cart);
+    const note     = $('orderNote').value.trim();
+    try {
+      // Check if there's already an active (non-paid, non-cancelled) order for this table
+      const existingOrder = allOrders.find(o =>
+        o.tableNumber === selectedTable &&
+        ['pending','preparing','served'].includes(o.status)
+      );
+
+      if (existingOrder) {
+        // Merge new items into the existing order
+        const merged = [...(existingOrder.items || [])];
+        newItems.forEach(newItem => {
+          const idx = merged.findIndex(i => i.id === newItem.id);
+          if (idx >= 0) {
+            merged[idx] = { ...merged[idx], qty: merged[idx].qty + newItem.qty };
+          } else {
+            merged.push({ id:newItem.id, name:newItem.name, price:newItem.price, qty:newItem.qty, category:newItem.category });
+          }
+        });
+        const newTotal = merged.reduce((s,i) => s + i.price * i.qty, 0);
+        const newNote  = [existingOrder.note, note].filter(Boolean).join(' | ');
+        await updateDoc(doc(db,'orders', existingOrder.id), {
+          items: merged,
+          total: newTotal,
+          note: newNote,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // No active order for this table — create a new one
+        const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
+        await addDoc(collection(db,'orders'), {
+          tableNumber: selectedTable,
+          waiterId,
+          waiterName,
+          items: newItems.map(i=>({ id:i.id, name:i.name, price:i.price, qty:i.qty, category:i.category })),
+          total,
+          note,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      $('confirmModal').classList.remove('show');
+      const displayTotal = (existingOrder
+        ? allOrders.find(o=>o.id===existingOrder.id)?.total
+        : newItems.reduce((s,i)=>s+i.price*i.qty,0)) || newItems.reduce((s,i)=>s+i.price*i.qty,0);
+      const os = $('orderSuccess');
+      $('orderSuccessSub').textContent = existingOrder
+        ? `Added to Table ${selectedTable}'s order`
+        : `Table ${selectedTable} · ₱${newItems.reduce((s,i)=>s+i.price*i.qty,0).toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+      os.classList.add('show');
+      cart = {}; $('orderNote').value = '';
+      updateCart(); renderMenuGrid();
+      setTimeout(() => {
+        os.classList.remove('show');
+        $('backToTablesBtn').click();
+        pill1Active(); pill2Reset(); pill3Reset();
+      }, 2200);
+    } catch(e) {
+      console.error(e);
+      showToast('❌ Failed to submit order. Please retry.');
+    } finally {
+      btn.disabled = false; btn.classList.remove('loading');
+    }
+  };
+
+  // ── INIT PILL STATE ──
+  $('pill1').className = 'step-pill active';
+</script>
+</body>
+</html>

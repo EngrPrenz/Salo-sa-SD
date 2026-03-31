@@ -21,11 +21,29 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('topbarName').textContent = name;
   document.getElementById('userAvatarSidebar').textContent = name[0].toUpperCase();
   document.getElementById('userAvatarTop').textContent = name[0].toUpperCase();
+
+  // Init data loads AFTER auth is confirmed so Firestore rules are satisfied
+  loadTables();
+  loadMenu();
+  loadStaff();
+
+  // Live badge for pending staff — only start after auth is confirmed
+  onSnapshot(query(collection(db,'Users'), where('status','==','pending')), snap => {
+    const count = snap.size;
+    const badge = document.getElementById('staffBadge');
+    if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-flex' : 'none'; }
+  });
 });
 
 document.getElementById('logoutBtn').onclick = async () => {
   await signOut(auth); window.location.href = 'admin-login.html';
 };
+
+// ── Helpers (defined early so all functions below can use them) ──
+function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function capitalize(s){ return s ? s[0].toUpperCase()+s.slice(1) : ''; }
+
+// ── Live pending staff registrations badge (started after auth, see onAuthStateChanged) ──
 
 // ── Date ──
 const d = new Date();
@@ -34,6 +52,26 @@ document.getElementById('pageDate').textContent = d.toLocaleDateString('en-PH',{
 // ── Toast ──
 const toast = document.getElementById('toast'), toastMsg = document.getElementById('toastMsg');
 const showToast = m => { toastMsg.textContent=m; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),3000); };
+
+
+// ── Confirm Modal ──
+function showConfirm({ title, message, okLabel = 'Confirm', okClass = 'gold', onOk }) {
+  document.getElementById('confirmModalTitle').textContent = title;
+  document.getElementById('confirmModalMsg').textContent = message;
+  const okBtn = document.getElementById('confirmModalOk');
+  okBtn.textContent = okLabel;
+  okBtn.className = 'btn-sm ' + okClass;
+  document.getElementById('confirmModal').classList.add('show');
+
+  // Clone to remove old listeners
+  const newOk = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+
+  const close = () => document.getElementById('confirmModal').classList.remove('show');
+  newOk.onclick = () => { close(); onOk(); };
+  document.getElementById('confirmModalCancel').onclick = close;
+  document.getElementById('confirmModalClose').onclick = close;
+}
 
 // ── Sidebar nav ──
 const sidebar   = document.getElementById('sidebar');
@@ -52,6 +90,8 @@ function switchView(v) {
   views.forEach(el => el.classList.toggle('active', el.id === `view-${v}`));
   pageTitleEl.textContent = titles[v] || v;
   sidebar.classList.remove('open'); overlay.classList.remove('show');
+  // Reload staff list every time the Staff view is opened
+  if (v === 'staff') loadStaff();
 }
 
 navItems.forEach(n => n.addEventListener('click', e => { e.preventDefault(); switchView(n.dataset.view); }));
@@ -357,21 +397,142 @@ function renderBilling() {
 }
 
 // ── Staff ──
+let staffLoading = false;
 async function loadStaff() {
+  if (staffLoading) { console.warn('loadStaff: already in progress, skipping'); return; }
+  staffLoading = true;
+  try {
   const snap = await getDocs(collection(db,'Users'));
   const staff = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const pending  = staff.filter(s => s.role==='waiter' && s.status==='pending');
+  const approved = staff.filter(s => s.status==='approved' || s.role==='admin' || !s.status || s.status==='');
+  const rejected = staff.filter(s => s.role==='waiter' && s.status==='rejected');
   const grid = document.getElementById('staffGrid');
-  if(!staff.length){grid.innerHTML='<div class="empty-state">No staff accounts found.</div>';return;}
-  grid.innerHTML = staff.map(s=>`
-    <div class="staff-card">
-      <div class="staff-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
-      <div class="staff-info">
-        <div class="staff-name">${s.name||'—'}</div>
-        <div class="staff-email">${s.email||'—'}</div>
-        <span class="status-badge ${s.role}">${capitalize(s.role||'unknown')}</span>
+
+  let html = '';
+
+  // Pending approvals banner
+  if (pending.length > 0) {
+    html += `<div class="pending-banner">
+      <div class="pending-banner-icon">🔔</div>
+      <div class="pending-banner-text">
+        <strong>${pending.length} pending registration${pending.length>1?'s':''}</strong> awaiting your approval
       </div>
-    </div>`).join('');
+    </div>`;
+
+    html += `<div class="staff-section-label">⏳ Pending Approval</div>`;
+    html += pending.map(s => `
+      <div class="staff-card pending-card">
+        <div class="staff-avatar pending-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
+        <div class="staff-info">
+          <div class="staff-name">${s.name||'—'}</div>
+          <div class="staff-email">${s.email||'—'}</div>
+          <div class="staff-meta">${s.phone||''}</div>
+          <span class="status-badge pending-badge">Pending Review</span>
+        </div>
+        <div class="staff-actions">
+          <button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name||'')}')">✓ Approve</button>
+          <button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name||'')}')">✗ Reject</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // Active staff
+  if (approved.length > 0) {
+    html += `<div class="staff-section-label">✅ Active Staff</div>`;
+    html += approved.map(s => `
+      <div class="staff-card">
+        <div class="staff-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
+        <div class="staff-info">
+          <div class="staff-name">${s.name||'—'}</div>
+          <div class="staff-email">${s.email||'—'}</div>
+          <span class="status-badge ${s.role}">${capitalize(s.role||'unknown')}</span>
+        </div>
+        ${s.role==='waiter'?`<div class="staff-actions"><button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name||'')}')">Suspend</button></div>`:''}
+      </div>`).join('');
+  }
+
+  // Rejected
+  if (rejected.length > 0) {
+    html += `<div class="staff-section-label" style="color:var(--red)">❌ Rejected / Suspended</div>`;
+    html += rejected.map(s => `
+      <div class="staff-card" style="opacity:0.55">
+        <div class="staff-avatar" style="background:var(--red-dim);border-color:rgba(192,57,43,0.3);color:var(--red)">${(s.name||s.email||'?')[0].toUpperCase()}</div>
+        <div class="staff-info">
+          <div class="staff-name">${s.name||'—'}</div>
+          <div class="staff-email">${s.email||'—'}</div>
+          <span class="status-badge" style="color:var(--red);background:var(--red-dim)">Rejected</span>
+        </div>
+        <div class="staff-actions"><button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name||'')}')">Re-approve</button></div>
+      </div>`).join('');
+  }
+
+  // Debug: log what was found
+  console.log("loadStaff: total users:", staff.length, "| pending:", pending.length, "| approved:", approved.length, "| rejected:", rejected.length);
+  console.log("loadStaff: raw data:", JSON.stringify(staff.map(s => ({ id: s.id, role: s.role, status: s.status, name: s.name }))));
+
+  if (!staff.length) html = '<div class="empty-state">No staff accounts found.</div>';
+  else if (!html) html = '<div class="empty-state">No staff matched any category — check console.</div>';
+  console.log('loadStaff: grid element:', grid, '| html length:', html.length, '| html preview:', html.slice(0,200));
+  grid.innerHTML = html;
+  console.log('loadStaff: grid.innerHTML after set length:', grid.innerHTML.length);
+  // Watch for anything clearing the grid after we set it
+  const observer = new MutationObserver(muts => {
+    muts.forEach(m => {
+      if (grid.innerHTML.length < 100) {
+        console.error('GRID WAS CLEARED! innerHTML now:', grid.innerHTML.length, 'Stack:', new Error().stack);
+      }
+    });
+  });
+  observer.observe(grid, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 5000);
+
+  // Update nav badge for pending count
+  const staffBadge = document.getElementById('staffBadge');
+  if (staffBadge) { staffBadge.textContent = pending.length; staffBadge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
+  } catch(e) {
+    console.error('loadStaff error:', e);
+    document.getElementById('staffGrid').innerHTML = `<div class="empty-state">Failed to load staff: ${e.message}</div>`;
+  } finally {
+    staffLoading = false;
+  }
 }
+
+window._approveStaff = (uid, name) => {
+  showConfirm({
+    title: 'Approve Staff',
+    message: `Approve ${name||'this waiter'} and grant them access to the system?`,
+    okLabel: '✓ Approve',
+    okClass: 'gold',
+    onOk: async () => {
+      try {
+        await updateDoc(doc(db,'Users',uid), {
+          status: 'approved',
+          approvedAt: serverTimestamp(),
+          approvedBy: (document.getElementById('userNameSidebar').textContent || 'Admin')
+        });
+        showToast(`✅ ${name||'Waiter'} has been approved.`);
+        loadStaff();
+      } catch(e) { console.error(e); showToast('Failed to approve. Try again.'); }
+    }
+  });
+};
+
+window._rejectStaff = (uid, name) => {
+  showConfirm({
+    title: 'Reject / Suspend Staff',
+    message: `Reject or suspend ${name||'this waiter'}? They will not be able to log in.`,
+    okLabel: '✗ Reject',
+    okClass: 'danger',
+    onOk: async () => {
+      try {
+        await updateDoc(doc(db,'Users',uid), { status: 'rejected', rejectedAt: serverTimestamp() });
+        showToast(`❌ ${name||'Waiter'} has been rejected.`);
+        loadStaff();
+      } catch(e) { console.error(e); showToast('Failed to reject. Try again.'); }
+    }
+  });
+};
 
 // ── Reports ──
 function renderReports() {
@@ -437,7 +598,7 @@ window._editOrder = id => {
   document.getElementById('orderModal').classList.add('show');
 };
 
-function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 
 async function saveOrderEdits(){
   if(!editingOrderId){ showToast('No order selected'); return; }
@@ -496,7 +657,4 @@ document.getElementById('receiptModalClose2').onclick = ()=>document.getElementB
 document.getElementById('receiptPrint').onclick = ()=>{ window.print(); };
 
 // ── Init ──
-function capitalize(s){return s?s[0].toUpperCase()+s.slice(1):''}
-loadTables();
-loadMenu();
-loadStaff();
+// (loadTables, loadMenu, loadStaff are called inside onAuthStateChanged above)
