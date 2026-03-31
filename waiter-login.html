@@ -39,6 +39,13 @@
         <span class="btn-text">Sign In as Waiter</span>
         <div class="btn-spinner"></div>
       </button>
+
+      <!-- Registration link -->
+      <div style="margin-top:16px;text-align:center;">
+        <span style="font-size:12px;color:#3a3a3a;">New to the team? </span>
+        <a href="waiter-register.html" style="font-size:12px;font-weight:600;color:var(--gold);text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#e8c07a'" onmouseout="this.style.color='#c9973a'">Create an account →</a>
+      </div>
+
       <div class="card-footer">
         <span class="footer-text">Salo sa Antipolo © 2025</span>
         <a href="admin-login.html" class="switch-link">Admin Login →</a>
@@ -80,6 +87,15 @@
       if(!snap.exists()){ showError('Account not found. Please contact admin.'); await auth.signOut(); setLoad(false); return; }
       const data = snap.data();
       if(data.role!=='waiter'){ showError('This portal is for waiters only. Use Admin Login.'); await auth.signOut(); setLoad(false); return; }
+      // Check approval status
+      if(data.status === 'pending'){
+        showError('⏳ Your account is awaiting admin approval. Please wait for the manager to approve your registration.');
+        await auth.signOut(); setLoad(false); return;
+      }
+      if(data.status === 'rejected'){
+        showError('❌ Your registration was declined. Please contact the manager.');
+        await auth.signOut(); setLoad(false); return;
+      }
       sessionStorage.setItem('userRole','waiter');
       sessionStorage.setItem('userName', data.name||email);
       sessionStorage.setItem('userId', cred.user.uid);

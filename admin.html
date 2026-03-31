@@ -48,6 +48,7 @@
     </a>
     <a href="#" class="nav-item" data-view="staff">
       <span class="nav-icon">👥</span><span class="nav-label">Staff</span>
+      <span class="nav-badge" id="staffBadge" style="display:none;background:#e74c3c;">0</span>
     </a>
     <a href="#" class="nav-item" data-view="reports">
       <span class="nav-icon">📈</span><span class="nav-label">Reports</span>
@@ -233,39 +234,6 @@
       </div>
     </div>
 
-        <!-- Order Edit Modal -->
-        <div class="modal-overlay" id="orderModal">
-          <div class="modal">
-            <div class="modal-header">
-              <span class="modal-title" id="orderModalTitle">Edit Order</span>
-              <button class="modal-close" id="orderModalClose">✕</button>
-            </div>
-            <div class="modal-body" id="orderModalBody">
-              <div class="empty-state">Loading order…</div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-sm" id="orderModalCancel">Cancel</button>
-              <button class="btn-sm gold" id="orderModalSave">Save Changes</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Receipt Modal -->
-        <div class="modal-overlay" id="receiptModal">
-          <div class="modal">
-            <div class="modal-header">
-              <span class="modal-title">Receipt</span>
-              <button class="modal-close" id="receiptModalClose">✕</button>
-            </div>
-            <div class="modal-body" id="receiptModalBody">
-              <div class="empty-state">Loading receipt…</div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-sm" id="receiptPrint">Print</button>
-              <button class="btn-sm" id="receiptModalClose2">Close</button>
-            </div>
-          </div>
-        </div>
   </section>
 
   <!-- BILLING  -->
@@ -349,5 +317,56 @@
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
 <script type="module" src="admin.js"></script>
+
+        <!-- Order Edit Modal -->
+        <div class="modal-overlay" id="orderModal">
+          <div class="modal">
+            <div class="modal-header">
+              <span class="modal-title" id="orderModalTitle">Edit Order</span>
+              <button class="modal-close" id="orderModalClose">✕</button>
+            </div>
+            <div class="modal-body" id="orderModalBody">
+              <div class="empty-state">Loading order…</div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-sm" id="orderModalCancel">Cancel</button>
+              <button class="btn-sm gold" id="orderModalSave">Save Changes</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Receipt Modal -->
+        <div class="modal-overlay" id="receiptModal">
+          <div class="modal">
+            <div class="modal-header">
+              <span class="modal-title">Receipt</span>
+              <button class="modal-close" id="receiptModalClose">✕</button>
+            </div>
+            <div class="modal-body" id="receiptModalBody">
+              <div class="empty-state">Loading receipt…</div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-sm" id="receiptPrint">Print</button>
+              <button class="btn-sm" id="receiptModalClose2">Close</button>
+            </div>
+          </div>
+        </div>
+
+  <!-- Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <span class="modal-title" id="confirmModalTitle">Confirm</span>
+        <button class="modal-close" id="confirmModalClose">✕</button>
+      </div>
+      <div class="modal-body" style="padding:24px;">
+        <p id="confirmModalMsg" style="font-size:14px;color:var(--off-white);line-height:1.6;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm" id="confirmModalCancel">Cancel</button>
+        <button class="btn-sm gold" id="confirmModalOk">Confirm</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
