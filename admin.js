@@ -43,8 +43,6 @@ document.getElementById('logoutBtn').onclick = async () => {
 function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s){ return s ? s[0].toUpperCase()+s.slice(1) : ''; }
 
-// ── Live pending staff registrations badge (started after auth, see onAuthStateChanged) ──
-
 // ── Date ──
 const d = new Date();
 document.getElementById('pageDate').textContent = d.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
@@ -281,35 +279,90 @@ function buildMenuCategoryTabs() {
   }));
 }
 
+// ── Time-based availability rules ──────────────────────────────────────────
+// Add any category here with a start/end hour (24h) to restrict its availability.
+const TIME_RESTRICTED = {
+  'Bento sa Salo': { start: 11, end: 15 }, // 11:00 AM – 3:00 PM
+};
+
+function isTimeAvailable(category) {
+  const rule = TIME_RESTRICTED[category];
+  if (!rule) return null; // null = no restriction
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes() / 60;
+  return h >= rule.start && h < rule.end;
+}
+
+function timeWindowLabel(category) {
+  const rule = TIME_RESTRICTED[category];
+  if (!rule) return '';
+  const fmt = h => {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hr = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    return `${hr}:00 ${ampm}`;
+  };
+  return `${fmt(rule.start)} – ${fmt(rule.end)} only`;
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 function renderMenuGrid() {
   const grid = document.getElementById('menuGrid');
-  let items = menuCatFilter==='all' ? menuItems : menuItems.filter(m=>(m.category||'Other')===menuCatFilter);
-  if(!items.length){grid.innerHTML='<div class="empty-state">No items in this category.</div>';return;}
-  grid.innerHTML = items.map(m=>{
-    // compute sold count from orders
-    const sold = allOrders.reduce((s,o)=>{
-      (o.items||[]).forEach(it=>{ if((it.name||'')=== (m.name||'')) s += (it.qty||0); });
+  let items = menuCatFilter === 'all' ? menuItems : menuItems.filter(m => (m.category || 'Other') === menuCatFilter);
+  if (!items.length) { grid.innerHTML = '<div class="empty-state">No items in this category.</div>'; return; }
+ 
+  grid.innerHTML = items.map(m => {
+    // Sold / quota
+    const sold = allOrders.reduce((s, o) => {
+      (o.items || []).forEach(it => { if ((it.name || '') === (m.name || '')) s += (it.qty || 0); });
       return s;
-    },0);
+    }, 0);
     const quota = m.quota || null;
-    const remaining = quota!==null ? Math.max(0, quota - sold) : null;
-    const soldBadge = quota!==null ? `<div style="font-size:11px;color:var(--text-muted);">Sold: ${sold} · Rem: ${remaining}</div>` : '';
-    const reachedClass = (quota!==null && remaining<=0) ? 'unavailable' : (m.available===false ? 'unavailable' : '');
-    const quotaLabel = quota!==null ? `<div class="menu-avail ${remaining<=0?'off':'on'}">${remaining<=0?'Quota reached':`Quota ${remaining}/${quota}`}</div>` : `<div class="menu-avail ${m.available===false?'off':'on'}">${m.available===false?'Unavailable':'Available'}</div>`;
+    const remaining = quota !== null ? Math.max(0, quota - sold) : null;
+    const soldBadge = quota !== null
+      ? `<div class="menu-card-sold">Sold: ${sold} &nbsp;·&nbsp; Remaining: ${remaining}</div>`
+      : '';
+ 
+    // Time-based availability
+    const timeOk = isTimeAvailable(m.category);
+    const isAvailable = timeOk !== null
+      ? timeOk
+      : (quota !== null ? remaining > 0 : m.available !== false);
+ 
+    // Top banner
+    let bannerClass, bannerText;
+    if (timeOk === false) {
+      bannerClass = 'off';
+      bannerText  = `Not available &nbsp;·&nbsp; ${timeWindowLabel(m.category)}`;
+    } else if (timeOk === true) {
+      bannerClass = 'on';
+      bannerText  = `Available &nbsp;·&nbsp; ${timeWindowLabel(m.category)}`;
+    } else if (quota !== null) {
+      bannerClass = remaining <= 0 ? 'off' : 'on';
+      bannerText  = remaining <= 0 ? 'Quota reached' : `Quota: ${remaining} / ${quota} remaining`;
+    } else {
+      bannerClass = m.available === false ? 'off' : 'on';
+      bannerText  = m.available === false ? 'Unavailable' : 'Available';
+    }
+ 
     return `
-    <div class="menu-card ${reachedClass}">
-      <div class="menu-card-cat">${m.category||'Other'}</div>
-      <div class="menu-card-name">${m.name||'—'}</div>
-      <div class="menu-card-desc">${m.description||''}</div>
-      <div style="margin-top:6px">${soldBadge}</div>
+    <div class="menu-card ${!isAvailable ? 'unavailable' : ''}">
+      <div class="menu-avail-banner ${bannerClass}">
+        <span class="menu-avail-banner-dot"></span>
+        ${bannerText}
+      </div>
+      <div class="menu-card-body">
+        <div class="menu-card-cat">${m.category || 'Other'}</div>
+        <div class="menu-card-name">${m.name || '—'}</div>
+        <div class="menu-card-desc">${m.description || ''}</div>
+        ${soldBadge}
+      </div>
       <div class="menu-card-footer">
-        <span class="menu-card-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+        <span class="menu-card-price">₱${(m.price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         <div class="menu-card-actions">
           <button class="btn-sm" onclick="window._editMenu('${m.id}')">Edit</button>
           <button class="btn-sm danger" onclick="window._deleteMenu('${m.id}')">Del</button>
         </div>
       </div>
-      ${quotaLabel}
     </div>`;
   }).join('');
 }
@@ -467,7 +520,6 @@ async function loadStaff() {
       </div>`).join('');
   }
 
-  // Debug: log what was found
   console.log("loadStaff: total users:", staff.length, "| pending:", pending.length, "| approved:", approved.length, "| rejected:", rejected.length);
   console.log("loadStaff: raw data:", JSON.stringify(staff.map(s => ({ id: s.id, role: s.role, status: s.status, name: s.name }))));
 
@@ -476,7 +528,6 @@ async function loadStaff() {
   console.log('loadStaff: grid element:', grid, '| html length:', html.length, '| html preview:', html.slice(0,200));
   grid.innerHTML = html;
   console.log('loadStaff: grid.innerHTML after set length:', grid.innerHTML.length);
-  // Watch for anything clearing the grid after we set it
   const observer = new MutationObserver(muts => {
     muts.forEach(m => {
       if (grid.innerHTML.length < 100) {
@@ -487,7 +538,6 @@ async function loadStaff() {
   observer.observe(grid, { childList: true, subtree: true });
   setTimeout(() => observer.disconnect(), 5000);
 
-  // Update nav badge for pending count
   const staffBadge = document.getElementById('staffBadge');
   if (staffBadge) { staffBadge.textContent = pending.length; staffBadge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
   } catch(e) {
@@ -543,13 +593,11 @@ function renderReports() {
   document.getElementById('rptOrdersToday').textContent=paidToday.length;
   document.getElementById('rptAvgOrder').textContent=paidToday.length?`₱${(rev/paidToday.length).toFixed(2)}`:'—';
 
-  // Top table
   const tblCount={};
   allOrders.forEach(o=>{if(o.tableNumber)tblCount[o.tableNumber]=(tblCount[o.tableNumber]||0)+1;});
   const topT=Object.entries(tblCount).sort((a,b)=>b[1]-a[1])[0];
   document.getElementById('rptTopTable').textContent=topT?`Table ${topT[0]}`:'—';
 
-  // Top items
   const itemCount={};
   allOrders.forEach(o=>(o.items||[]).forEach(it=>{
     const k=it.name||'?';
@@ -566,7 +614,6 @@ function renderReports() {
       <td>₱${it.revenue.toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
     </tr>`).join(''):'<tr><td colspan="4" class="empty-row">No data yet.</td></tr>';
 
-  // Status chart
   const statuses=['pending','preparing','served','paid','cancelled'];
   const counts={};statuses.forEach(s=>counts[s]=0);
   allOrders.forEach(o=>{if(counts[o.status]!==undefined)counts[o.status]++;});
@@ -598,8 +645,6 @@ window._editOrder = id => {
   document.getElementById('orderModal').classList.add('show');
 };
 
-
-
 async function saveOrderEdits(){
   if(!editingOrderId){ showToast('No order selected'); return; }
   const modal = document.getElementById('orderModalBody');
@@ -629,7 +674,6 @@ window._showReceipt = id => {
   document.getElementById('receiptModal').classList.add('show');
 };
 
-// Toggle manual table status (create or update Tables doc)
 window._toggleTable = async tableNum => {
   const id = String(tableNum);
   const current = tableStatuses[id] && tableStatuses[id].manualStatus;
@@ -637,7 +681,6 @@ window._toggleTable = async tableNum => {
   try{
     await setDoc(doc(db,'tables',id), { manualStatus: next, updatedAt: serverTimestamp() }, { merge: true });
     showToast(`Table ${tableNum} set to ${next}`);
-    // reload local copy
     const snap = await getDoc(doc(db,'tables',id)); if(snap.exists()) tableStatuses[id]=snap.data();
     renderTablesGrid();
   }catch(e){ console.error(e); showToast('Failed to update table'); }
@@ -648,13 +691,16 @@ window._showTableHistory = tableNum => {
   showToast(info?JSON.stringify(info):'No manual status set');
 };
 
-// modal controls
+// Modal controls
 document.getElementById('orderModalClose').onclick = ()=>document.getElementById('orderModal').classList.remove('show');
 document.getElementById('orderModalCancel').onclick = ()=>document.getElementById('orderModal').classList.remove('show');
 document.getElementById('orderModalSave').onclick = saveOrderEdits;
 document.getElementById('receiptModalClose').onclick = ()=>document.getElementById('receiptModal').classList.remove('show');
 document.getElementById('receiptModalClose2').onclick = ()=>document.getElementById('receiptModal').classList.remove('show');
 document.getElementById('receiptPrint').onclick = ()=>{ window.print(); };
+
+// ── Auto-refresh menu grid every minute so time-based availability stays current ──
+setInterval(() => { if (menuItems.length) renderMenuGrid(); }, 60 * 1000);
 
 // ── Init ──
 // (loadTables, loadMenu, loadStaff are called inside onAuthStateChanged above)
