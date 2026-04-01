@@ -22,12 +22,10 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('userAvatarSidebar').textContent = name[0].toUpperCase();
   document.getElementById('userAvatarTop').textContent = name[0].toUpperCase();
 
-  // Init data loads AFTER auth is confirmed so Firestore rules are satisfied
   loadTables();
   loadMenu();
   loadStaff();
 
-  // Live badge for pending staff — only start after auth is confirmed
   onSnapshot(query(collection(db,'Users'), where('status','==','pending')), snap => {
     const count = snap.size;
     const badge = document.getElementById('staffBadge');
@@ -39,7 +37,7 @@ document.getElementById('logoutBtn').onclick = async () => {
   await signOut(auth); window.location.href = 'admin-login.html';
 };
 
-// ── Helpers (defined early so all functions below can use them) ──
+// ── Helpers ──
 function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s){ return s ? s[0].toUpperCase()+s.slice(1) : ''; }
 
@@ -51,7 +49,6 @@ document.getElementById('pageDate').textContent = d.toLocaleDateString('en-PH',{
 const toast = document.getElementById('toast'), toastMsg = document.getElementById('toastMsg');
 const showToast = m => { toastMsg.textContent=m; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),3000); };
 
-
 // ── Confirm Modal ──
 function showConfirm({ title, message, okLabel = 'Confirm', okClass = 'gold', onOk }) {
   document.getElementById('confirmModalTitle').textContent = title;
@@ -61,7 +58,6 @@ function showConfirm({ title, message, okLabel = 'Confirm', okClass = 'gold', on
   okBtn.className = 'btn-sm ' + okClass;
   document.getElementById('confirmModal').classList.add('show');
 
-  // Clone to remove old listeners
   const newOk = okBtn.cloneNode(true);
   okBtn.parentNode.replaceChild(newOk, okBtn);
 
@@ -88,7 +84,6 @@ function switchView(v) {
   views.forEach(el => el.classList.toggle('active', el.id === `view-${v}`));
   pageTitleEl.textContent = titles[v] || v;
   sidebar.classList.remove('open'); overlay.classList.remove('show');
-  // Reload staff list every time the Staff view is opened
   if (v === 'staff') loadStaff();
 }
 
@@ -199,7 +194,7 @@ function renderOrders() {
         <div class="order-meta">Table <strong>${o.tableNumber||'?'}</strong> · ${o.waiterName||'Unknown'}</div>
         <ul class="order-items">${items}</ul>
         <div class="order-total">Total: <strong>₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</strong></div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
+        <div class="order-card-actions-row">
           ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
           ${o.status!=='paid' ? `<button class="btn-sm" onclick="window._editOrder('${o.id}')">Edit</button>` : ''}
           <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
@@ -220,14 +215,12 @@ async function loadTables() {
 
 function renderTablesGrid() {
   const grid = document.getElementById('tablesGrid');
-  // Merge active orders into table status
   const occupied = {};
   allOrders.filter(o=>['pending','preparing','served'].includes(o.status)).forEach(o => {
     if (o.tableNumber) occupied[o.tableNumber] = o;
   });
   grid.innerHTML = Array.from({length:10},(_,i)=>{
     const n = i+1, order = occupied[n];
-    // prefer active order, then manual tableStatuses override, else free
     const manual = tableStatuses[String(n)] && tableStatuses[String(n)].manualStatus;
     const st = order ? order.status : (manual || 'free');
     const orderId = order ? `#${order.id.slice(-5).toUpperCase()}` : '';
@@ -279,15 +272,14 @@ function buildMenuCategoryTabs() {
   }));
 }
 
-// ── Time-based availability rules ──────────────────────────────────────────
-// Add any category here with a start/end hour (24h) to restrict its availability.
+// ── Time-based availability rules ──
 const TIME_RESTRICTED = {
-  'Bento sa Salo': { start: 11, end: 15 }, // 11:00 AM – 3:00 PM
+  'Bento sa Salo': { start: 11, end: 15 },
 };
 
 function isTimeAvailable(category) {
   const rule = TIME_RESTRICTED[category];
-  if (!rule) return null; // null = no restriction
+  if (!rule) return null;
   const now = new Date();
   const h = now.getHours() + now.getMinutes() / 60;
   return h >= rule.start && h < rule.end;
@@ -303,15 +295,13 @@ function timeWindowLabel(category) {
   };
   return `${fmt(rule.start)} – ${fmt(rule.end)} only`;
 }
-// ──────────────────────────────────────────────────────────────────────────
 
 function renderMenuGrid() {
   const grid = document.getElementById('menuGrid');
   let items = menuCatFilter === 'all' ? menuItems : menuItems.filter(m => (m.category || 'Other') === menuCatFilter);
   if (!items.length) { grid.innerHTML = '<div class="empty-state">No items in this category.</div>'; return; }
- 
+
   grid.innerHTML = items.map(m => {
-    // Sold / quota
     const sold = allOrders.reduce((s, o) => {
       (o.items || []).forEach(it => { if ((it.name || '') === (m.name || '')) s += (it.qty || 0); });
       return s;
@@ -321,14 +311,12 @@ function renderMenuGrid() {
     const soldBadge = quota !== null
       ? `<div class="menu-card-sold">Sold: ${sold} &nbsp;·&nbsp; Remaining: ${remaining}</div>`
       : '';
- 
-    // Time-based availability
+
     const timeOk = isTimeAvailable(m.category);
     const isAvailable = timeOk !== null
       ? timeOk
       : (quota !== null ? remaining > 0 : m.available !== false);
- 
-    // Top banner
+
     let bannerClass, bannerText;
     if (timeOk === false) {
       bannerClass = 'off';
@@ -343,7 +331,7 @@ function renderMenuGrid() {
       bannerClass = m.available === false ? 'off' : 'on';
       bannerText  = m.available === false ? 'Unavailable' : 'Available';
     }
- 
+
     return `
     <div class="menu-card ${!isAvailable ? 'unavailable' : ''}">
       <div class="menu-avail-banner ${bannerClass}">
@@ -455,91 +443,73 @@ async function loadStaff() {
   if (staffLoading) { console.warn('loadStaff: already in progress, skipping'); return; }
   staffLoading = true;
   try {
-  const snap = await getDocs(collection(db,'Users'));
-  const staff = snap.docs.map(d=>({id:d.id,...d.data()}));
-  const pending  = staff.filter(s => s.role==='waiter' && s.status==='pending');
-  const approved = staff.filter(s => s.status==='approved' || s.role==='admin' || !s.status || s.status==='');
-  const rejected = staff.filter(s => s.role==='waiter' && s.status==='rejected');
-  const grid = document.getElementById('staffGrid');
+    const snap = await getDocs(collection(db,'Users'));
+    const staff = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const pending  = staff.filter(s => s.role==='waiter' && s.status==='pending');
+    const approved = staff.filter(s => s.status==='approved' || s.role==='admin' || !s.status || s.status==='');
+    const rejected = staff.filter(s => s.role==='waiter' && s.status==='rejected');
+    const grid = document.getElementById('staffGrid');
 
-  let html = '';
+    let html = '';
 
-  // Pending approvals banner
-  if (pending.length > 0) {
-    html += `<div class="pending-banner">
-      <div class="pending-banner-icon">🔔</div>
-      <div class="pending-banner-text">
-        <strong>${pending.length} pending registration${pending.length>1?'s':''}</strong> awaiting your approval
-      </div>
-    </div>`;
-
-    html += `<div class="staff-section-label">⏳ Pending Approval</div>`;
-    html += pending.map(s => `
-      <div class="staff-card pending-card">
-        <div class="staff-avatar pending-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
-        <div class="staff-info">
-          <div class="staff-name">${s.name||'—'}</div>
-          <div class="staff-email">${s.email||'—'}</div>
-          <div class="staff-meta">${s.phone||''}</div>
-          <span class="status-badge pending-badge">Pending Review</span>
+    if (pending.length > 0) {
+      html += `<div class="pending-banner">
+        <div class="pending-banner-icon">🔔</div>
+        <div class="pending-banner-text">
+          <strong>${pending.length} pending registration${pending.length>1?'s':''}</strong> awaiting your approval
         </div>
-        <div class="staff-actions">
-          <button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name||'')}')">✓ Approve</button>
-          <button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name||'')}')">✗ Reject</button>
-        </div>
-      </div>`).join('');
-  }
+      </div>`;
+      html += `<div class="staff-section-label">⏳ Pending Approval</div>`;
+      html += pending.map(s => `
+        <div class="staff-card pending-card">
+          <div class="staff-avatar pending-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
+          <div class="staff-info">
+            <div class="staff-name">${s.name||'—'}</div>
+            <div class="staff-email">${s.email||'—'}</div>
+            <div class="staff-meta">${s.phone||''}</div>
+            <span class="status-badge pending-badge">Pending Review</span>
+          </div>
+          <div class="staff-actions">
+            <button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name||'')}')">✓ Approve</button>
+            <button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name||'')}')">✗ Reject</button>
+          </div>
+        </div>`).join('');
+    }
 
-  // Active staff
-  if (approved.length > 0) {
-    html += `<div class="staff-section-label">✅ Active Staff</div>`;
-    html += approved.map(s => `
-      <div class="staff-card">
-        <div class="staff-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
-        <div class="staff-info">
-          <div class="staff-name">${s.name||'—'}</div>
-          <div class="staff-email">${s.email||'—'}</div>
-          <span class="status-badge ${s.role}">${capitalize(s.role||'unknown')}</span>
-        </div>
-        ${s.role==='waiter'?`<div class="staff-actions"><button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name||'')}')">Suspend</button></div>`:''}
-      </div>`).join('');
-  }
+    if (approved.length > 0) {
+      html += `<div class="staff-section-label">✅ Active Staff</div>`;
+      html += approved.map(s => `
+        <div class="staff-card">
+          <div class="staff-avatar">${(s.name||s.email||'?')[0].toUpperCase()}</div>
+          <div class="staff-info">
+            <div class="staff-name">${s.name||'—'}</div>
+            <div class="staff-email">${s.email||'—'}</div>
+            <span class="status-badge ${s.role}">${capitalize(s.role||'unknown')}</span>
+          </div>
+          ${s.role==='waiter'?`<div class="staff-actions"><button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name||'')}')">Suspend</button></div>`:''}
+        </div>`).join('');
+    }
 
-  // Rejected
-  if (rejected.length > 0) {
-    html += `<div class="staff-section-label" style="color:var(--red)">❌ Rejected / Suspended</div>`;
-    html += rejected.map(s => `
-      <div class="staff-card" style="opacity:0.55">
-        <div class="staff-avatar" style="background:var(--red-dim);border-color:rgba(192,57,43,0.3);color:var(--red)">${(s.name||s.email||'?')[0].toUpperCase()}</div>
-        <div class="staff-info">
-          <div class="staff-name">${s.name||'—'}</div>
-          <div class="staff-email">${s.email||'—'}</div>
-          <span class="status-badge" style="color:var(--red);background:var(--red-dim)">Rejected</span>
-        </div>
-        <div class="staff-actions"><button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name||'')}')">Re-approve</button></div>
-      </div>`).join('');
-  }
+    if (rejected.length > 0) {
+      html += `<div class="staff-section-label" style="color:var(--red)">❌ Rejected / Suspended</div>`;
+      html += rejected.map(s => `
+        <div class="staff-card" style="opacity:0.55">
+          <div class="staff-avatar" style="background:var(--red-dim);border-color:rgba(192,57,43,0.3);color:var(--red)">${(s.name||s.email||'?')[0].toUpperCase()}</div>
+          <div class="staff-info">
+            <div class="staff-name">${s.name||'—'}</div>
+            <div class="staff-email">${s.email||'—'}</div>
+            <span class="status-badge" style="color:var(--red);background:var(--red-dim)">Rejected</span>
+          </div>
+          <div class="staff-actions"><button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name||'')}')">Re-approve</button></div>
+        </div>`).join('');
+    }
 
-  console.log("loadStaff: total users:", staff.length, "| pending:", pending.length, "| approved:", approved.length, "| rejected:", rejected.length);
-  console.log("loadStaff: raw data:", JSON.stringify(staff.map(s => ({ id: s.id, role: s.role, status: s.status, name: s.name }))));
+    if (!staff.length) html = '<div class="empty-state">No staff accounts found.</div>';
+    else if (!html) html = '<div class="empty-state">No staff matched any category — check console.</div>';
+    grid.innerHTML = html;
 
-  if (!staff.length) html = '<div class="empty-state">No staff accounts found.</div>';
-  else if (!html) html = '<div class="empty-state">No staff matched any category — check console.</div>';
-  console.log('loadStaff: grid element:', grid, '| html length:', html.length, '| html preview:', html.slice(0,200));
-  grid.innerHTML = html;
-  console.log('loadStaff: grid.innerHTML after set length:', grid.innerHTML.length);
-  const observer = new MutationObserver(muts => {
-    muts.forEach(m => {
-      if (grid.innerHTML.length < 100) {
-        console.error('GRID WAS CLEARED! innerHTML now:', grid.innerHTML.length, 'Stack:', new Error().stack);
-      }
-    });
-  });
-  observer.observe(grid, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 5000);
-
-  const staffBadge = document.getElementById('staffBadge');
-  if (staffBadge) { staffBadge.textContent = pending.length; staffBadge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
+    const staffBadge = document.getElementById('staffBadge');
+    if (staffBadge) { staffBadge.textContent = pending.length; staffBadge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
   } catch(e) {
     console.error('loadStaff error:', e);
     document.getElementById('staffGrid').innerHTML = `<div class="empty-state">Failed to load staff: ${e.message}</div>`;
@@ -699,8 +669,5 @@ document.getElementById('receiptModalClose').onclick = ()=>document.getElementBy
 document.getElementById('receiptModalClose2').onclick = ()=>document.getElementById('receiptModal').classList.remove('show');
 document.getElementById('receiptPrint').onclick = ()=>{ window.print(); };
 
-// ── Auto-refresh menu grid every minute so time-based availability stays current ──
+// ── Auto-refresh menu grid every minute ──
 setInterval(() => { if (menuItems.length) renderMenuGrid(); }, 60 * 1000);
-
-// ── Init ──
-// (loadTables, loadMenu, loadStaff are called inside onAuthStateChanged above)

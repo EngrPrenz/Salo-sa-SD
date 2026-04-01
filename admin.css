@@ -26,7 +26,6 @@
 
 html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--black); color: var(--white); }
 
-/* Login-style background accents */
 .bg {
   position: fixed; inset: 0; z-index: 0;
   background:
@@ -224,11 +223,27 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .search-input::placeholder { color: #3a3a3a; }
 
 /* ═══════ ORDERS GRID ═══════ */
-.orders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; flex: 1; align-content: start; }
+.orders-grid {
+  display: grid;
+  /* FIX: bumped min from 260px → 300px so cards have enough room for button row */
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  flex: 1;
+  align-content: start;
+}
+
 .order-card {
-  background: var(--black-card); border: 1px solid var(--border); border-radius: 14px;
-  padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--black-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   transition: border-color 0.2s;
+  /* FIX: prevent card from overflowing its grid cell */
+  min-width: 0;
+  overflow: hidden;
 }
 .order-card.pending { border-left: 3px solid var(--orange); }
 .order-card.preparing { border-left: 3px solid var(--blue); }
@@ -244,6 +259,23 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .order-items li { display: flex; justify-content: space-between; }
 .order-items li span { color: var(--gold); }
 .order-total { font-size: 13px; font-weight: 600; color: var(--white); border-top: 1px solid var(--border); padding-top: 8px; }
+
+/* ── FIX: Order card action row — wraps gracefully, never clips ── */
+.order-card-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.order-card-actions-row .btn-sm {
+  flex: 1 1 auto;
+  min-width: 60px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 6px 10px;
+}
 
 /* ═══════ STATUS BADGES ═══════ */
 .status-badge {
@@ -303,16 +335,17 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   background: var(--black-card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 0;                         /* Remove padding — sections handle their own */
+  padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
+  /* FIX: prevent menu cards from overflowing their grid column */
+  min-width: 0;
 }
 .menu-card:hover { border-color: rgba(201,151,58,0.35); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
 .menu-card.unavailable { opacity: 0.55; }
 
-/* Top availability banner — sits at the very top of the card */
 .menu-avail-banner {
   display: flex;
   align-items: center;
@@ -332,7 +365,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   background: currentColor;
 }
 
-/* Card body — the content area with padding */
 .menu-card-body {
   padding: 16px 16px 12px;
   display: flex;
@@ -368,7 +400,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   margin-top: 4px;
 }
 
-/* Footer — price + action buttons */
 .menu-card-footer {
   display: flex;
   align-items: center;
@@ -383,8 +414,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   color: var(--gold-light);
 }
 .menu-card-actions { display: flex; gap: 6px; }
-
-/* ── Legacy selector kept for any old references (no-op visually) ── */
 .menu-avail { display: none; }
 
 /* ═══════ MODAL ═══════ */
@@ -462,10 +491,8 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .bar-fill.cancelled { background: var(--red); }
 .bar-count { font-size: 12px; font-weight: 700; color: var(--white); width: 24px; text-align: right; flex-shrink: 0; }
 
-/* ═══════ EMPTY STATE ═══════ */
 .empty-state { text-align: center; color: var(--text-muted); font-size: 14px; padding: 48px 20px; width: 100%; }
 
-/* ═══════ TOAST ═══════ */
 .toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 999;
   padding: 11px 20px;
@@ -480,14 +507,12 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
 
-/* ═══════ OVERLAY ═══════ */
 .overlay {
   display: none; position: fixed; inset: 0; z-index: 190;
   background: rgba(0,0,0,0.6); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
 }
 .overlay.show { display: block; }
 
-/* ═══════ SCROLLBAR ═══════ */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -507,6 +532,7 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .hamburger { display: flex; }
   .topbar-user span { display: none; }
   .view { padding: 16px; }
+  /* FIX: on mobile, single column for order cards so buttons always have full width */
   .orders-grid { grid-template-columns: 1fr; }
   .tables-large-grid { grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
@@ -518,6 +544,10 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .filter-tabs { gap: 4px; }
   .ftab { padding: 6px 10px; font-size: 11px; }
-  .menu-grid, .staff-grid { grid-template-columns: 1fr; }
+  .menu-grid { grid-template-columns: 1fr; }
+  .staff-grid { grid-template-columns: 1fr; }
   .page-date { display: none; }
+  /* FIX: stack action buttons vertically on very small screens */
+  .order-card-actions-row { flex-direction: column; }
+  .order-card-actions-row .btn-sm { flex: none; width: 100%; }
 }
