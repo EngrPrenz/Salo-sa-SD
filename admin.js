@@ -4,7 +4,6 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, where, serverTimestamp, Timestamp, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
 const app  = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
 const auth = getAuth(app);
 const db   = getFirestore(app);
@@ -250,9 +249,13 @@ document.getElementById('clearAllTablesBtn').onclick = async () => {
 
 onSnapshot(query(ordersRef, orderBy('createdAt','desc')), () => renderTablesGrid());
 
-// ── Menu ──
+// ═══════════════════════════════════════════════════
+// ── MENU (with Image Upload) ──
+// ═══════════════════════════════════════════════════
 let menuItems = [], editMenuId = null;
 let menuCatFilter = 'all';
+let pendingImageFile = null;   // File object staged for upload
+let currentImageUrl  = null;   // Existing URL when editing
 
 async function loadMenu() {
   const snap = await getDocs(collection(db,'menu'));
@@ -332,8 +335,10 @@ function renderMenuGrid() {
       bannerText  = m.available === false ? 'Unavailable' : 'Available';
     }
 
+    // ── Image slot — filled async below ──
     return `
     <div class="menu-card ${!isAvailable ? 'unavailable' : ''}">
+      <div class="menu-card-img-placeholder" id="img-slot-${m.id}">🍽️</div>
       <div class="menu-avail-banner ${bannerClass}">
         <span class="menu-avail-banner-dot"></span>
         ${bannerText}
@@ -353,50 +358,223 @@ function renderMenuGrid() {
       </div>
     </div>`;
   }).join('');
+
+  // Inject images async one by one — never put base64 in innerHTML
+  items.forEach((m, i) => {
+    if (!m.imageUrl) return;
+    setTimeout(() => {
+      const slot = document.getElementById(`img-slot-${m.id}`);
+      if (!slot) return;
+      const img = document.createElement('img');
+      img.className = 'menu-card-img';
+      img.alt = m.name || '';
+      img.onerror = () => { img.style.display = 'none'; slot.style.display = 'flex'; };
+      img.onload  = () => { slot.style.display = 'none'; };
+      slot.parentNode.insertBefore(img, slot);
+      img.src = m.imageUrl;
+    }, i * 30);
+  });
 }
 
-window._editMenu = id => {
-  const item = menuItems.find(m=>m.id===id); if(!item)return;
-  editMenuId=id;
-  document.getElementById('menuModalTitle').textContent='Edit Menu Item';
-  document.getElementById('menuItemName').value=item.name||'';
-  document.getElementById('menuItemPrice').value=item.price||'';
-  document.getElementById('menuItemCategory').value=item.category||'';
-  document.getElementById('menuItemDesc').value=item.description||'';
-  document.getElementById('menuItemAvail').value=item.available===false?'false':'true';
+// ── Image Upload Zone ──
+const imgUploadZone   = document.getElementById('imgUploadZone');
+const imgPreview      = document.getElementById('imgPreview');
+const imgIconWrap     = document.getElementById('imgIconWrap');
+const imgHint         = document.getElementById('imgHint');
+const imgSub          = document.getElementById('imgSub');
+const imgStripName    = document.getElementById('imgStripName');
+const imgRemoveBtn    = document.getElementById('imgRemoveBtn');
+const menuItemImageIn = document.getElementById('menuItemImage');
+const imgProgress     = document.getElementById('imgUploadProgress');
+const imgBar          = document.getElementById('imgUploadBar');
+
+function showImagePreview(url, filename) {
+  imgPreview.src = url;
+  imgPreview.classList.add('visible');
+  imgUploadZone.classList.add('has-img');
+  imgIconWrap.style.display = 'none';
+  imgHint.style.display = 'none';
+  imgSub.style.display = 'none';
+  if (filename) imgStripName.textContent = filename;
+}
+
+function clearImagePreview() {
+  imgPreview.src = '';
+  imgPreview.classList.remove('visible');
+  imgUploadZone.classList.remove('has-img');
+  imgIconWrap.style.display = '';
+  imgHint.style.display = '';
+  imgSub.style.display = '';
+  imgStripName.textContent = '';
+  menuItemImageIn.value = '';
+  pendingImageFile = null;
+  currentImageUrl  = null;
+}
+
+// Click on zone → open file picker
+imgUploadZone.addEventListener('click', e => {
+  if (e.target === imgRemoveBtn) return;
+  menuItemImageIn.click();
+});
+
+// Drag & Drop
+imgUploadZone.addEventListener('dragover', e => { e.preventDefault(); imgUploadZone.classList.add('drag-over'); });
+imgUploadZone.addEventListener('dragleave', () => imgUploadZone.classList.remove('drag-over'));
+imgUploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  imgUploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleImageFile(file);
+});
+
+// File input change
+menuItemImageIn.addEventListener('change', () => {
+  if (menuItemImageIn.files[0]) handleImageFile(menuItemImageIn.files[0]);
+});
+
+// Remove button
+imgRemoveBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  clearImagePreview();
+});
+
+function handleImageFile(file) {
+  if (!file.type.startsWith('image/')) { showToast('Please select an image file.'); return; }
+  if (file.size > 2 * 1024 * 1024) { showToast('Image must be under 2 MB.'); return; }
+  pendingImageFile = file;
+  const reader = new FileReader();
+  reader.onload = e => showImagePreview(e.target.result, file.name);
+  reader.readAsDataURL(file);
+}
+
+// ── Convert image file to compressed base64 (max ~700KB output) ──
+function compressImageToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 800; // max width/height in px
+        let w = img.width, h = img.height;
+        if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        else if (h > MAX)     { w = Math.round(w * MAX / h); h = MAX; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+        // Start at quality 0.8, reduce until under 700KB
+        let quality = 0.8;
+        let base64 = canvas.toDataURL('image/jpeg', quality);
+        while (base64.length > 700_000 && quality > 0.3) {
+          quality -= 0.1;
+          base64 = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        // Animate progress bar to 100%
+        imgProgress.style.display = 'block';
+        imgBar.style.width = '0%';
+        let pct = 0;
+        const iv = setInterval(() => {
+          pct = Math.min(pct + 20, 100);
+          imgBar.style.width = pct + '%';
+          if (pct >= 100) {
+            clearInterval(iv);
+            setTimeout(() => { imgProgress.style.display = 'none'; imgBar.style.width = '0%'; }, 400);
+          }
+        }, 60);
+
+        resolve(base64);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── Open modal for Add ──
+document.getElementById('addMenuItemBtn').onclick = () => {
+  editMenuId = null;
+  document.getElementById('menuModalTitle').textContent = 'Add Menu Item';
+  ['menuItemName','menuItemPrice','menuItemCategory','menuItemDesc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('menuItemAvail').value = 'true';
+  clearImagePreview();
   document.getElementById('menuModal').classList.add('show');
 };
 
+// ── Open modal for Edit ──
+window._editMenu = id => {
+  const item = menuItems.find(m=>m.id===id); if(!item)return;
+  editMenuId = id;
+  document.getElementById('menuModalTitle').textContent = 'Edit Menu Item';
+  document.getElementById('menuItemName').value     = item.name||'';
+  document.getElementById('menuItemPrice').value    = item.price||'';
+  document.getElementById('menuItemCategory').value = item.category||'';
+  document.getElementById('menuItemDesc').value     = item.description||'';
+  document.getElementById('menuItemAvail').value    = item.available===false ? 'false' : 'true';
+  // Load existing image
+  clearImagePreview();
+  if (item.imageUrl) {
+    currentImageUrl = item.imageUrl;
+    showImagePreview(item.imageUrl, 'Current photo');
+  }
+  document.getElementById('menuModal').classList.add('show');
+};
+
+// ── Delete ──
 window._deleteMenu = async id => {
-  if(!confirm('Delete this menu item?'))return;
+  if(!confirm('Delete this menu item?')) return;
   await deleteDoc(doc(db,'menu',id));
   await loadMenu(); showToast('Item deleted.');
 };
 
-document.getElementById('addMenuItemBtn').onclick = ()=>{
-  editMenuId=null;
-  document.getElementById('menuModalTitle').textContent='Add Menu Item';
-  ['menuItemName','menuItemPrice','menuItemCategory','menuItemDesc'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('menuItemAvail').value='true';
-  document.getElementById('menuModal').classList.add('show');
-};
-document.getElementById('menuModalClose').onclick = ()=>document.getElementById('menuModal').classList.remove('show');
-document.getElementById('menuModalCancel').onclick = ()=>document.getElementById('menuModal').classList.remove('show');
+// ── Close modal ──
+document.getElementById('menuModalClose').onclick  = () => { document.getElementById('menuModal').classList.remove('show'); clearImagePreview(); };
+document.getElementById('menuModalCancel').onclick = () => { document.getElementById('menuModal').classList.remove('show'); clearImagePreview(); };
 
-document.getElementById('menuModalSave').onclick = async ()=>{
-  const name=document.getElementById('menuItemName').value.trim();
-  const price=parseFloat(document.getElementById('menuItemPrice').value)||0;
-  const category=document.getElementById('menuItemCategory').value.trim();
-  const description=document.getElementById('menuItemDesc').value.trim();
-  const available=document.getElementById('menuItemAvail').value==='true';
-  if(!name){showToast('Please enter a name.');return;}
-  if(editMenuId){
-    await updateDoc(doc(db,'menu',editMenuId),{name,price,category,description,available});
-  } else {
-    await addDoc(collection(db,'menu'),{name,price,category,description,available,createdAt:serverTimestamp()});
+// ── Save ──
+document.getElementById('menuModalSave').onclick = async () => {
+  const name        = document.getElementById('menuItemName').value.trim();
+  const price       = parseFloat(document.getElementById('menuItemPrice').value) || 0;
+  const category    = document.getElementById('menuItemCategory').value.trim();
+  const description = document.getElementById('menuItemDesc').value.trim();
+  const available   = document.getElementById('menuItemAvail').value === 'true';
+
+  if (!name) { showToast('Please enter a name.'); return; }
+
+  const saveBtn = document.getElementById('menuModalSave');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
+  try {
+    let imageUrl = currentImageUrl || null;
+
+    // Compress and convert new image to base64 if one was staged
+    if (pendingImageFile) {
+      showToast('Processing image…');
+      imageUrl = await compressImageToBase64(pendingImageFile);
+    }
+
+    const data = { name, price, category, description, available, imageUrl };
+
+    if (editMenuId) {
+      await updateDoc(doc(db,'menu',editMenuId), data);
+    } else {
+      await addDoc(collection(db,'menu'), { ...data, createdAt: serverTimestamp() });
+    }
+
+    document.getElementById('menuModal').classList.remove('show');
+    clearImagePreview();
+    await loadMenu();
+    showToast(editMenuId ? 'Item updated.' : 'Item added.');
+  } catch(e) {
+    console.error(e);
+    showToast('Failed to save item: ' + e.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Item';
   }
-  document.getElementById('menuModal').classList.remove('show');
-  await loadMenu(); showToast(editMenuId?'Item updated.':'Item added.');
 };
 
 // ── Billing ──

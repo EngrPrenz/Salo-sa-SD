@@ -94,19 +94,55 @@
     .search-inp:focus { border-color: var(--gold); }
 
     .menu-items { flex: 1; overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-content: start; }
-    .menu-item-card { background: var(--black-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; gap: 5px; position: relative; }
+
+    /* ── Menu item card with image support ── */
+    .menu-item-card {
+      background: var(--black-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
     .menu-item-card:hover { border-color: rgba(201,151,58,0.4); transform: translateY(-1px); }
     .menu-item-card.unavailable { opacity: 0.45; cursor: not-allowed; }
     .menu-item-card.in-cart { border-color: rgba(201,151,58,0.5); background: rgba(201,151,58,0.04); }
+
+    /* Item image */
+    .mic-img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      display: block;
+      background: var(--black-mid);
+      flex-shrink: 0;
+    }
+    .mic-img-placeholder {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: var(--black-mid);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      opacity: 0.2;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mic-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
     .mic-cat { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); }
-    .mic-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--white); line-height: 1.1; }
+    .mic-name { font-family: 'Cormorant Garamond', serif; font-size: 17px; color: var(--white); line-height: 1.1; }
     .mic-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; flex: 1; }
     .mic-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
     .mic-price { font-size: 15px; font-weight: 700; color: var(--gold-light); }
     .mic-add { width: 28px; height: 28px; border-radius: 50%; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
     .mic-add:hover { background: var(--gold); color: var(--black); }
-    .cart-badge-pill { position: absolute; top: 10px; right: 10px; background: var(--gold); color: var(--black); font-size: 10px; font-weight: 700; border-radius: 100px; padding: 2px 7px; }
-    .unavail-tag { position: absolute; top: 10px; right: 10px; font-size: 9px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; }
+    .cart-badge-pill { position: absolute; top: 8px; right: 8px; background: var(--gold); color: var(--black); font-size: 10px; font-weight: 700; border-radius: 100px; padding: 2px 7px; z-index: 2; }
+    .unavail-tag { position: absolute; top: 8px; right: 8px; font-size: 9px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; background: rgba(0,0,0,0.7); padding: 2px 7px; border-radius: 100px; z-index: 2; }
 
     /* Cart panel */
     .cart-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--black-card); }
@@ -351,9 +387,7 @@
     const snap = await getDoc(doc(db, 'Users', user.uid));
     if (!snap.exists()) { await signOut(auth); window.location.href = 'waiter-login.html'; return; }
     const data = snap.data();
-    // Only waiters may access this page
     if (data.role !== 'waiter') { await signOut(auth); window.location.href = 'waiter-login.html'; return; }
-    // Waiters specifically must be approved — admins never reach this check
     if (data.status === 'pending') {
       await signOut(auth);
       alert('⏳ Your account is pending admin approval. Please wait for the manager to approve your registration.');
@@ -377,7 +411,6 @@
 
   async function init() {
     await loadMenu();
-    // Live orders for table status
     onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
       allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
       renderTables();
@@ -416,7 +449,6 @@
     selectedTable = num;
     $('selectedTableLabel').textContent = `Table ${num}`;
     pill1Done(); pill2Active();
-    // Slide in order view
     const st = $('stepTables'), so = $('stepOrder');
     st.classList.add('out-left');
     so.classList.add('visible');
@@ -466,28 +498,54 @@
 
   $('menuSearch').addEventListener('input', renderMenuGrid);
 
-  function renderMenuGrid() {
-    const q = $('menuSearch').value.toLowerCase().trim();
-    let items = activeCat === 'all' ? menuItems : menuItems.filter(m => (m.category||'Other') === activeCat);
-    if (q) items = items.filter(m => (m.name||'').toLowerCase().includes(q) || (m.description||'').toLowerCase().includes(q));
-    const grid = $('menuGrid');
-    if (!items.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No items found.</div>'; return; }
-    grid.innerHTML = items.map(m => {
-      const inCart = cart[m.id];
-      const unavail = m.available === false;
-      return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
-        ${inCart ? `<div class="cart-badge-pill">×${inCart.qty}</div>` : ''}
-        ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
-        <div class="mic-cat">${m.category||'Other'}</div>
-        <div class="mic-name">${m.name||'—'}</div>
-        <div class="mic-desc">${m.description||''}</div>
+
+
+function renderMenuGrid() {
+  const q = $('menuSearch').value.toLowerCase().trim();
+  let items = activeCat === 'all' ? menuItems : menuItems.filter(m => (m.category||'Other') === activeCat);
+  if (q) items = items.filter(m => (m.name||'').toLowerCase().includes(q) || (m.description||'').toLowerCase().includes(q));
+  const grid = $('menuGrid');
+  if (!items.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No items found.</div>'; return; }
+
+  // Render cards with text immediately — NO images in innerHTML
+  grid.innerHTML = items.map(m => {
+    const inCart  = cart[m.id];
+    const unavail = m.available === false;
+    const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeDesc = (m.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeCat  = (m.category||'Other').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
+      ${inCart ? `<div class="cart-badge-pill">×${inCart.qty}</div>` : ''}
+      ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
+      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;">🍽️</div>
+      <div class="mic-body">
+        <div class="mic-cat">${safeCat}</div>
+        <div class="mic-name">${safeName}</div>
+        <div class="mic-desc">${safeDesc}</div>
         <div class="mic-footer">
           <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
           ${!unavail ? `<button class="mic-add" onclick="event.stopPropagation();window._addToCart('${m.id}')">+</button>` : ''}
         </div>
-      </div>`;
-    }).join('');
-  }
+      </div>
+    </div>`;
+  }).join('');
+
+  // Inject images async one by one — never put base64 in innerHTML
+  items.forEach((m, i) => {
+    if (!m.imageUrl) return;
+    setTimeout(() => {
+      const slot = document.getElementById(`wimg-${m.id}`);
+      if (!slot) return;
+      const img = document.createElement('img');
+      img.className = 'mic-img';
+      img.alt = m.name || '';
+      img.onerror = () => { img.remove(); slot.style.display = 'flex'; };
+      img.onload  = () => { slot.style.display = 'none'; };
+      slot.parentNode.insertBefore(img, slot);
+      img.src = m.imageUrl;
+    }, i * 20);
+  });
+}
 
   window._addToCart = id => {
     const item = menuItems.find(m => m.id === id);
@@ -559,14 +617,12 @@
     const newItems = Object.values(cart);
     const note     = $('orderNote').value.trim();
     try {
-      // Check if there's already an active (non-paid, non-cancelled) order for this table
       const existingOrder = allOrders.find(o =>
         o.tableNumber === selectedTable &&
         ['pending','preparing','served'].includes(o.status)
       );
 
       if (existingOrder) {
-        // Merge new items into the existing order
         const merged = [...(existingOrder.items || [])];
         newItems.forEach(newItem => {
           const idx = merged.findIndex(i => i.id === newItem.id);
@@ -585,7 +641,6 @@
           updatedAt: serverTimestamp()
         });
       } else {
-        // No active order for this table — create a new one
         const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
         await addDoc(collection(db,'orders'), {
           tableNumber: selectedTable,
@@ -601,9 +656,6 @@
       }
 
       $('confirmModal').classList.remove('show');
-      const displayTotal = (existingOrder
-        ? allOrders.find(o=>o.id===existingOrder.id)?.total
-        : newItems.reduce((s,i)=>s+i.price*i.qty,0)) || newItems.reduce((s,i)=>s+i.price*i.qty,0);
       const os = $('orderSuccess');
       $('orderSuccessSub').textContent = existingOrder
         ? `Added to Table ${selectedTable}'s order`

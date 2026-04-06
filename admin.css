@@ -225,7 +225,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 /* ═══════ ORDERS GRID ═══════ */
 .orders-grid {
   display: grid;
-  /* FIX: bumped min from 260px → 300px so cards have enough room for button row */
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
   flex: 1;
@@ -241,7 +240,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   flex-direction: column;
   gap: 10px;
   transition: border-color 0.2s;
-  /* FIX: prevent card from overflowing its grid cell */
   min-width: 0;
   overflow: hidden;
 }
@@ -260,7 +258,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .order-items li span { color: var(--gold); }
 .order-total { font-size: 13px; font-weight: 600; color: var(--white); border-top: 1px solid var(--border); padding-top: 8px; }
 
-/* ── FIX: Order card action row — wraps gracefully, never clips ── */
 .order-card-actions-row {
   display: flex;
   flex-wrap: wrap;
@@ -340,11 +337,34 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   flex-direction: column;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
-  /* FIX: prevent menu cards from overflowing their grid column */
   min-width: 0;
 }
 .menu-card:hover { border-color: rgba(201,151,58,0.35); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
 .menu-card.unavailable { opacity: 0.55; }
+
+/* ── Menu card image ── */
+.menu-card-img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  background: var(--black-mid);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.menu-card-img-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--black-mid);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  opacity: 0.3;
+  flex-shrink: 0;
+}
 
 .menu-avail-banner {
   display: flex;
@@ -416,6 +436,134 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .menu-card-actions { display: flex; gap: 6px; }
 .menu-avail { display: none; }
 
+/* ═══════ IMAGE UPLOAD ZONE ═══════ */
+.img-upload-zone {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1.5px dashed #3a3a3a;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: var(--black-mid);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.img-upload-zone:hover,
+.img-upload-zone.drag-over {
+  border-color: var(--gold);
+  background: rgba(201,151,58,0.05);
+}
+.img-upload-zone.has-img {
+  border-style: solid;
+  border-color: rgba(201,151,58,0.3);
+}
+
+/* icon circle */
+.img-upload-icon-wrap {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 1px solid #3a3a3a;
+  background: var(--black-light);
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s, background 0.2s;
+  pointer-events: none;
+}
+.img-upload-zone:hover .img-upload-icon-wrap {
+  border-color: rgba(201,151,58,0.4);
+  background: var(--gold-dim);
+}
+.img-upload-icon-wrap svg {
+  width: 22px; height: 22px;
+  stroke: var(--text-muted); fill: none;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+  transition: stroke 0.2s;
+}
+.img-upload-zone:hover .img-upload-icon-wrap svg { stroke: var(--gold); }
+
+.img-upload-hint {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-muted); pointer-events: none;
+  transition: color 0.2s; line-height: 1;
+}
+.img-upload-zone:hover .img-upload-hint { color: var(--gold-light); }
+.img-upload-sub { font-size: 11px; color: #3d3d3d; pointer-events: none; }
+
+/* preview fills the zone */
+.img-preview {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.img-preview.visible { display: block; }
+
+/* hover scrim over preview */
+.img-upload-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0);
+  transition: background 0.2s;
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 10px; pointer-events: none;
+}
+.img-upload-zone.has-img:hover .img-upload-overlay { background: rgba(0,0,0,0.35); }
+
+/* remove button — only appears on hover */
+.img-remove-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--white); font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s, background 0.15s;
+  z-index: 3;
+}
+.img-upload-zone.has-img:hover .img-remove-btn {
+  opacity: 1; pointer-events: auto;
+}
+.img-remove-btn:hover { background: var(--red); }
+
+/* filename + "click to change" bottom strip */
+.img-upload-strip {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%);
+  padding: 22px 14px 10px;
+  display: none; align-items: center; justify-content: space-between;
+  pointer-events: none; z-index: 2;
+}
+.img-upload-zone.has-img .img-upload-strip { display: flex; }
+.img-strip-name {
+  font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68%;
+}
+.img-strip-change {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* progress bar */
+.img-upload-progress {
+  width: 100%; height: 3px;
+  background: var(--black-mid);
+  border-radius: 2px; overflow: hidden;
+  margin-top: 6px;
+}
+
+.img-upload-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light));
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
 /* ═══════ MODAL ═══════ */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 500;
@@ -427,14 +575,17 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   background: var(--black-card); border: 1px solid var(--border); border-radius: 16px;
   width: 100%; max-width: 440px; overflow: hidden;
   animation: modalIn 0.3s cubic-bezier(0.16,1,0.3,1);
+  /* Allow modal to scroll on small screens */
+  max-height: 90vh;
+  overflow-y: auto;
 }
 @keyframes modalIn { from{opacity:0;transform:scale(0.95)translateY(10px)} to{opacity:1;transform:none} }
-.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--black-card); z-index: 1; }
 .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--white); }
 .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; transition: color 0.15s; }
 .modal-close:hover { color: var(--red); }
 .modal-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
-.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; position: sticky; bottom: 0; background: var(--black-card); }
 .form-group { display: flex; flex-direction: column; gap: 7px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-group label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
@@ -532,7 +683,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .hamburger { display: flex; }
   .topbar-user span { display: none; }
   .view { padding: 16px; }
-  /* FIX: on mobile, single column for order cards so buttons always have full width */
   .orders-grid { grid-template-columns: 1fr; }
   .tables-large-grid { grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
@@ -547,7 +697,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .menu-grid { grid-template-columns: 1fr; }
   .staff-grid { grid-template-columns: 1fr; }
   .page-date { display: none; }
-  /* FIX: stack action buttons vertically on very small screens */
   .order-card-actions-row { flex-direction: column; }
   .order-card-actions-row .btn-sm { flex: none; width: 100%; }
 }
