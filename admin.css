@@ -225,7 +225,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 /* ═══════ ORDERS GRID ═══════ */
 .orders-grid {
   display: grid;
-  /* FIX: bumped min from 260px → 300px so cards have enough room for button row */
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
   flex: 1;
@@ -241,7 +240,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   flex-direction: column;
   gap: 10px;
   transition: border-color 0.2s;
-  /* FIX: prevent card from overflowing its grid cell */
   min-width: 0;
   overflow: hidden;
 }
@@ -260,19 +258,29 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .order-items li span { color: var(--gold); }
 .order-total { font-size: 13px; font-weight: 600; color: var(--white); border-top: 1px solid var(--border); padding-top: 8px; }
 
-/* ── FIX: Order card action row — wraps gracefully, never clips ── */
 .order-card-actions-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
   margin-top: 2px;
 }
 
-.order-card-actions-row .btn-sm {
+.order-card-actions-top {
+  display: flex;
+  gap: 6px;
+}
+
+.order-card-actions-top .btn-sm {
   flex: 1 1 auto;
-  min-width: 60px;
   text-align: center;
   white-space: nowrap;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+.order-card-actions-row > .btn-sm.danger {
+  width: 100%;
+  text-align: center;
   font-size: 11px;
   padding: 6px 10px;
 }
@@ -340,7 +348,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   flex-direction: column;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
-  /* FIX: prevent menu cards from overflowing their grid column */
   min-width: 0;
 }
 .menu-card:hover { border-color: rgba(201,151,58,0.35); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
@@ -419,32 +426,138 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 /* ═══════ MODAL ═══════ */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 500;
-  background: rgba(0,0,0,0.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  display: none; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  display: none; align-items: center;
+  justify-content: center; padding: 20px;
 }
 .modal-overlay.show { display: flex; }
+
 .modal {
-  background: var(--black-card); border: 1px solid var(--border); border-radius: 16px;
-  width: 100%; max-width: 440px; overflow: hidden;
-  animation: modalIn 0.3s cubic-bezier(0.16,1,0.3,1);
+  background: var(--black-card);
+  border: 0.5px solid var(--border);
+  border-radius: 18px;
+  width: 100%; max-width: 460px;
+  overflow: hidden;
+  animation: modalIn 0.28s cubic-bezier(0.16,1,0.3,1);
 }
-@keyframes modalIn { from{opacity:0;transform:scale(0.95)translateY(10px)} to{opacity:1;transform:none} }
-.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-.modal-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--white); }
-.modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; transition: color 0.15s; }
-.modal-close:hover { color: var(--red); }
-.modal-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
-.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
-.form-group { display: flex; flex-direction: column; gap: 7px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-group label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
-.form-group input, .form-group select {
-  background: var(--black-mid); border: 1px solid var(--border); border-radius: 8px;
-  color: var(--white); font-family: 'Outfit', sans-serif; font-size: 14px;
-  padding: 10px 12px; outline: none; transition: all 0.15s;
+
+@keyframes modalIn {
+  from { opacity:0; transform:scale(0.96) translateY(12px); }
+  to   { opacity:1; transform:none; }
 }
-.form-group input:focus, .form-group select:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,151,58,0.1); }
+
+.modal-header {
+  padding: 22px 26px 20px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex; align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--white);
+  letter-spacing: 0;
+}
+
+.modal-close {
+  background: none; border: none;
+  color: var(--text-muted); cursor: pointer;
+  font-size: 20px; line-height: 1;
+  padding: 2px 6px; border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.modal-close:hover {
+  color: var(--red);
+  background: var(--red-dim);
+}
+
+.modal-body {
+  padding: 22px 26px;
+  display: flex; flex-direction: column;
+  gap: 16px;
+}
+
+.modal-footer {
+  padding: 16px 26px 22px;
+  border-top: 0.5px solid var(--border);
+  display: flex; justify-content: flex-end;
+  gap: 10px;
+}
+
+.form-group {
+  display: flex; flex-direction: column;
+  gap: 7px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-group label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.form-group input,
+.form-group select {
+  background: var(--black-mid);
+  border: 0.5px solid var(--border);
+  border-radius: 9px;
+  color: var(--white);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  padding: 10px 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201,151,58,0.12);
+}
+
+.form-group input::placeholder { color: #3a3a3a; }
 .form-group select option { background: var(--black-mid); }
+
+.modal-footer .btn-sm {
+  padding: 9px 20px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+
+.modal-footer .btn-sm:not(.gold) {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.modal-footer .btn-sm:not(.gold):hover {
+  border-color: rgba(255,255,255,0.15);
+  color: var(--white);
+  background: rgba(255,255,255,0.04);
+}
+
+.modal-footer .btn-sm.gold {
+  background: var(--gold-dim);
+  border-color: rgba(201,151,58,0.4);
+  color: var(--gold);
+}
+
+.modal-footer .btn-sm.gold:hover {
+  background: var(--gold);
+  color: var(--black);
+}
 
 /* ═══════ STAFF ═══════ */
 .staff-grid { display: flex; flex-direction: column; gap: 10px; align-content: start; flex: 1; min-height: 0; overflow-y: auto; }
@@ -518,10 +631,70 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* ═══════ MONTHLY REPORT ═══════ */
+.month-year-select {
+  background: var(--black-mid);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--white);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  padding: 7px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.month-year-select:focus { border-color: var(--gold); }
+.month-year-select option { background: var(--black-mid); }
+
+.monthly-report-panel {
+  background: var(--black-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.monthly-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.monthly-stat-card {
+  padding: 20px 22px;
+  border-right: 1px solid var(--border);
+}
+.monthly-stat-card:last-child { border-right: none; }
+.monthly-stat-card.gold { background: rgba(201,151,58,0.04); }
+
+.monthly-bottom-row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.monthly-inner-panel {
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--border);
+}
+.monthly-inner-panel:last-child { border-right: none; }
+.monthly-inner-panel.wide-panel  { flex: 1; min-width: 0; }
+.monthly-inner-panel.narrow-panel { width: 260px; flex-shrink: 0; }
+
 /* ═══════ RESPONSIVE ═══════ */
 @media (max-width: 1200px) {
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .content-row { grid-template-columns: 1fr; }
+  .monthly-stats-row { grid-template-columns: repeat(2,1fr); }
+  .monthly-stat-card:nth-child(2) { border-right: none; }
+  .monthly-stat-card:nth-child(3) { border-top: 1px solid var(--border); }
+  .monthly-stat-card:nth-child(4) { border-top: 1px solid var(--border); border-right: none; }
+  .monthly-bottom-row { flex-direction: column; }
+  .monthly-inner-panel { width: 100% !important; border-right: none; border-bottom: 1px solid var(--border); }
+  .monthly-inner-panel:last-child { border-bottom: none; }
 }
 
 @media (max-width: 900px) {
@@ -532,7 +705,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .hamburger { display: flex; }
   .topbar-user span { display: none; }
   .view { padding: 16px; }
-  /* FIX: on mobile, single column for order cards so buttons always have full width */
   .orders-grid { grid-template-columns: 1fr; }
   .tables-large-grid { grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
@@ -547,7 +719,8 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .menu-grid { grid-template-columns: 1fr; }
   .staff-grid { grid-template-columns: 1fr; }
   .page-date { display: none; }
-  /* FIX: stack action buttons vertically on very small screens */
-  .order-card-actions-row { flex-direction: column; }
-  .order-card-actions-row .btn-sm { flex: none; width: 100%; }
+  .order-card-actions-top { flex-direction: column; }
+  .order-card-actions-top .btn-sm { flex: none; width: 100%; }
+  .form-row { grid-template-columns: 1fr; }
+  .monthly-stats-row { grid-template-columns: 1fr 1fr; }
 }

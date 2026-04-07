@@ -87,7 +87,7 @@
     </div>
   </header>
 
-  <!-- Overview-->
+  <!-- OVERVIEW -->
   <section class="view active" id="view-overview">
     <div class="stats-grid">
       <div class="stat-card gold">
@@ -117,7 +117,6 @@
     </div>
 
     <div class="content-row">
-      <!-- Recent orders -->
       <div class="panel wide">
         <div class="panel-header">
           <span class="panel-title">Recent Orders</span>
@@ -131,20 +130,17 @@
         </div>
       </div>
 
-      <!-- Table status grid -->
       <div class="panel">
         <div class="panel-header">
           <span class="panel-title">Table Status</span>
           <button class="panel-link" data-goto="tables">Manage →</button>
         </div>
-        <div class="table-grid" id="overviewTableGrid">
-          <!-- Populated via JS -->
-        </div>
+        <div class="table-grid" id="overviewTableGrid"></div>
       </div>
     </div>
   </section>
 
-  <!--LIVE ORDERS -->
+  <!-- LIVE ORDERS -->
   <section class="view" id="view-orders">
     <div class="view-toolbar">
       <div class="filter-tabs">
@@ -174,9 +170,7 @@
         <button class="btn-sm gold" id="clearAllTablesBtn">Clear All Tables</button>
       </div>
     </div>
-    <div class="tables-large-grid" id="tablesGrid">
-      <!-- Populated via JS -->
-    </div>
+    <div class="tables-large-grid" id="tablesGrid"></div>
   </section>
 
   <!-- MENU -->
@@ -193,34 +187,34 @@
       <div class="empty-state">Loading menu…</div>
     </div>
 
-    <!-- Add/Edit modal -->
+    <!-- Add/Edit Menu Item Modal -->
     <div class="modal-overlay" id="menuModal">
       <div class="modal">
         <div class="modal-header">
-          <span class="modal-title" id="menuModalTitle">Add Menu Item</span>
-          <button class="modal-close" id="menuModalClose">✕</button>
+          <span class="modal-title" id="menuModalTitle">Add menu item</span>
+          <button class="modal-close" id="menuModalClose">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Item Name</label>
+            <label for="menuItemName">Item name</label>
             <input type="text" id="menuItemName" placeholder="e.g. Crispy Pata"/>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Price (₱)</label>
+              <label for="menuItemPrice">Price (₱)</label>
               <input type="number" id="menuItemPrice" placeholder="0.00"/>
             </div>
             <div class="form-group">
-              <label>Category</label>
+              <label for="menuItemCategory">Category</label>
               <input type="text" id="menuItemCategory" placeholder="e.g. Main Course"/>
             </div>
           </div>
           <div class="form-group">
-            <label>Description</label>
+            <label for="menuItemDesc">Description</label>
             <input type="text" id="menuItemDesc" placeholder="Short description…"/>
           </div>
           <div class="form-group">
-            <label>Availability</label>
+            <label for="menuItemAvail">Availability</label>
             <select id="menuItemAvail" aria-label="Availability">
               <option value="true">Available</option>
               <option value="false">Unavailable</option>
@@ -229,14 +223,13 @@
         </div>
         <div class="modal-footer">
           <button class="btn-sm" id="menuModalCancel">Cancel</button>
-          <button class="btn-sm gold" id="menuModalSave">Save Item</button>
+          <button class="btn-sm gold" id="menuModalSave">Save item</button>
         </div>
       </div>
     </div>
-
   </section>
 
-  <!-- BILLING  -->
+  <!-- BILLING -->
   <section class="view" id="view-billing">
     <div class="view-toolbar">
       <div class="filter-tabs">
@@ -245,7 +238,10 @@
         <button class="ftab" data-bstatus="paid">Paid</button>
       </div>
       <div class="toolbar-right">
-        <div class="stat-inline"><span class="stat-inline-label">Today's Total:</span><span class="stat-inline-val" id="billingTodayTotal">₱0.00</span></div>
+        <div class="stat-inline">
+          <span class="stat-inline-label">Today's Total:</span>
+          <span class="stat-inline-val" id="billingTodayTotal">₱0.00</span>
+        </div>
       </div>
     </div>
     <div class="table-wrap">
@@ -256,7 +252,7 @@
     </div>
   </section>
 
-  <!-- STAFF VIEW -->
+  <!-- STAFF -->
   <section class="view" id="view-staff">
     <div class="view-toolbar">
       <div class="panel-title panel-title--small">Staff Accounts</div>
@@ -269,7 +265,7 @@
     </div>
   </section>
 
-  <!-- REPORTS VIEW -->
+  <!-- REPORTS -->
   <section class="view" id="view-reports">
     <div class="stats-grid four">
       <div class="stat-card gold">
@@ -309,6 +305,79 @@
         <div class="chart-bars" id="statusChart"></div>
       </div>
     </div>
+
+    <!-- ── MONTHLY REPORT ── -->
+    <div class="monthly-report-panel">
+      <div class="panel-header" style="border-radius:0;">
+        <span class="panel-title">Monthly Report</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <select id="monthSelect" aria-label="Select month" class="month-year-select"></select>
+          <select id="yearSelect"  aria-label="Select year"  class="month-year-select"></select>
+        </div>
+      </div>
+
+      <div class="monthly-stats-row">
+        <div class="monthly-stat-card gold">
+          <div class="stat-card-icon">💰</div>
+          <div class="stat-card-label">Monthly Revenue</div>
+          <div class="stat-card-value" id="mRev">—</div>
+          <div class="stat-card-sub" id="mRevSub">from paid orders</div>
+        </div>
+        <div class="monthly-stat-card">
+          <div class="stat-card-icon">📋</div>
+          <div class="stat-card-label">Total Orders</div>
+          <div class="stat-card-value" id="mOrders">—</div>
+          <div class="stat-card-sub" id="mOrdersSub">all statuses</div>
+        </div>
+        <div class="monthly-stat-card">
+          <div class="stat-card-icon">🍽️</div>
+          <div class="stat-card-label">Avg. Order Value</div>
+          <div class="stat-card-value" id="mAvg">—</div>
+          <div class="stat-card-sub">paid orders avg</div>
+        </div>
+        <div class="monthly-stat-card">
+          <div class="stat-card-icon">🪑</div>
+          <div class="stat-card-label">Tables Occupied</div>
+          <div class="stat-card-value" id="mTables">—</div>
+          <div class="stat-card-sub">unique tables used</div>
+        </div>
+      </div>
+
+      <div class="monthly-bottom-row">
+        <div class="panel monthly-inner-panel wide-panel">
+          <div class="panel-header">
+            <span class="panel-title">Top Selling Items</span>
+            <span id="mTopItemsMonth" style="font-size:11px;color:var(--text-muted);"></span>
+          </div>
+          <div class="table-wrap" style="max-height:320px;">
+            <table class="data-table">
+              <thead><tr><th>#</th><th>Item</th><th>Category</th><th>Qty Sold</th><th>Revenue</th></tr></thead>
+              <tbody id="mTopItemsBody"><tr><td colspan="5" class="empty-row">Select a month above.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel monthly-inner-panel narrow-panel">
+          <div class="panel-header"><span class="panel-title">Table Activity</span></div>
+          <div id="mTableActivity" style="padding:14px 16px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;max-height:320px;"></div>
+        </div>
+      </div>
+
+      <!-- Daily revenue chart -->
+      <div class="panel monthly-inner-panel" style="border-radius:0 0 14px 14px;border-top:none;">
+        <div class="panel-header">
+          <span class="panel-title">Daily Revenue</span>
+          <span id="mChartLabel" style="font-size:11px;color:var(--text-muted);"></span>
+        </div>
+        <div style="padding:16px 20px 20px;">
+          <div style="position:relative;width:100%;height:180px;">
+            <canvas id="mRevenueChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ── END MONTHLY REPORT ── -->
+
   </section>
 
 </div><!-- /main -->
@@ -318,55 +387,56 @@
 
 <script type="module" src="admin.js"></script>
 
-        <!-- Order Edit Modal -->
-        <div class="modal-overlay" id="orderModal">
-          <div class="modal">
-            <div class="modal-header">
-              <span class="modal-title" id="orderModalTitle">Edit Order</span>
-              <button class="modal-close" id="orderModalClose">✕</button>
-            </div>
-            <div class="modal-body" id="orderModalBody">
-              <div class="empty-state">Loading order…</div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-sm" id="orderModalCancel">Cancel</button>
-              <button class="btn-sm gold" id="orderModalSave">Save Changes</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Receipt Modal -->
-        <div class="modal-overlay" id="receiptModal">
-          <div class="modal">
-            <div class="modal-header">
-              <span class="modal-title">Receipt</span>
-              <button class="modal-close" id="receiptModalClose">✕</button>
-            </div>
-            <div class="modal-body" id="receiptModalBody">
-              <div class="empty-state">Loading receipt…</div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-sm" id="receiptPrint">Print</button>
-              <button class="btn-sm" id="receiptModalClose2">Close</button>
-            </div>
-          </div>
-        </div>
-
-  <!-- Confirm Modal -->
-  <div class="modal-overlay" id="confirmModal">
-    <div class="modal" style="max-width:380px;">
-      <div class="modal-header">
-        <span class="modal-title" id="confirmModalTitle">Confirm</span>
-        <button class="modal-close" id="confirmModalClose">✕</button>
-      </div>
-      <div class="modal-body" style="padding:24px;">
-        <p id="confirmModalMsg" style="font-size:14px;color:var(--off-white);line-height:1.6;"></p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-sm" id="confirmModalCancel">Cancel</button>
-        <button class="btn-sm gold" id="confirmModalOk">Confirm</button>
-      </div>
+<!-- Order Edit Modal -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="orderModalTitle">Edit order</span>
+      <button class="modal-close" id="orderModalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="orderModalBody">
+      <div class="empty-state">Loading order…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" id="orderModalCancel">Cancel</button>
+      <button class="btn-sm gold" id="orderModalSave">Save changes</button>
     </div>
   </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal-overlay" id="receiptModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Receipt</span>
+      <button class="modal-close" id="receiptModalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="receiptModalBody">
+      <div class="empty-state">Loading receipt…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" id="receiptPrint">Print</button>
+      <button class="btn-sm" id="receiptModalClose2">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <span class="modal-title" id="confirmModalTitle">Confirm</span>
+      <button class="modal-close" id="confirmModalClose">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:24px;">
+      <p id="confirmModalMsg" style="font-size:14px;color:var(--off-white);line-height:1.6;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" id="confirmModalCancel">Cancel</button>
+      <button class="btn-sm gold" id="confirmModalOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
