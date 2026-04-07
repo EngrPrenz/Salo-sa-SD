@@ -103,6 +103,10 @@ onSnapshot(query(ordersRef, orderBy('createdAt','desc')), snap => {
   renderBilling();
   renderReports();
   updateOrderBadge();
+  // Re-render monthly report if already visible
+  if (document.getElementById('view-reports').classList.contains('active')) {
+    renderMonthlyReport();
+  }
 });
 
 function updateOrderBadge() {
@@ -195,11 +199,13 @@ function renderOrders() {
         <ul class="order-items">${items}</ul>
         <div class="order-total">Total: <strong>₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</strong></div>
         <div class="order-card-actions-row">
+        <div class="order-card-actions-top">
           ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
           ${o.status!=='paid' ? `<button class="btn-sm" onclick="window._editOrder('${o.id}')">Edit</button>` : ''}
           <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
-          ${o.status!=='paid' ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
         </div>
+        ${o.status!=='paid' ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
+      </div>
       </div>`;
   }).join('');
 }
@@ -671,3 +677,193 @@ document.getElementById('receiptPrint').onclick = ()=>{ window.print(); };
 
 // ── Auto-refresh menu grid every minute ──
 setInterval(() => { if (menuItems.length) renderMenuGrid(); }, 60 * 1000);
+
+
+// ══════════════════════════════════════════════════════
+// MONTHLY REPORT
+// ══════════════════════════════════════════════════════
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let mChart = null;
+
+// ── Init month/year selectors ──
+(function initMonthlySelectors() {
+  const now = new Date();
+  const monthSel = document.getElementById('monthSelect');
+  const yearSel  = document.getElementById('yearSelect');
+  if (!monthSel || !yearSel) return;
+
+  MONTH_NAMES.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = m;
+    if (i === now.getMonth()) opt.selected = true;
+    monthSel.appendChild(opt);
+  });
+
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === now.getFullYear()) opt.selected = true;
+    yearSel.appendChild(opt);
+  }
+
+  monthSel.addEventListener('change', renderMonthlyReport);
+  yearSel.addEventListener('change',  renderMonthlyReport);
+
+  // Initial render after orders load
+  setTimeout(renderMonthlyReport, 1500);
+})();
+
+function renderMonthlyReport() {
+  const monthSel = document.getElementById('monthSelect');
+  const yearSel  = document.getElementById('yearSelect');
+  if (!monthSel || !yearSel) return;
+
+  const month = parseInt(monthSel.value);
+  const year  = parseInt(yearSel.value);
+
+  // Filter orders for selected month/year
+  const monthOrders = allOrders.filter(o => {
+    if (!o.createdAt?.toDate) return false;
+    const d = o.createdAt.toDate();
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+
+  const paidOrders = monthOrders.filter(o => o.status === 'paid');
+  const rev        = paidOrders.reduce((s, o) => s + (o.total || 0), 0);
+  const avg        = paidOrders.length ? rev / paidOrders.length : 0;
+  const uniqueTables = [...new Set(monthOrders.filter(o => o.tableNumber).map(o => o.tableNumber))];
+  const cancelledCount = monthOrders.filter(o => o.status === 'cancelled').length;
+  const mLabel = `${MONTH_NAMES[month]} ${year}`;
+
+  // ── Stat cards ──
+  document.getElementById('mRev').textContent     = `₱${rev.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  document.getElementById('mRevSub').textContent  = `${paidOrders.length} paid order${paidOrders.length !== 1 ? 's' : ''}`;
+  document.getElementById('mOrders').textContent  = monthOrders.length || '0';
+  document.getElementById('mOrdersSub').textContent = `${paidOrders.length} paid · ${cancelledCount} cancelled`;
+  document.getElementById('mAvg').textContent     = paidOrders.length ? `₱${avg.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—';
+  document.getElementById('mTables').textContent  = uniqueTables.length || '0';
+  document.getElementById('mTopItemsMonth').textContent = mLabel;
+  document.getElementById('mChartLabel').textContent    = mLabel;
+
+  // ── Top items ──
+  const itemMap = {};
+  monthOrders.forEach(o => (o.items || []).forEach(it => {
+    const k = it.name || '?';
+    if (!itemMap[k]) itemMap[k] = { name: k, category: it.category || '—', qty: 0, revenue: 0 };
+    itemMap[k].qty     += (it.qty || 1);
+    itemMap[k].revenue += (it.price || 0) * (it.qty || 1);
+  }));
+  const topItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty).slice(0, 10);
+
+  document.getElementById('mTopItemsBody').innerHTML = topItems.length
+    ? topItems.map((it, i) => `
+        <tr>
+          <td style="color:var(--text-muted);font-size:11px;">${i + 1}</td>
+          <td style="font-weight:600;color:var(--white);">${it.name}</td>
+          <td><span class="status-badge" style="background:var(--gold-dim);color:var(--gold);font-size:9px;">${it.category}</span></td>
+          <td>${it.qty}</td>
+          <td style="color:var(--gold-light);">₱${it.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="5" class="empty-row">No orders this month.</td></tr>';
+
+  // ── Table activity ──
+  const tableCount = {};
+  monthOrders.forEach(o => {
+    if (!o.tableNumber) return;
+    const n = o.tableNumber;
+    if (!tableCount[n]) tableCount[n] = { orders: 0, revenue: 0 };
+    tableCount[n].orders++;
+    tableCount[n].revenue += (o.total || 0);
+  });
+  const sortedTables = Object.entries(tableCount).sort((a, b) => b[1].orders - a[1].orders);
+  const maxOrders    = sortedTables.length ? sortedTables[0][1].orders : 1;
+
+  document.getElementById('mTableActivity').innerHTML = sortedTables.length
+    ? sortedTables.map(([num, data]) => `
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:var(--white);">Table ${num}</span>
+            <span style="font-size:11px;color:var(--text-muted);">${data.orders} order${data.orders !== 1 ? 's' : ''} · ₱${data.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div style="height:7px;background:var(--black-mid);border-radius:100px;overflow:hidden;">
+            <div style="height:100%;width:${(data.orders / maxOrders) * 100}%;background:var(--gold);border-radius:100px;transition:width 0.5s cubic-bezier(0.16,1,0.3,1);min-width:3px;"></div>
+          </div>
+        </div>`).join('')
+    : '<div style="color:var(--text-muted);font-size:13px;padding:16px 0;text-align:center;">No table data this month.</div>';
+
+  // ── Daily revenue chart ──
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dailyRev = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    return paidOrders
+      .filter(o => o.createdAt.toDate().getDate() === day)
+      .reduce((s, o) => s + (o.total || 0), 0);
+  });
+  const labels = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  const canvas = document.getElementById('mRevenueChart');
+  if (!canvas) return;
+
+  if (mChart) { mChart.destroy(); mChart = null; }
+
+  function drawMChart() {
+    if (typeof Chart === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+      s.onload = drawMChart;
+      document.head.appendChild(s);
+      return;
+    }
+    mChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Revenue (₱)',
+          data: dailyRev,
+          backgroundColor: 'rgba(201,151,58,0.35)',
+          borderColor: '#c9973a',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => `Day ${ctx[0].label}`,
+              label: ctx => `₱${ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+            },
+            backgroundColor: '#141414',
+            borderColor: '#2a2a2a',
+            borderWidth: 1,
+            titleColor: '#f5f0e8',
+            bodyColor: '#c9973a',
+            padding: 10,
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#5e5e5e', font: { size: 10 }, autoSkip: true, maxTicksLimit: 16 },
+            grid: { color: 'rgba(42,42,42,0.5)' },
+          },
+          y: {
+            ticks: {
+              color: '#5e5e5e',
+              font: { size: 10 },
+              callback: v => v === 0 ? '₱0' : `₱${v.toLocaleString('en-PH')}`
+            },
+            grid: { color: 'rgba(42,42,42,0.5)' },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+  }
+  drawMChart();
+}
