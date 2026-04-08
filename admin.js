@@ -600,6 +600,11 @@ function renderReports() {
       <div class="bar-track"><div class="bar-fill ${s}" style="width:${(counts[s]/max)*100}%"></div></div>
       <span class="bar-count">${counts[s]}</span>
     </div>`).join('');
+  
+
+  renderMonthlyReport();
+  renderDailySalesReport();
+  renderSalesCalendar();
 }
 
 // ── Order edit / receipt / table helpers ──
@@ -860,10 +865,172 @@ function renderMonthlyReport() {
             },
             grid: { color: 'rgba(42,42,42,0.5)' },
             beginAtZero: true,
-          }
+          }   
         }
       }
     });
   }
   drawMChart();
 }
+
+// ── Daily Sales Report ──
+function renderDailySalesReport() {
+  const container = document.getElementById('dailySalesReport');
+  if (!container) return;
+
+  // Group all orders by date
+  const dayMap = {};
+  allOrders.forEach(o => {
+    if (!o.createdAt?.toDate) return;
+    const d = o.createdAt.toDate();
+    const key = d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: '2-digit' });
+    if (!dayMap[key]) dayMap[key] = { date: d, label: key, orders: 0, revenue: 0, paid: 0 };
+    dayMap[key].orders++;
+    if (o.status === 'paid') {
+      dayMap[key].revenue += (o.total || 0);
+      dayMap[key].paid++;
+    }
+  });
+
+  const rows = Object.values(dayMap).sort((a, b) => b.date - a.date);
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty-state">No sales data yet.</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="table-wrap" style="max-height:400px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Total Orders</th>
+            <th>Paid Orders</th>
+            <th>Revenue</th>
+            <th>Avg. Order Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td style="font-weight:600;color:var(--off-white);">${r.label}</td>
+              <td>${r.orders}</td>
+              <td>${r.paid}</td>
+              <td style="color:var(--gold-light);font-weight:600;">₱${r.revenue.toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
+              <td>${r.paid ? '₱' + (r.revenue / r.paid).toLocaleString('en-PH',{minimumFractionDigits:2}) : '—'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// SALES CALENDAR
+// ══════════════════════════════════════════════════════
+
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calSelectedDay = null;
+
+function buildCalDayMap(year, month) {
+  const map = {};
+  allOrders.forEach(o => {
+    if (!o.createdAt?.toDate) return;
+    const d = o.createdAt.toDate();
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const day = d.getDate();
+    if (!map[day]) map[day] = { orders: [], revenue: 0, paid: 0 };
+    map[day].orders.push(o);
+    if (o.status === 'paid') { map[day].revenue += (o.total || 0); map[day].paid++; }
+  });
+  return map;
+}
+
+function renderSalesCalendar() {
+  const titleEl = document.getElementById('calTitle');
+  const grid    = document.getElementById('calGrid');
+  if (!titleEl || !grid) return;
+
+  titleEl.textContent = `${MONTH_NAMES[calMonth]} ${calYear}`;
+  const dayMap = buildCalDayMap(calYear, calMonth);
+  const firstDow = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const today = new Date();
+  const isThisMonth = today.getFullYear() === calYear && today.getMonth() === calMonth;
+  const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let html = DOWS.map(d => `<div class="cal-dow-cell">${d}</div>`).join('');
+  for (let i = 0; i < firstDow; i++) html += `<div class="cal-day-cell empty"></div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const data = dayMap[d];
+    const isToday  = isThisMonth && today.getDate() === d;
+    const isSel    = calSelectedDay === d;
+    const hasSales = !!data;
+    const cls = ['cal-day-cell', isToday ? 'today' : '', isSel ? 'selected' : '', !hasSales ? 'no-sale' : ''].filter(Boolean).join(' ');
+    const revHtml = data ? `<div class="cal-day-rev">₱${data.revenue >= 1000 ? (data.revenue/1000).toFixed(1)+'k' : data.revenue.toLocaleString()}</div>` : '';
+    const cntHtml = data ? `<div class="cal-day-cnt">${data.orders.length} orders</div>` : '';
+    const onclick = hasSales ? `window._calSelectDay(${d})` : '';
+    html += `<div class="${cls}" ${onclick ? `onclick="${onclick}"` : ''}>
+      <div class="cal-day-num">${d}</div>${revHtml}${cntHtml}
+    </div>`;
+  }
+
+  const totalCells = firstDow + daysInMonth;
+  const trailing = (7 - totalCells % 7) % 7;
+  for (let i = 0; i < trailing; i++) html += `<div class="cal-day-cell empty"></div>`;
+  grid.innerHTML = html;
+
+  if (calSelectedDay) renderCalDetail(calSelectedDay, dayMap);
+}
+
+window._calSelectDay = d => {
+  calSelectedDay = d;
+  renderSalesCalendar();
+};
+
+function renderCalDetail(d, dayMap) {
+  const panel = document.getElementById('calDetail');
+  if (!panel) return;
+  const data = dayMap[d];
+  if (!data) { panel.innerHTML = '<div class="empty-state">No sales this day.</div>'; return; }
+
+  const dateLabel = new Date(calYear, calMonth, d).toLocaleDateString('en-PH', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const avg = data.paid ? data.revenue / data.paid : 0;
+  const sorted = [...data.orders].sort((a, b) => (b.total||0) - (a.total||0));
+
+  panel.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:var(--white);">${dateLabel}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Revenue</div><div class="cal-detail-stat-val" style="color:var(--gold-light);">₱${data.revenue.toLocaleString('en-PH',{minimumFractionDigits:2})}</div></div>
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Orders</div><div class="cal-detail-stat-val">${data.orders.length}</div></div>
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Paid</div><div class="cal-detail-stat-val">${data.paid}</div></div>
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Avg value</div><div class="cal-detail-stat-val">${data.paid ? '₱'+(avg).toLocaleString('en-PH',{minimumFractionDigits:2}) : '—'}</div></div>
+    </div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);">All orders</div>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;">
+      ${sorted.map(o => {
+        const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—';
+        return `<div style="background:var(--black-mid);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <div class="mono" style="font-size:11px;">#${o.id.slice(-5).toUpperCase()}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Table ${o.tableNumber||'?'} · ${o.waiterName||'—'} · ${ts}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;font-weight:600;color:var(--white);">₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
+            <span class="status-badge ${o.status}" style="font-size:9px;">${o.status}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+document.getElementById('calPrevBtn').onclick = () => {
+  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+  calSelectedDay = null; renderSalesCalendar();
+};
+document.getElementById('calNextBtn').onclick = () => {
+  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+  calSelectedDay = null; renderSalesCalendar();
+};

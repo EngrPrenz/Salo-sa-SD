@@ -305,6 +305,28 @@
         <div class="chart-bars" id="statusChart"></div>
       </div>
     </div>
+    
+    <!-- ── CALENDAR SALES REPORT ── -->
+<div class="panel" style="flex-shrink:0;">
+  <div class="panel-header">
+    <span class="panel-title">Sales Calendar</span>
+    <span style="font-size:11px;color:var(--text-muted);">Click a date to view breakdown</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 300px;gap:0;">
+    <div style="border-right:1px solid var(--border);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);">
+        <button class="btn-sm" id="calPrevBtn">← Prev</button>
+        <span style="font-size:14px;font-weight:600;color:var(--white);" id="calTitle"></span>
+        <button class="btn-sm" id="calNextBtn">Next →</button>
+      </div>
+      <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);"></div>
+    </div>
+    <div id="calDetail" style="padding:18px;display:flex;flex-direction:column;gap:12px;">
+      <div class="empty-state" style="padding:20px;">Click a date</div>
+    </div>
+  </div>
+</div>
+<!-- ── END CALENDAR SALES REPORT ── -->
 
     <!-- ── MONTHLY REPORT ── -->
     <div class="monthly-report-panel">

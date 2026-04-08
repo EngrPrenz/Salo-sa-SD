@@ -724,3 +724,34 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   .form-row { grid-template-columns: 1fr; }
   .monthly-stats-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* ═══════ SALES CALENDAR ═══════ */
+.cal-dow-cell {
+  text-align:center; font-size:10px; font-weight:700;
+  letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--text-muted); padding:8px 0;
+  border-bottom:1px solid var(--border);
+}
+.cal-day-cell {
+  min-height:60px; padding:6px;
+  border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border);
+  cursor:pointer; transition:background 0.12s;
+  display:flex; flex-direction:column; gap:2px;
+}
+.cal-day-cell:nth-child(7n) { border-right:none; }
+.cal-day-cell:hover { background:var(--gold-dim); }
+.cal-day-cell.empty { cursor:default; background:none !important; }
+.cal-day-cell.no-sale { cursor:default; opacity:0.4; }
+.cal-day-cell.selected { background:var(--gold-dim); outline:2px solid var(--gold); outline-offset:-2px; }
+.cal-day-cell.today .cal-day-num {
+  background:var(--gold); color:var(--black);
+  border-radius:50%; width:20px; height:20px;
+  display:flex; align-items:center; justify-content:center;
+}
+.cal-day-num { font-size:12px; font-weight:600; color:var(--white); }
+.cal-day-rev { font-size:10px; color:var(--gold); font-weight:600; }
+.cal-day-cnt { font-size:10px; color:var(--text-muted); }
+.cal-detail-stat { background:var(--black-mid); border-radius:8px; padding:10px 12px; }
+.cal-detail-stat-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
+.cal-detail-stat-val { font-size:20px; color:var(--gold-light); }
