@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="image/logo.png"/>
   <title>Salo sa Antipolo — Waiter</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="waiter.css">
@@ -13,7 +14,7 @@
 <!-- TOPBAR -->
 <header class="topbar">
   <div class="brand">
-    <div class="brand-icon">🍽️</div>
+    <div class="brand-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="brand-logo"/></div>
     <div class="brand-name">Salo sa <em>Antipolo</em></div>
   </div>
   <div class="topbar-middle">
@@ -172,15 +173,29 @@
 
 <!-- SUCCESS FLASHES -->
 <div class="order-success" id="orderSuccess">
-  <div class="order-success-icon">🎉</div>
-  <div class="order-success-title">Order Sent!</div>
-  <div class="order-success-sub" id="orderSuccessSub">Kitchen has been notified.</div>
+  <div class="order-success-card">
+    <div class="order-success-strip"></div>
+    <div class="order-success-inner">
+      <div class="order-success-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="success-logo"/></div>
+      <div class="order-success-eyebrow">Success</div>
+      <div class="order-success-title">Order Sent!</div>
+      <div class="order-success-divider"></div>
+      <div class="order-success-sub" id="orderSuccessSub">Kitchen has been notified.</div>
+    </div>
+  </div>
 </div>
 
 <div class="order-success" id="occupiedSuccess" style="display:none;">
-  <div class="order-success-icon">🚶</div>
-  <div class="order-success-title" style="color:var(--orange)">Table Marked!</div>
-  <div class="order-success-sub" id="occupiedSuccessSub">Table is now marked as occupied.</div>
+  <div class="order-success-card">
+    <div class="order-success-strip"></div>
+    <div class="order-success-inner">
+      <div class="order-success-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="success-logo"/></div>
+      <div class="order-success-eyebrow">Table Updated</div>
+      <div class="order-success-title">Table Marked!</div>
+      <div class="order-success-divider"></div>
+      <div class="order-success-sub" id="occupiedSuccessSub">Table is now marked as occupied.</div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
