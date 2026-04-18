@@ -168,8 +168,20 @@ $('confirmMarkOccupied').onclick = async () => {
 window._selectTable = (num, stClass, isWalkIn) => {
   if (stClass === 'occupied') { showToast('⚠ This table has an active order from another waiter.'); return; }
   if (stClass === 'reserved') { window._openReservedModal(num); return; }
-  if (isWalkIn) { /* ...existing walk-in logic... */ return; }
+
+  if (isWalkIn) {
+    pendingWalkinTable = num;
+    $('freeTableBadge').textContent = `Table ${num}`;
+    const info = tablesData[num];
+    $('freeTableDesc').textContent = info?.waiterName
+      ? `Marked by: ${info.waiterName}`
+      : 'This table is marked as occupied with walk-in guests.';
+    $('freeTableModal').classList.add('show');
+    return;
+  }
+
   if (stClass === 'yours') { goToOrder(num); return; }
+
   window._openOccupyModal(num);
 };
 
