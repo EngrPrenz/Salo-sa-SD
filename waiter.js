@@ -224,25 +224,46 @@ function goToOrder(num) {
   requestAnimationFrame(() => so.classList.add('in'));
   setTimeout(() => st.classList.add('hidden'), 400);
   renderMenuGrid();
+  setupCatScrollBtns();
 }
 
-$('backToTablesBtn').onclick = () => {
+// ── BACK TO TABLES (shared function) ──
+function goBackToTables() {
   const st = $('stepTables'), so = $('stepOrder');
   st.classList.remove('hidden', 'out-left');
   so.classList.remove('in');
   setTimeout(() => so.classList.remove('visible'), 400);
-  pill1Active(); pill2Reset();
+  pill1Active(); pill2Reset(); pill3Reset();
   selectedTable = null;
-};
+}
 
 // ── STEP PILLS ──
-function pill1Done()   { $('pill1').className='step-pill done'; }
+function pill1Done()   { $('pill1').className='step-pill done clickable'; }
 function pill1Active() { $('pill1').className='step-pill active'; }
 function pill2Active() { $('pill2').className='step-pill active'; }
 function pill2Done()   { $('pill2').className='step-pill done'; }
 function pill2Reset()  { $('pill2').className='step-pill'; }
-function pill3Active() { $('pill3').className='step-pill active'; }
+function pill3Active() { $('pill3').className='step-pill active clickable'; }
 function pill3Reset()  { $('pill3').className='step-pill'; }
+
+// ── PILL CLICK NAVIGATION ──
+$('pill1').addEventListener('click', () => {
+  // Only navigate back if we're past step 1 (pill1 is 'done')
+  if ($('pill1').classList.contains('done')) {
+    // Close confirm modal if open
+    $('confirmModal').classList.remove('show');
+    goBackToTables();
+  }
+});
+
+$('pill3').addEventListener('click', () => {
+  // Only trigger if on step 2 (pill2 is active) and cart has items
+  if ($('pill2').classList.contains('active') || $('pill2').classList.contains('done')) {
+    const items = Object.values(cart);
+    if (!items.length) { showToast('⚠ Add items to the cart first.'); return; }
+    $('submitOrderBtn').click();
+  }
+});
 
 // ── MENU ──
 async function loadMenu() {
@@ -419,7 +440,7 @@ $('confirmOrderBtn').onclick = async () => {
     updateCart(); renderMenuGrid();
     setTimeout(() => {
       os.classList.remove('show');
-      $('backToTablesBtn').click();
+      goBackToTables();
       pill1Active(); pill2Reset(); pill3Reset();
     }, 2200);
   } catch(e) {
@@ -431,3 +452,37 @@ $('confirmOrderBtn').onclick = async () => {
 };
 
 $('pill1').className = 'step-pill active';
+
+// ── CATEGORY SCROLL BUTTONS (looping) ──
+let catScrollWired = false;
+function setupCatScrollBtns() {
+  if (catScrollWired) return;
+  const btnL = document.getElementById('catScrollLeft');
+  const btnR = document.getElementById('catScrollRight');
+  const s    = document.getElementById('catScroll');
+  if (!btnL || !btnR || !s) return;
+
+  const STEP = 220;
+
+  btnL.addEventListener('click', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    // If at the very start, jump to the end
+    if (s.scrollLeft <= 2) {
+      s.scrollLeft = s.scrollWidth;
+    } else {
+      s.scrollLeft -= STEP;
+    }
+  });
+
+  btnR.addEventListener('click', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    // If at the very end, jump back to start
+    if (s.scrollLeft >= s.scrollWidth - s.clientWidth - 2) {
+      s.scrollLeft = 0;
+    } else {
+      s.scrollLeft += STEP;
+    }
+  });
+
+  catScrollWired = true;
+}
