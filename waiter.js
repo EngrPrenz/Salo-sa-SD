@@ -196,9 +196,9 @@ $('startOrderFromWalkin').onclick = async () => {
   if (tableDoc) {
     try {
       await updateDoc(doc(db, 'tables', tableDoc.docId), {
-        status: 'available',
-        waiterId: null,
-        waiterName: null,
+        status: 'occupied',   // ← was 'available'
+        waiterId,
+        waiterName,
         lastUpdated: serverTimestamp()
       });
     } catch(e) { /* non-blocking */ }
