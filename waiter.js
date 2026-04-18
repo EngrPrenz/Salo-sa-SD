@@ -71,23 +71,30 @@ function renderTables() {
   allOrders.filter(o => ['pending','preparing','served'].includes(o.status)).forEach(o => {
     if (o.tableNumber) orderOccupied[o.tableNumber] = { status: o.status, waiterName: o.waiterName, waiterId: o.waiterId };
   });
-
   const grid = $('tablesGrid');
   grid.innerHTML = Array.from({ length: 10 }, (_, i) => {
     const n = i + 1;
-    const orderInfo     = orderOccupied[n];
-    const tableDoc      = tablesData[n];
-    const isWalkIn      = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
-    const isWalkInYours = isWalkIn && tableDoc.waiterId === waiterId;
-    const isYours       = orderInfo && orderInfo.waiterId === waiterId;
-    const isTakenOrder  = orderInfo && !isYours;
+    const orderInfo        = orderOccupied[n];
+    const tableDoc         = tablesData[n];
+    const isWalkIn         = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
+    const isWalkInYours    = isWalkIn && tableDoc.waiterId === waiterId;
+    const isReserved       = !orderInfo && tableDoc && tableDoc.status === 'reserved';
+    const isOccupiedNoOrder = !orderInfo && tableDoc && tableDoc.status === 'occupied';
+    const isOccupiedYours  = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
+    const isYours          = orderInfo && orderInfo.waiterId === waiterId;
+    const isTakenOrder     = orderInfo && !isYours;
 
-    let stClass, badge, badgeLbl, meta, icon, yoursInd = '', occupyBtnHtml = '';
+    let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
       stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
       icon = '🍽️'; meta = 'Active order';
       yoursInd = `<div class="yours-indicator">YOURS</div>`;
+    } else if (isReserved) {
+      stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
+      icon = '📅';
+      const res = tableDoc.reservation || {};
+      meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
     } else if (isTakenOrder) {
       stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
       icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
@@ -96,15 +103,20 @@ function renderTables() {
       icon = '👥';
       meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
       if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
+    } else if (isOccupiedNoOrder) {
+      stClass = isOccupiedYours ? 'yours' : 'occupied';
+      badge   = isOccupiedYours ? 'yours' : 'occupied';
+      badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
+      icon = isOccupiedYours ? '🍽️' : '🚫';
+      meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
+      if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else {
       stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
-      icon = '🪑'; meta = 'Tap to start order';
-      occupyBtnHtml = `<button class="occupy-btn" onclick="event.stopPropagation();window._openOccupyModal(${n})" title="Mark as occupied">👥</button>`;
+      icon = '🪑'; meta = 'Tap to seat guests';
     }
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
-      ${occupyBtnHtml}
       <div class="table-num">${n}</div>
       <div class="table-icon">${icon}</div>
       <span class="table-status-badge ${badge}">${badgeLbl}</span>
@@ -155,19 +167,10 @@ $('confirmMarkOccupied').onclick = async () => {
 // ── WALK-IN OPTIONS MODAL ──
 window._selectTable = (num, stClass, isWalkIn) => {
   if (stClass === 'occupied') { showToast('⚠ This table has an active order from another waiter.'); return; }
-
-  if (isWalkIn) {
-    pendingWalkinTable = num;
-    $('freeTableBadge').textContent = `Table ${num}`;
-    const info = tablesData[num];
-    $('freeTableDesc').textContent = info && info.waiterName
-      ? `Marked by: ${info.waiterName}`
-      : 'This table is marked as occupied with walk-in guests.';
-    $('freeTableModal').classList.add('show');
-    return;
-  }
-
-  goToOrder(num);
+  if (stClass === 'reserved') { window._openReservedModal(num); return; }
+  if (isWalkIn) { /* ...existing walk-in logic... */ return; }
+  if (stClass === 'yours') { goToOrder(num); return; }
+  window._openOccupyModal(num);
 };
 
 $('freeTableModalClose').onclick = $('freeTableModalCancel').onclick = () => {
@@ -211,6 +214,47 @@ $('freeTableBtn').onclick = async () => {
       console.error(e);
       showToast('❌ Failed to update table. Please retry.');
     }
+  }
+};
+// ── RESERVED TABLE MODAL ──
+window._openReservedModal = (num) => {
+  const tableDoc = tablesData[num];
+  const res = tableDoc?.reservation || {};
+  $('reservedTableBadge').textContent = `Table ${num}`;
+  $('reservedGuestName').textContent = res.guestName || '—';
+  $('reservedTime').textContent = res.time || '—';
+  $('reservedModal').dataset.table = num;
+  $('reservedModal').classList.add('show');
+};
+
+$('reservedModalClose').onclick = $('reservedModalCancel').onclick = () => {
+  $('reservedModal').classList.remove('show');
+};
+
+$('confirmArrivalBtn').onclick = async () => {
+  const num = parseInt($('reservedModal').dataset.table); // ✅ already parseInt'd here
+  if (!num) return;
+  const btn = $('confirmArrivalBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  try {
+    const tableDoc = tablesData[num];
+    if (!tableDoc?.docId) {
+      showToast('❌ Table document not found.');
+      return;
+    }
+    await updateDoc(doc(db, 'tables', tableDoc.docId), {
+      status: 'occupied',
+      waiterId,
+      waiterName,
+      lastUpdated: serverTimestamp()
+    });
+    $('reservedModal').classList.remove('show');
+    goToOrder(num);
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Failed to confirm arrival. Please retry.');
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
   }
 };
 
