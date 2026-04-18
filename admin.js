@@ -1360,3 +1360,8 @@ document.getElementById('calNextBtn').onclick = () => {
   calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
   calSelectedDay = null; renderSalesCalendar();
 };
+
+document.getElementById('removeReserveCancel2').onclick = 
+document.getElementById('removeReserveCancel').onclick = () => {
+  document.getElementById('removeReserveModal').classList.remove('show');
+};
