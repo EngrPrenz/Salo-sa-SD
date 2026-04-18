@@ -19,7 +19,6 @@
 <!-- Sidebar -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="brand-icon">🍽️</div>
     <div class="brand-text">
       <span class="brand-name">Salo sa</span>
       <em class="brand-italic">Antipolo</em>
@@ -29,29 +28,29 @@
   <nav class="sidebar-nav">
     <div class="nav-section-label">Main</div>
     <a href="#" class="nav-item active" data-view="overview">
-      <span class="nav-icon">📊</span><span class="nav-label">Overview</span>
+      <span class="nav-label">Overview</span>
     </a>
     <a href="#" class="nav-item" data-view="orders">
-      <span class="nav-icon">📋</span><span class="nav-label">Live Orders</span>
+      <span class="nav-label">Live Orders</span>
       <span class="nav-badge" id="ordersBadge">0</span>
     </a>
     <a href="#" class="nav-item" data-view="tables">
-      <span class="nav-icon">🪑</span><span class="nav-label">Tables</span>
+      <span class="nav-label">Tables</span>
     </a>
     <a href="#" class="nav-item" data-view="menu">
-      <span class="nav-icon">🍴</span><span class="nav-label">Menu</span>
+      <span class="nav-label">Menu</span>
     </a>
 
     <div class="nav-section-label">Management</div>
     <a href="#" class="nav-item" data-view="billing">
-      <span class="nav-icon">💰</span><span class="nav-label">Billing</span>
+      <span class="nav-label">Billing</span>
     </a>
     <a href="#" class="nav-item" data-view="staff">
-      <span class="nav-icon">👥</span><span class="nav-label">Staff</span>
+      <span class="nav-label">Staff</span>
       <span class="nav-badge" id="staffBadge" style="display:none;background:#e74c3c;">0</span>
     </a>
     <a href="#" class="nav-item" data-view="reports">
-      <span class="nav-icon">📈</span><span class="nav-label">Reports</span>
+      <span class="nav-label">Reports</span>
     </a>
   </nav>
 
@@ -91,19 +90,16 @@
   <section class="view active" id="view-overview">
     <div class="stats-grid">
       <div class="stat-card gold">
-        <div class="stat-card-icon">📋</div>
         <div class="stat-card-label">Active Orders</div>
         <div class="stat-card-value" id="statActiveOrders">—</div>
         <div class="stat-card-sub" id="statOrdersSub">Loading…</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">🪑</div>
         <div class="stat-card-label">Tables Occupied</div>
         <div class="stat-card-value" id="statTablesOcc">—</div>
         <div class="stat-card-sub" id="statTablesSub">of 10 tables</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">💰</div>
         <div class="stat-card-label">Today's Revenue</div>
         <div class="stat-card-value" id="statRevenue">—</div>
         <div class="stat-card-sub" id="statRevSub">Paid orders today</div>
@@ -152,7 +148,7 @@
       </div>
       <div class="toolbar-right">
         <div class="search-wrap">
-          <span class="search-icon">🔍</span>
+          <span class="search-icon"></span>
           <input type="text" class="search-input" id="orderSearch" placeholder="Search table or waiter…"/>
         </div>
       </div>
@@ -307,22 +303,18 @@
   <section class="view" id="view-reports">
     <div class="stats-grid four">
       <div class="stat-card gold">
-        <div class="stat-card-icon">💰</div>
         <div class="stat-card-label">Today's Revenue</div>
         <div class="stat-card-value" id="rptTodayRev">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">📋</div>
         <div class="stat-card-label">Orders Today</div>
         <div class="stat-card-value" id="rptOrdersToday">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">🍽️</div>
         <div class="stat-card-label">Avg. Order Value</div>
         <div class="stat-card-value" id="rptAvgOrder">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">🏆</div>
         <div class="stat-card-label">Top Table</div>
         <div class="stat-card-value" id="rptTopTable">—</div>
       </div>
@@ -378,25 +370,21 @@
 
       <div class="monthly-stats-row">
         <div class="monthly-stat-card gold">
-          <div class="stat-card-icon">💰</div>
           <div class="stat-card-label">Monthly Revenue</div>
           <div class="stat-card-value" id="mRev">—</div>
           <div class="stat-card-sub" id="mRevSub">from paid orders</div>
         </div>
         <div class="monthly-stat-card">
-          <div class="stat-card-icon">📋</div>
           <div class="stat-card-label">Total Orders</div>
           <div class="stat-card-value" id="mOrders">—</div>
           <div class="stat-card-sub" id="mOrdersSub">all statuses</div>
         </div>
         <div class="monthly-stat-card">
-          <div class="stat-card-icon">🍽️</div>
           <div class="stat-card-label">Avg. Order Value</div>
           <div class="stat-card-value" id="mAvg">—</div>
           <div class="stat-card-sub">paid orders avg</div>
         </div>
         <div class="monthly-stat-card">
-          <div class="stat-card-icon">🪑</div>
           <div class="stat-card-label">Tables Occupied</div>
           <div class="stat-card-value" id="mTables">—</div>
           <div class="stat-card-sub">unique tables used</div>
