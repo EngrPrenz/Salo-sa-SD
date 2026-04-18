@@ -215,6 +215,7 @@ let tableStatuses = {};
 
 // Live listener on tables collection
 onSnapshot(collection(db, 'tables'), snap => {
+  tableStatuses = {};
   snap.forEach(d => {
     const data = d.data();
     const num = data.tableNumber || parseInt(d.id.replace('table_', ''));
@@ -223,40 +224,51 @@ onSnapshot(collection(db, 'tables'), snap => {
   renderTablesGrid();
 });
 
+const TABLE_STATUS_CFG = {
+  free:       { icon: '🪑', label: 'Free',      textColor: '#5e5e5e' },
+  reserved:   { icon: '📋', label: 'Reserved',  textColor: '#c9973a' },
+  'walk-in':  { icon: '🍽️', label: 'Walk-in',   textColor: '#e8c07a' },
+  pending:    { icon: '⏳', label: 'Pending',   textColor: '#f39c12' },
+  preparing:  { icon: '👨‍🍳', label: 'Preparing', textColor: '#3498db' },
+  served:     { icon: '✅', label: 'Served',    textColor: '#2ecc71' },
+  billed:     { icon: '💰', label: 'Billed',    textColor: '#9b59b6' },
+};
+
 function renderTablesGrid() {
   const grid = document.getElementById('tablesGrid');
   if (!grid) return;
 
-  grid.innerHTML = Array.from({length: 10}, (_, i) => {
-    const n    = i + 1;
-    const data = tableStatuses[n];
+  const tableNums = Object.keys(tableStatuses).map(Number).sort((a,b)=>a-b);
+  const label = document.getElementById('tableCountLabel');
+  if (label) label.textContent = `${tableNums.length} Table${tableNums.length!==1?'s':''} · Manage below`;
+
+  if (!tableNums.length) {
+    grid.innerHTML = '<div class="empty-state">No tables yet. Click "+ Add Table" to create one.</div>';
+    return;
+  }
+
+  grid.innerHTML = tableNums.map(n => {
+    const data  = tableStatuses[n];
     const rawSt = (data?.status || 'free').toLowerCase().trim();
-    const st = rawSt === 'available' ? 'free' : rawSt;
+    const st    = rawSt === 'available' ? 'free' : rawSt;
+    const cfg   = TABLE_STATUS_CFG[st] || TABLE_STATUS_CFG.free;
 
-    const STATUS = {
-      free:       { icon: '🪑', label: 'Free',       textColor: '#5e5e5e' },
-      reserved:   { icon: '📋', label: 'Reserved',   textColor: '#c9973a' },
-      'walk-in':  { icon: '🍽️', label: 'Walk-in',    textColor: '#e8c07a' },
-      pending:    { icon: '⏳', label: 'Pending',    textColor: '#f39c12' },
-      preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#3498db' },
-      served:     { icon: '✅', label: 'Served',     textColor: '#2ecc71' },
-      billed:     { icon: '💰', label: 'Billed',     textColor: '#9b59b6' },
-    };
-
-    const cfg       = STATUS[st] || STATUS.free;
     const waiter    = data?.waiterName || null;
     const guestName = data?.reservation?.guestName || null;
     const resTime   = data?.reservation?.time || null;
+    const tableName = data?.name ? `<div class="table-card-name">${escapeHtml(data.name)}</div>` : '';
+    const capacity  = data?.capacity ? `<div class="table-card-info muted">👥 ${data.capacity} seats</div>` : '';
 
-    // Format reservation time nicely e.g. "18:30" → "6:30 PM"
-    const formatTime = t => {
-  if (!t) return '—';
-  return t; // already formatted as "7:00 PM"
-};
     return `
       <div class="table-card ${st}">
+        <div class="table-card-top-actions">
+          <button class="tbl-action-btn edit" title="Edit table" onclick="window._openEditTableModal(${n})">✏️</button>
+          <button class="tbl-action-btn delete" title="Delete table" onclick="window._deleteTable(${n})">🗑️</button>
+        </div>
         <div class="table-card-num" style="color:${cfg.textColor}">Table ${n}</div>
+        ${tableName}
         <div class="table-card-icon">${cfg.icon}</div>
+        ${capacity}
         <div class="table-card-status">
           <span class="status-badge ${st}" style="color:${cfg.textColor};border-color:${cfg.textColor}33;background:${cfg.textColor}18">
             ${cfg.label}
@@ -264,34 +276,130 @@ function renderTablesGrid() {
         </div>
 
         ${st === 'reserved' ? `
-          <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">
-            👤 ${guestName || '—'}
-          </div>
-          <div class="table-card-info" style="color:${cfg.textColor};">
-            🕐 ${formatTime(resTime)}
-          </div>
+          <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">👤 ${guestName || '—'}</div>
+          <div class="table-card-info" style="color:${cfg.textColor};">🕐 ${resTime || '—'}</div>
           <button class="btn-sm" style="margin-top:6px;border-color:rgba(192,57,43,0.4);color:#e07070;width:100%;"
-            onclick="window._removeReservation(${n})">
-            ✕ Remove Reservation
-          </button>
-
+            onclick="window._removeReservation(${n})">✕ Remove Reservation</button>
         ` : st === 'free' ? `
           <div class="table-card-info muted">No waiter assigned</div>
           <button class="btn-sm gold" style="margin-top:6px;width:100%;"
-            onclick="window._openReserveModal(${n})">
-            + Reserve
-          </button>
-
+            onclick="window._openReserveModal(${n})">+ Reserve</button>
         ` : `
           <div class="table-card-info" style="color:${cfg.textColor}">
             ${waiter ? `👤 ${waiter}` : 'No waiter assigned'}
           </div>
         `}
 
-        <button class="btn-sm" style="margin-top:4px;" onclick="window._showTableHistory(${n})">Info</button>
+        <button class="btn-sm" style="margin-top:4px;width:100%;" onclick="window._showTableHistory(${n})">📋 Info</button>
       </div>`;
   }).join('');
 }
+
+// ── Add / Edit Table Modal ──
+let editingTableNum = null;
+
+function openTableModal(tableNum = null) {
+  editingTableNum = tableNum;
+  const isEdit = tableNum !== null;
+  const titleEl = document.getElementById('tableModalTitle');
+  if (titleEl) titleEl.textContent = isEdit ? `Edit Table ${tableNum}` : 'Add Table';
+
+  const numInput = document.getElementById('tableModalNumber');
+  const nameInput = document.getElementById('tableModalName');
+  const capInput = document.getElementById('tableModalCapacity');
+  if (!numInput) return;
+
+  if (isEdit) {
+    const data = tableStatuses[tableNum] || {};
+    numInput.value  = tableNum;
+    numInput.disabled = true; // can't change table number on edit
+    nameInput.value = data.name || '';
+    capInput.value  = data.capacity || '';
+  } else {
+    // Suggest next available number
+    const existing = Object.keys(tableStatuses).map(Number);
+    let next = 1;
+    while (existing.includes(next)) next++;
+    numInput.value  = next;
+    numInput.disabled = false;
+    nameInput.value = '';
+    capInput.value  = '';
+  }
+  document.getElementById('tableModal').classList.add('show');
+}
+
+function closeTableModal() {
+  document.getElementById('tableModal').classList.remove('show');
+  editingTableNum = null;
+  const numInput = document.getElementById('tableModalNumber');
+  if (numInput) numInput.disabled = false;
+}
+
+const addTableBtn = document.getElementById('addTableBtn');
+if (addTableBtn) addTableBtn.onclick = () => openTableModal(null);
+
+const tableModalClose   = document.getElementById('tableModalClose');
+const tableModalCancel  = document.getElementById('tableModalCancel');
+if (tableModalClose)  tableModalClose.onclick  = closeTableModal;
+if (tableModalCancel) tableModalCancel.onclick = closeTableModal;
+
+const tableModalSave = document.getElementById('tableModalSave');
+if (tableModalSave) tableModalSave.onclick = async () => {
+  const numVal  = parseInt(document.getElementById('tableModalNumber').value);
+  const nameVal = document.getElementById('tableModalName').value.trim();
+  const capVal  = parseInt(document.getElementById('tableModalCapacity').value) || null;
+
+  if (!numVal || numVal < 1) { showToast('⚠ Please enter a valid table number.'); return; }
+
+  const isEdit = editingTableNum !== null;
+  if (!isEdit && tableStatuses[numVal]) {
+    showToast(`⚠ Table ${numVal} already exists.`); return;
+  }
+
+  const docId   = isEdit ? tableStatuses[editingTableNum].docId : `table_${numVal}`;
+  const payload = {
+    tableNumber: numVal,
+    status: isEdit ? (tableStatuses[editingTableNum]?.status || 'free') : 'free',
+    ...(nameVal  ? { name: nameVal }     : {}),
+    ...(capVal   ? { capacity: capVal }  : { capacity: null }),
+  };
+
+  try {
+    await setDoc(doc(db, 'tables', docId), payload, { merge: true });
+    showToast(isEdit ? `✅ Table ${numVal} updated.` : `✅ Table ${numVal} added.`);
+    closeTableModal();
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Failed to save table.');
+  }
+};
+
+window._openEditTableModal = (n) => openTableModal(n);
+
+window._deleteTable = (n) => {
+  const data = tableStatuses[n];
+  if (!data) return;
+  const st = (data.status || 'free').toLowerCase();
+  if (st !== 'free') {
+    showToast(`⚠ Cannot delete Table ${n} while it is ${st}. Clear it first.`);
+    return;
+  }
+  showConfirm({
+    title: `Delete Table ${n}`,
+    message: `Permanently delete Table ${n}${data.name ? ' ('+data.name+')' : ''}? This cannot be undone.`,
+    okLabel: '🗑 Delete',
+    okClass: 'danger',
+    onOk: async () => {
+      try {
+        await deleteDoc(doc(db, 'tables', data.docId));
+        showToast(`🗑 Table ${n} deleted.`);
+      } catch(e) {
+        console.error(e);
+        showToast('❌ Failed to delete table.');
+      }
+    }
+  });
+};
 
 // ── Reserve Modal ──
 

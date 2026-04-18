@@ -907,3 +907,22 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .cal-detail-stat { background:var(--black-mid); border-radius:8px; padding:10px 12px; }
 .cal-detail-stat-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
 .cal-detail-stat-val { font-size:20px; color:var(--gold-light); }
+/* ── Table card action buttons (edit/delete) ── */
+.table-card { position: relative; }
+.table-card-top-actions {
+  position: absolute; top: 10px; right: 10px;
+  display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s;
+}
+.table-card:hover .table-card-top-actions { opacity: 1; }
+.tbl-action-btn {
+  background: var(--black-mid); border: 1px solid var(--border);
+  border-radius: 6px; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; cursor: pointer; transition: all 0.15s;
+}
+.tbl-action-btn.edit:hover  { background: var(--gold-dim); border-color: var(--gold); }
+.tbl-action-btn.delete:hover { background: rgba(192,57,43,0.15); border-color: rgba(192,57,43,0.5); }
+.table-card-name {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;
+}
