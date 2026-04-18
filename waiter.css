@@ -380,3 +380,10 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   .step-pills { display: none; }
   .step-header { flex-direction: column; align-items: flex-start; gap: 12px; }
 }
+/* ═══════ DYNAMIC TABLE ENHANCEMENTS ═══════ */
+.table-cap {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: -4px;
+  margin-bottom: 2px;
+}

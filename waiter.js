@@ -58,24 +58,44 @@ async function init() {
   // Listen to tables collection — single source of truth for walk-in status
   onSnapshot(collection(db, 'tables'), snap => {
     tablesData = {};
+    tablesList = [];
     snap.docs.forEach(d => {
       const data = d.data();
-      const num = data.tableNumber || parseInt(d.id.replace('table_', ''));
-      tablesData[num] = { docId: d.id, ...data };
+      const rawNum = data.tableNumber
+        ? parseInt(data.tableNumber)
+        : parseInt(d.id.replace('table_', ''));
+      const num = isNaN(rawNum) ? null : rawNum;
+      if (!num) return; // skip malformed docs
+      // Deduplicate: prefer doc with explicit tableNumber field
+      if (tablesData[num] && !data.tableNumber) return;
+      tablesData[num] = { docId: d.id, ...data, tableNumber: num };
+      const existIdx = tablesList.findIndex(t => t.tableNumber === num);
+      if (existIdx !== -1) tablesList.splice(existIdx, 1);
+      tablesList.push({ docId: d.id, tableNumber: num, ...data });
     });
+    tablesList.sort((a, b) => a.tableNumber - b.tableNumber);
     renderTables();
   });
 }
 
 // ── TABLE RENDERING ──
+let tablesList = []; // sorted list of table docs from Firestore
+
 function renderTables() {
   const orderOccupied = {};
   allOrders.filter(o => ['pending','preparing','served'].includes(o.status)).forEach(o => {
     if (o.tableNumber) orderOccupied[o.tableNumber] = { status: o.status, waiterName: o.waiterName, waiterId: o.waiterId };
   });
+
   const grid = $('tablesGrid');
-  grid.innerHTML = Array.from({ length: 10 }, (_, i) => {
-    const n = i + 1;
+
+  if (!tablesList.length) {
+    grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No tables configured yet.</div>';
+    return;
+  }
+
+  grid.innerHTML = tablesList.map(entry => {
+    const n = entry.tableNumber;
     const orderInfo        = orderOccupied[n];
     const tableDoc         = tablesData[n];
     const isWalkIn         = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
@@ -85,6 +105,10 @@ function renderTables() {
     const isOccupiedYours  = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
     const isYours          = orderInfo && orderInfo.waiterId === waiterId;
     const isTakenOrder     = orderInfo && !isYours;
+
+    // Display label: custom name if set, else "Table N"
+    const displayLabel = entry.name ? entry.name : `Table ${n}`;
+    const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
 
     let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
@@ -119,7 +143,8 @@ function renderTables() {
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
-      <div class="table-num">${n}</div>
+      <div class="table-num">${displayLabel}</div>
+      ${capInfo}
       <div class="table-icon">${icon}</div>
       <span class="table-status-badge ${badge}">${badgeLbl}</span>
       <div class="table-meta">${meta}</div>
