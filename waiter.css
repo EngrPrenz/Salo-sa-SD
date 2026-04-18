@@ -15,7 +15,8 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 /* ── TOPBAR ── */
 .topbar { position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h); z-index: 100; background: var(--black-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; gap: 20px; }
 .brand { display: flex; align-items: center; gap: 12px; }
-.brand-icon { font-size: 28px; }
+.brand-icon { font-size: 28px; display: flex; align-items: center; }
+.brand-logo { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(201,151,58,0.35); box-shadow: 0 0 10px rgba(201,151,58,0.15); display: block; }
 .brand-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--gold-light); }
 .topbar-middle { flex: 1; display: flex; align-items: center; justify-content: center; }
 .step-pills { display: flex; align-items: center; gap: 0; }
@@ -317,13 +318,93 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .btn-confirm-arrival.loading .btn-conf-spin { display: block; }
 
 /* ── SUCCESS FLASH ── */
-.order-success { position: fixed; inset: 0; z-index: 600; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; }
-.order-success.show { display: flex !important; animation: fadeIn 0.3s ease; }
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-.order-success-icon { font-size: 64px; animation: bounce 0.6s cubic-bezier(0.16,1,0.3,1); }
-@keyframes bounce { from{transform:scale(0)} to{transform:scale(1)} }
-.order-success-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; color: var(--white); }
-.order-success-sub { font-size: 14px; color: var(--text-muted); }
+.order-success {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.82); backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center;
+}
+.order-success.show { display: flex !important; animation: successOverlayIn 0.35s ease; }
+@keyframes successOverlayIn { from{opacity:0} to{opacity:1} }
+
+.order-success-card {
+  background: var(--black-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  width: 100%; max-width: 380px;
+  overflow: hidden;
+  animation: successCardIn 0.45s cubic-bezier(0.16,1,0.3,1);
+  text-align: center;
+  position: relative;
+}
+@keyframes successCardIn {
+  from { opacity: 0; transform: scale(0.88) translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Gold strip for order success, orange for occupied */
+.order-success-strip {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--gold), var(--gold-light), var(--gold), transparent);
+}
+#occupiedSuccess .order-success-strip {
+  background: linear-gradient(90deg, transparent, var(--orange), #f39c12, var(--orange), transparent);
+}
+
+.order-success-inner {
+  padding: 36px 32px 40px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+
+.order-success-icon {
+  animation: successIconBounce 0.6s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+  line-height: 1;
+}
+.success-logo {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(201,151,58,0.35);
+  box-shadow: 0 0 24px rgba(201,151,58,0.2);
+  display: block;
+}
+@keyframes successIconBounce {
+  from { transform: scale(0) rotate(-15deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);  opacity: 1; }
+}
+
+.order-success-eyebrow {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--gold);
+  opacity: 0; animation: successFadeUp 0.4s ease 0.3s forwards;
+}
+#occupiedSuccess .order-success-eyebrow { color: var(--orange); }
+
+.order-success-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 34px; font-weight: 600; color: var(--white);
+  line-height: 1.1;
+  opacity: 0; animation: successFadeUp 0.4s ease 0.38s forwards;
+}
+
+.order-success-sub {
+  font-size: 13px; color: var(--text-muted); line-height: 1.5;
+  opacity: 0; animation: successFadeUp 0.4s ease 0.46s forwards;
+}
+
+.order-success-divider {
+  width: 40px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  margin: 4px 0;
+  opacity: 0; animation: successFadeUp 0.4s ease 0.42s forwards;
+}
+#occupiedSuccess .order-success-divider {
+  background: linear-gradient(90deg, transparent, var(--orange), transparent);
+}
+
+@keyframes successFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
 
 /* ── TOAST ── */
 .toast { position: fixed; bottom: 24px; right: 24px; z-index: 999; padding: 11px 20px; background: var(--black-card); border: 1px solid var(--gold); color: var(--gold-light); border-radius: 12px; font-size: 13px; font-weight: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 10px; transform: translateY(80px); opacity: 0; transition: all 0.4s cubic-bezier(0.16,1,0.3,1); }
