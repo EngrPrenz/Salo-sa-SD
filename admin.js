@@ -21,7 +21,7 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('userAvatarSidebar').textContent = name[0].toUpperCase();
   document.getElementById('userAvatarTop').textContent = name[0].toUpperCase();
 
-  loadTables();
+
   loadMenu();
   loadStaff();
 
@@ -212,39 +212,188 @@ window._updateStatus = updateOrderStatus;
 
 // ── Tables view ──
 let tableStatuses = {};
-async function loadTables() {
-  const snap = await getDocs(collection(db, 'tables'));
-  snap.forEach(d => { tableStatuses[d.id] = d.data(); });
+
+// Live listener on tables collection
+onSnapshot(collection(db, 'tables'), snap => {
+  snap.forEach(d => {
+    const data = d.data();
+    const num = data.tableNumber || parseInt(d.id.replace('table_', ''));
+    if (num) tableStatuses[num] = { docId: d.id, ...data };
+  });
   renderTablesGrid();
-}
+});
 
 function renderTablesGrid() {
   const grid = document.getElementById('tablesGrid');
-  const occupied = {};
-  allOrders.filter(o=>['pending','preparing','served'].includes(o.status)).forEach(o => {
-    if (o.tableNumber) occupied[o.tableNumber] = o;
-  });
-  grid.innerHTML = Array.from({length:10},(_,i)=>{
-    const n = i+1, order = occupied[n];
-    const manual = tableStatuses[String(n)] && tableStatuses[String(n)].manualStatus;
-    const st = order ? order.status : (manual || 'free');
-    const orderId = order ? `#${order.id.slice(-5).toUpperCase()}` : '';
-    const waiter = order ? (order.waiterName||'') : '';
-    const total = order ? `₱${(order.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}` : '';
+  if (!grid) return;
+
+  grid.innerHTML = Array.from({length: 10}, (_, i) => {
+    const n    = i + 1;
+    const data = tableStatuses[n];
+    const rawSt = (data?.status || 'free').toLowerCase().trim();
+    const st = rawSt === 'available' ? 'free' : rawSt;
+
+    const STATUS = {
+      free:       { icon: '🪑', label: 'Free',       textColor: '#5e5e5e' },
+      reserved:   { icon: '📋', label: 'Reserved',   textColor: '#c9973a' },
+      'walk-in':  { icon: '🍽️', label: 'Walk-in',    textColor: '#e8c07a' },
+      pending:    { icon: '⏳', label: 'Pending',    textColor: '#f39c12' },
+      preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#3498db' },
+      served:     { icon: '✅', label: 'Served',     textColor: '#2ecc71' },
+      billed:     { icon: '💰', label: 'Billed',     textColor: '#9b59b6' },
+    };
+
+    const cfg       = STATUS[st] || STATUS.free;
+    const waiter    = data?.waiterName || null;
+    const guestName = data?.reservation?.guestName || null;
+    const resTime   = data?.reservation?.time || null;
+
+    // Format reservation time nicely e.g. "18:30" → "6:30 PM"
+    const formatTime = t => {
+  if (!t) return '—';
+  return t; // already formatted as "7:00 PM"
+};
     return `
       <div class="table-card ${st}">
-        <div class="table-card-num">Table ${n}</div>
-        <div class="table-card-icon">${st==='free'?'🪑':'🍽️'}</div>
-        <div class="table-card-status"><span class="status-badge ${st}">${capitalize(st)}</span></div>
-        ${order ? `<div class="table-card-info">${orderId}<br>${waiter}<br>${total}</div>` : '<div class="table-card-info muted">Available</div>'}
-        ${order && order.status!=='paid' ? `<button class="btn-sm gold" onclick="window._updateStatus('${order.id}','paid')">Mark Paid</button>` : ''}
-        <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;">
-          <button class="btn-sm" onclick="window._toggleTable(${n})">Toggle Occupied</button>
-          <button class="btn-sm" onclick="window._showTableHistory(${n})">Info</button>
+        <div class="table-card-num" style="color:${cfg.textColor}">Table ${n}</div>
+        <div class="table-card-icon">${cfg.icon}</div>
+        <div class="table-card-status">
+          <span class="status-badge ${st}" style="color:${cfg.textColor};border-color:${cfg.textColor}33;background:${cfg.textColor}18">
+            ${cfg.label}
+          </span>
         </div>
+
+        ${st === 'reserved' ? `
+          <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">
+            👤 ${guestName || '—'}
+          </div>
+          <div class="table-card-info" style="color:${cfg.textColor};">
+            🕐 ${formatTime(resTime)}
+          </div>
+          <button class="btn-sm" style="margin-top:6px;border-color:rgba(192,57,43,0.4);color:#e07070;width:100%;"
+            onclick="window._removeReservation(${n})">
+            ✕ Remove Reservation
+          </button>
+
+        ` : st === 'free' ? `
+          <div class="table-card-info muted">No waiter assigned</div>
+          <button class="btn-sm gold" style="margin-top:6px;width:100%;"
+            onclick="window._openReserveModal(${n})">
+            + Reserve
+          </button>
+
+        ` : `
+          <div class="table-card-info" style="color:${cfg.textColor}">
+            ${waiter ? `👤 ${waiter}` : 'No waiter assigned'}
+          </div>
+        `}
+
+        <button class="btn-sm" style="margin-top:4px;" onclick="window._showTableHistory(${n})">Info</button>
       </div>`;
   }).join('');
 }
+
+// ── Reserve Modal ──
+
+let reserveTargetTable = null;
+
+window._openReserveModal = (tableNum) => {
+  reserveTargetTable = tableNum;
+  document.getElementById('reserveTableLabel').textContent = `Reserve Table ${tableNum}`;
+  document.getElementById('reserveGuestName').value = '';
+  // Reset dropdowns to defaults
+  document.getElementById('reserveHour').value   = '7';
+  document.getElementById('reserveMinute').value = '00';
+  document.getElementById('reserveAmPm').value   = 'PM';
+  document.getElementById('reserveModal').classList.add('show');
+};
+document.getElementById('reserveModalCancel').onclick = () => {
+  document.getElementById('reserveModal').classList.remove('show');
+  reserveTargetTable = null;
+};
+
+document.getElementById('reserveModal').onclick = (e) => {
+  if (e.target === document.getElementById('reserveModal')) {
+    document.getElementById('reserveModal').classList.remove('show');
+    reserveTargetTable = null;
+  }
+};
+
+document.getElementById('reserveModalConfirm').onclick = async () => {
+  const guestName = document.getElementById('reserveGuestName').value.trim();
+  const hour      = document.getElementById('reserveHour').value;
+  const minute    = document.getElementById('reserveMinute').value;
+  const ampm      = document.getElementById('reserveAmPm').value;
+  const time      = `${hour}:${minute} ${ampm}`;   // e.g. "7:30 PM"
+
+  if (!guestName) {
+    showToast('⚠ Please enter the guest name.');
+    return;
+  }
+
+  const data = tableStatuses[reserveTargetTable];
+  if (!data) { showToast('Table not found.'); return; }
+
+  const btn = document.getElementById('reserveModalConfirm');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    await updateDoc(doc(db, 'tables', data.docId), {
+      status:      'reserved',
+      reservation: { guestName, time },
+      waiterId:    null,
+      waiterName:  null,
+      lastUpdated: serverTimestamp()
+    });
+    showToast(`✓ Table ${reserveTargetTable} reserved for ${guestName} at ${time}`);
+    document.getElementById('reserveModal').classList.remove('show');
+    reserveTargetTable = null;
+  } catch(err) {
+    showToast('❌ Failed to save reservation.');
+    console.error(err);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirm Reservation';
+  }
+};
+
+// ── Remove Reservation ──
+window._removeReservation = async (tableNum) => {
+  if (!confirm(`Remove reservation for Table ${tableNum}?`)) return;
+  const data = tableStatuses[tableNum];
+  if (!data) return;
+  try {
+    await updateDoc(doc(db, 'tables', data.docId), {
+      status:      'free',
+      reservation: null,
+      lastUpdated: serverTimestamp()
+    });
+    showToast(`✓ Reservation for Table ${tableNum} removed.`);
+  } catch(err) {
+    showToast('❌ Failed to remove reservation.');
+    console.error(err);
+  }
+};
+
+// ── Clear All Tables ──
+document.getElementById('clearAllTablesBtn').onclick = async () => {
+  if (!confirm('Reset ALL tables to free? This cannot be undone.')) return;
+  try {
+    const snap = await getDocs(collection(db, 'tables'));
+    await Promise.all(snap.docs.map(d =>
+      updateDoc(d.ref, {
+        status:      'free',
+        reservation: null,
+        waiterId:    null,
+        waiterName:  null,
+        lastUpdated: serverTimestamp()
+      })
+    ));
+    showToast('✓ All tables cleared.');
+  } catch(err) {
+    showToast('❌ Failed to clear tables.');
+    console.error(err);
+  }
+};
 
 document.getElementById('clearAllTablesBtn').onclick = async () => {
   if (!confirm('Mark ALL active orders as paid?')) return;
