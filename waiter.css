@@ -84,33 +84,6 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .table-status-badge.yours    { color: var(--gold);   background: var(--gold-dim); }
 .table-status-badge.walk-in  { color: #e74c3c;       background: rgba(231,76,60,0.12); }
 
-/* ── OCCUPY BUTTON (on free tiles) ── */
-.occupy-btn {
-  position: absolute;
-  top: 9px; left: 9px;
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: var(--orange-dim);
-  border: 1px solid rgba(230,126,34,0.3);
-  color: var(--orange);
-  font-size: 13px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
-  z-index: 2;
-  opacity: 0;
-  transform: scale(0.8);
-}
-.table-tile:hover .occupy-btn {
-  opacity: 1;
-  transform: scale(1);
-}
-.occupy-btn:hover {
-  background: var(--orange);
-  color: var(--white);
-  border-color: var(--orange);
-}
-
 /* ── STEP 2: ORDER TAKING ── */
 #stepOrder { position: absolute; inset: 0; display: none; flex-direction: column; transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.4s; }
 #stepOrder.visible { display: flex; }
@@ -277,14 +250,10 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .occupied-table-badge {
   align-self: center;
   font-family: 'Cormorant Garamond', serif;
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--orange);
-  background: var(--orange-dim);
+  font-size: 32px; font-weight: 600;
+  color: var(--orange); background: var(--orange-dim);
   border: 1px solid rgba(230,126,34,0.3);
-  border-radius: 12px;
-  padding: 12px 32px;
-  text-align: center;
+  border-radius: 12px; padding: 12px 32px; text-align: center;
 }
 .occupied-table-badge.walk-in-badge { color: #e74c3c; background: rgba(231,76,60,0.1); border-color: rgba(231,76,60,0.3); }
 .occupied-modal-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; text-align: center; }
@@ -295,8 +264,7 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   color: var(--white); border: none; border-radius: 8px;
   font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.08em;
-  cursor: pointer; transition: all 0.2s;
-  position: relative; overflow: hidden;
+  cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
 }
 .btn-mark-occupied:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(230,126,34,0.3); }
 .btn-mark-occupied:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
@@ -307,20 +275,46 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .walkin-action-btns { display: flex; flex-direction: column; gap: 10px; }
 .walkin-action-btn {
   display: flex; align-items: center; gap: 14px;
-  padding: 16px 18px;
-  background: var(--black-mid);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  padding: 16px 18px; background: var(--black-mid);
+  border: 1px solid var(--border); border-radius: 12px;
   cursor: pointer; transition: all 0.18s;
-  color: var(--white); font-family: 'Outfit', sans-serif;
-  text-align: left;
+  color: var(--white); font-family: 'Outfit', sans-serif; text-align: left;
 }
 .walkin-action-btn:hover { transform: translateY(-1px); }
 .walkin-action-btn.start-order:hover { border-color: rgba(201,151,58,0.5); background: var(--gold-dim); }
-.walkin-action-btn.free-table:hover  { border-color: rgba(39,174,96,0.5);  background: var(--green-dim); }
+.walkin-action-btn.free-table:hover  { border-color: rgba(39,174,96,0.5); background: var(--green-dim); }
 .walkin-btn-icon { font-size: 24px; flex-shrink: 0; }
 .walkin-action-btn span:nth-child(2) { font-size: 14px; font-weight: 600; flex: 1; }
 .walkin-btn-sub { font-size: 11px; color: var(--text-muted); display: block; }
+
+/* ── RESERVED TABLE TILE ── */
+.table-tile.reserved { border-color: rgba(41,128,185,0.4); background: rgba(41,128,185,0.04); cursor: pointer; }
+.table-tile:hover.reserved { border-color: rgba(41,128,185,0.7); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.table-status-badge.reserved { color: var(--blue); background: var(--blue-dim); }
+
+/* ── RESERVED MODAL INFO CARD ── */
+.reserved-info-card {
+  background: var(--black-mid); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.reserved-info-row { display: flex; align-items: center; justify-content: space-between; }
+.reserved-info-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.reserved-info-val { font-size: 15px; font-weight: 700; color: var(--white); }
+
+/* ── CONFIRM ARRIVAL BUTTON ── */
+.btn-confirm-arrival {
+  flex: 2; padding: 12px;
+  background: linear-gradient(135deg, var(--blue), #1a6ea8);
+  color: var(--white); border: none; border-radius: 8px;
+  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
+}
+.btn-confirm-arrival:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(41,128,185,0.35); }
+.btn-confirm-arrival:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn-confirm-arrival.loading .btn-conf-text { display: none; }
+.btn-confirm-arrival.loading .btn-conf-spin { display: block; }
 
 /* ── SUCCESS FLASH ── */
 .order-success { position: fixed; inset: 0; z-index: 600; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; }

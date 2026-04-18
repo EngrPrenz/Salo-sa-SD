@@ -185,6 +185,40 @@
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
 
+<!-- RESERVED TABLE MODAL -->
+<div class="modal-overlay" id="reservedModal">
+  <div class="modal">
+    <div class="modal-strip" style="background: linear-gradient(90deg, transparent, var(--blue), #3498db, var(--blue), transparent);"></div>
+    <div class="modal-header">
+      <span class="modal-title">📅 Reserved Table</span>
+      <button class="modal-close-btn" id="reservedModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="occupied-modal-info">
+        <div class="occupied-table-badge" style="color:var(--blue);background:var(--blue-dim);border-color:rgba(41,128,185,0.3);" id="reservedTableBadge">Table —</div>
+        <div class="reserved-info-card">
+          <div class="reserved-info-row">
+            <span class="reserved-info-label">👤 Guest</span>
+            <span class="reserved-info-val" id="reservedGuestName">—</span>
+          </div>
+          <div class="reserved-info-row">
+            <span class="reserved-info-label">🕐 Time</span>
+            <span class="reserved-info-val" id="reservedTime">—</span>
+          </div>
+        </div>
+        <p class="occupied-modal-desc">If the guest has arrived, confirm their arrival to begin taking their order. You cannot change a reserved table to walk-in.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" id="reservedModalCancel">Cancel</button>
+      <button class="btn-confirm-arrival" id="confirmArrivalBtn">
+        <span class="btn-conf-text">✓ Guest Arrived — Take Order</span>
+        <div class="btn-conf-spin"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="waiter.js"></script>
 </body>
 </html>

@@ -376,8 +376,9 @@ window._removeReservation = async (tableNum) => {
 
 // ── Clear All Tables ──
 document.getElementById('clearAllTablesBtn').onclick = async () => {
-  if (!confirm('Reset ALL tables to free? This cannot be undone.')) return;
+  if (!confirm('Reset ALL tables to free and clear all active orders? This cannot be undone.')) return;
   try {
+    // 1. Reset all table docs to free
     const snap = await getDocs(collection(db, 'tables'));
     await Promise.all(snap.docs.map(d =>
       updateDoc(d.ref, {
@@ -388,21 +389,19 @@ document.getElementById('clearAllTablesBtn').onclick = async () => {
         lastUpdated: serverTimestamp()
       })
     ));
+
+    // 2. Mark all active orders as paid
+    const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
+    await Promise.all(active.map(o =>
+      updateDoc(doc(db, 'orders', o.id), { status: 'paid', updatedAt: serverTimestamp() })
+    ));
+
     showToast('✓ All tables cleared.');
   } catch(err) {
     showToast('❌ Failed to clear tables.');
     console.error(err);
   }
 };
-
-document.getElementById('clearAllTablesBtn').onclick = async () => {
-  if (!confirm('Mark ALL active orders as paid?')) return;
-  const active = allOrders.filter(o=>['pending','preparing','served'].includes(o.status));
-  await Promise.all(active.map(o => updateDoc(doc(db,'orders',o.id),{status:'paid',updatedAt:serverTimestamp()})));
-  showToast('All tables cleared.');
-};
-
-onSnapshot(query(ordersRef, orderBy('createdAt','desc')), () => renderTablesGrid());
 
 // ═══════════════════════════════════════════════════
 // ── MENU (with Image Upload) ──
