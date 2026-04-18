@@ -74,8 +74,15 @@ function renderTables() {
     if (o.tableNumber) orderOccupied[o.tableNumber] = { status: o.status, waiterName: o.waiterName, waiterId: o.waiterId };
   });
   const grid = $('tablesGrid');
-  grid.innerHTML = Array.from({ length: 10 }, (_, i) => {
-    const n = i + 1;
+
+  // Build sorted list of table numbers from Firestore — no hardcoding
+  const tableNums = Object.keys(tablesData).map(Number).sort((a, b) => a - b);
+  if (!tableNums.length) {
+    grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No tables available. Ask admin to add tables.</div>';
+    return;
+  }
+
+  grid.innerHTML = tableNums.map(n => {
     const orderInfo        = orderOccupied[n];
     const tableDoc         = tablesData[n];
     const isWalkIn         = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
@@ -117,10 +124,14 @@ function renderTables() {
       icon = '🪑'; meta = 'Tap to seat guests';
     }
 
+    const tableName = tablesData[n]?.name ? `<div class="table-name-label">${tablesData[n].name}</div>` : '';
+    const tableCap  = tablesData[n]?.capacity ? `<div class="table-cap-label">👥 ${tablesData[n].capacity}</div>` : '';
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
       <div class="table-num">${n}</div>
+      ${tableName}
       <div class="table-icon">${icon}</div>
+      ${tableCap}
       <span class="table-status-badge ${badge}">${badgeLbl}</span>
       <div class="table-meta">${meta}</div>
     </div>`;
