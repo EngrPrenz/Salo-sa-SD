@@ -165,7 +165,7 @@
   <!-- TABLES -->
   <section class="view" id="view-tables">
     <div class="view-toolbar">
-      <div class="panel-title panel-title--small">10 Tables · Drag to rearrange status</div>
+      <div class="panel-title panel-title--small">Tables · Drag to rearrange status</div>
       <div class="toolbar-right">
         <button class="btn-sm gold" id="clearAllTablesBtn">Clear All Tables</button>
       </div>
@@ -546,5 +546,35 @@
     </div>
   </div>
 </div>
+<!-- Table Add/Edit Modal -->
+<div class="modal-overlay" id="tableModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title" id="tableModalTitle">Add New Table</span>
+      <button class="modal-close" id="tableModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" id="tableModalNumberRow">
+        <label>Table Number <span style="color:var(--gold-light);">*</span></label>
+        <input type="number" id="tableModalNumber" min="1" max="999" placeholder="e.g. 11" autocomplete="off"/>
+        <span style="font-size:11px;color:var(--text-muted);">Must be unique. This is the internal identifier.</span>
+      </div>
+      <div class="form-group">
+        <label>Display Name <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+        <input type="text" id="tableModalName" placeholder="e.g. Garden Table, VIP 1…" maxlength="40" autocomplete="off"/>
+        <span style="font-size:11px;color:var(--text-muted);">Leave blank to use "Table N" as the label.</span>
+      </div>
+      <div class="form-group">
+        <label>Seating Capacity <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+        <input type="number" id="tableModalCapacity" min="1" max="50" placeholder="e.g. 4"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" id="tableModalCancel">Cancel</button>
+      <button class="btn-sm gold" id="tableModalSave">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
