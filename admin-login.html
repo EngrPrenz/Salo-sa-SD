@@ -6,6 +6,7 @@
   <title>Salo sa Antipolo — Admin Login</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="admin-login.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 <div class="bg"></div>
@@ -19,27 +20,27 @@
   <!-- Left branding -->
   <div class="left-panel">
     <div class="left-eyebrow">Admin Control Center <span style="width:1px;height:1px;"></span></div>
-    <h1 class="left-title">Salo sa<br><em>Antipolo</em></h1>
+    <h1 class="left-title"><img src="image/logo.png" alt="Logo" style="height:60px;vertical-align:middle;margin-right:8px;">Salo sa<br><em>Antipolo</em></h1>
     <p class="left-loc">Antipolo City, Rizal</p>
     <div class="divider"></div>
     <div class="stats">
       <div class="stat">
-        <div class="stat-icon">🍽️</div>
+        <div class="stat-icon"><i data-lucide="armchair"></i></div>
         <div class="stat-label">Tables</div>
         <div class="stat-val">13</div>
       </div>
       <div class="stat">
-        <div class="stat-icon">📋</div>
+        <div class="stat-icon"><i data-lucide="utensils"></i></div>
         <div class="stat-label">Menu</div>
         <div class="stat-val">Full</div>
       </div>
       <div class="stat">
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"><i data-lucide="banknote"></i></div>
         <div class="stat-label">Billing</div>
         <div class="stat-val">Live</div>
       </div>
       <div class="stat">
-        <div class="stat-icon">📊</div>
+        <div class="stat-icon"><i data-lucide="trending-up"></i></div>
         <div class="stat-label">Reports</div>
         <div class="stat-val">Daily</div>
       </div>
@@ -118,7 +119,7 @@
       sessionStorage.setItem('userName', data.name||email);
       sessionStorage.setItem('userId', cred.user.uid);
       showToast('Welcome, '+(data.name||'Admin')+'! Loading dashboard…');
-      setTimeout(()=>window.location.href='admin.html',1500);
+      setTimeout(()=>window.location.href='admin-html/admin-overview.html',1500);
     } catch(err) {
       setLoad(false);
       const c=err.code;
@@ -129,6 +130,8 @@
     }
   };
   [emailEl,pwEl].forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter')loginBtn.click();}));
+
+document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });
 </script>
 </body>
 </html>

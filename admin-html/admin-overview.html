@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Salo sa Antipolo — Admin Overview</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin.css"/>
+  <link rel="stylesheet" href="../admin.css"/>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -19,7 +19,7 @@
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="brand-icon"><img src="img/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+    <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
     <div class="brand-text">
       <span class="brand-name">Salo sa</span>
       <em class="brand-italic">Antipolo</em>
@@ -82,7 +82,7 @@
     </div>
   </header>
 
-  <div class="view active">
+  <div class="view active" id="view-overview">
     <div class="stats-grid">
       <div class="stat-card gold">
         <div class="stat-card-icon"><i data-lucide="clipboard-list"></i></div>
@@ -101,12 +101,6 @@
         <div class="stat-card-label">Today's Revenue</div>
         <div class="stat-card-value" id="statRevenue">—</div>
         <div class="stat-card-sub" id="statRevSub">Paid orders today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon"><i data-lucide="users"></i></div>
-        <div class="stat-card-label">Staff On Duty</div>
-        <div class="stat-card-value" id="statStaff">—</div>
-        <div class="stat-card-sub">Waiters active</div>
       </div>
     </div>
 
@@ -137,7 +131,7 @@
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-<script type="module" src="admin.js"></script>
+<script type="module" src="../admin-js/admin-overview.js"></script>
 
 <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
 </body>
