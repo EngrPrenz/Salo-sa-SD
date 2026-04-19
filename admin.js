@@ -585,6 +585,7 @@ document.getElementById('clearAllTablesBtn').onclick = async () => {
 // ═══════════════════════════════════════════════════
 let menuItems = [], editMenuId = null;
 let menuCatFilter = 'all';
+let menuSearchQuery = '';
 let pendingImageFile = null;   // File object staged for upload
 let currentImageUrl  = null;   // Existing URL when editing
 
@@ -594,6 +595,12 @@ async function loadMenu() {
   buildMenuCategoryTabs();
   renderMenuGrid();
 }
+
+// ── Menu search ──
+document.getElementById('menuSearch').addEventListener('input', e => {
+  menuSearchQuery = e.target.value.trim().toLowerCase();
+  renderMenuGrid();
+});
 
 function buildMenuCategoryTabs() {
   const cats = [...new Set(menuItems.map(m=>m.category||'Other'))];
@@ -633,7 +640,14 @@ function timeWindowLabel(category) {
 function renderMenuGrid() {
   const grid = document.getElementById('menuGrid');
   let items = menuCatFilter === 'all' ? menuItems : menuItems.filter(m => (m.category || 'Other') === menuCatFilter);
-  if (!items.length) { grid.innerHTML = '<div class="empty-state">No items in this category.</div>'; return; }
+  if (menuSearchQuery) {
+    items = items.filter(m =>
+      (m.name || '').toLowerCase().includes(menuSearchQuery) ||
+      (m.description || '').toLowerCase().includes(menuSearchQuery) ||
+      (m.category || '').toLowerCase().includes(menuSearchQuery)
+    );
+  }
+  if (!items.length) { grid.innerHTML = '<div class="empty-state">No items found.</div>'; return; }
 
   grid.innerHTML = items.map(m => {
     const sold = allOrders.reduce((s, o) => {
