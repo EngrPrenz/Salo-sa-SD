@@ -21,9 +21,9 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('userAvatarSidebar').textContent = name[0].toUpperCase();
   document.getElementById('userAvatarTop').textContent = name[0].toUpperCase();
 
-
   loadMenu();
   loadStaff();
+  initClearTablesModal();
 
   onSnapshot(query(collection(db,'Users'), where('status','==','pending')), snap => {
     const count = snap.size;
@@ -102,7 +102,8 @@ onSnapshot(query(ordersRef, orderBy('createdAt','desc')), snap => {
   renderBilling();
   renderReports();
   updateOrderBadge();
-  // Re-render monthly report if already visible
+  // Also re-render tables so live order statuses stay in sync
+  renderTablesGrid();
   if (document.getElementById('view-reports').classList.contains('active')) {
     renderMonthlyReport();
   }
@@ -162,82 +163,253 @@ function renderOverviewTableGrid(activeOrders) {
   }).join('');
 }
 
-// ── Live Orders view ──
+// ── Live Orders — search ──
 const orderSearch = document.getElementById('orderSearch');
 orderSearch.addEventListener('input', renderOrders);
+
+// ── Live Orders — filter tabs ──
 document.querySelectorAll('.ftab[data-status]').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.ftab[data-status]').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active'); activeFilter = b.dataset.status; renderOrders();
+  document.querySelectorAll('.ftab[data-status]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  activeFilter = b.dataset.status;
+  renderOrders();
 }));
 
 async function updateOrderStatus(id, status) {
-  await updateDoc(doc(db,'orders',id), { status, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, 'orders', id), { status, updatedAt: serverTimestamp() });
   showToast(`Order updated to "${status}"`);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// LIVE ORDERS — Enhanced Design
+// ═══════════════════════════════════════════════════════════════════
 function renderOrders() {
   const grid = document.getElementById('ordersGrid');
+
   let filtered = allOrders;
   if (activeFilter !== 'all') filtered = filtered.filter(o => o.status === activeFilter);
+
   const q = orderSearch.value.trim().toLowerCase();
   if (q) filtered = filtered.filter(o =>
-    String(o.tableNumber).includes(q) || (o.waiterName||'').toLowerCase().includes(q)
+    String(o.tableNumber).includes(q) || (o.waiterName || '').toLowerCase().includes(q)
   );
-  if (!filtered.length) { grid.innerHTML = '<div class="empty-state">No orders found.</div>'; return; }
-  grid.innerHTML = filtered.map(o => {
-    const items = (o.items||[]).map(it=>`<li>${it.name} × ${it.qty} <span>₱${((it.price||0)*it.qty).toLocaleString()}</span></li>`).join('');
-    const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—';
-    const nextStatus = {pending:'preparing', preparing:'served', served:'paid'}[o.status];
-    const nextLabel  = {pending:'Mark Preparing', preparing:'Mark Served', served:'Mark Paid'}[o.status] || '';
-    return `
-      <div class="order-card ${o.status}">
-        <div class="order-card-head">
-          <div>
-            <span class="order-id mono">#${o.id.slice(-5).toUpperCase()}</span>
-            <span class="status-badge ${o.status}">${capitalize(o.status||'')}</span>
-          </div>
-          <span class="order-time">${ts}</span>
-        </div>
-        <div class="order-meta">Table <strong>${o.tableNumber||'?'}</strong> · ${o.waiterName||'Unknown'}</div>
-        <ul class="order-items">${items}</ul>
-        <div class="order-total">Total: <strong>₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</strong></div>
-        <div class="order-card-actions-row">
-        <div class="order-card-actions-top">
-          ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
-          ${o.status!=='paid' ? `<button class="btn-sm" onclick="window._editOrder('${o.id}')">Edit</button>` : ''}
-          <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
-        </div>
-        ${o.status!=='paid' ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
-      </div>
+
+  if (!filtered.length) {
+    grid.innerHTML = `
+      <div class="orders-empty-state">
+        <div class="orders-empty-icon">🍽️</div>
+        <div class="orders-empty-title">No orders found</div>
+        <div class="orders-empty-sub">Orders will appear here in real-time</div>
       </div>`;
-  }).join('');
+    return;
+  }
+
+  const activeOrders    = filtered.filter(o => ['pending', 'preparing'].includes(o.status));
+  const servedOrders    = filtered.filter(o => o.status === 'served');
+  const paidOrders      = filtered.filter(o => o.status === 'paid');
+  const cancelledOrders = filtered.filter(o => o.status === 'cancelled');
+
+  const STATUS_META = {
+    pending:   { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)',  label: 'Pending',   dot: '#F59E0B' },
+    preparing: { color: '#60A5FA', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.25)',  label: 'Preparing', dot: '#60A5FA' },
+    served:    { color: '#34D399', bg: 'rgba(52,211,153,0.1)',  border: 'rgba(52,211,153,0.25)',  label: 'Served',    dot: '#34D399' },
+    paid:      { color: '#9CA3AF', bg: 'rgba(156,163,175,0.07)', border: 'rgba(156,163,175,0.15)', label: 'Paid',      dot: '#9CA3AF' },
+    cancelled: { color: '#F87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.2)',  label: 'Cancelled', dot: '#F87171' },
+  };
+
+  const STRIPE_GRADIENT = {
+    pending:   'linear-gradient(90deg, #F59E0B, #FBBF24)',
+    preparing: 'linear-gradient(90deg, #3B82F6, #60A5FA)',
+    served:    'linear-gradient(90deg, #10B981, #34D399)',
+    paid:      'linear-gradient(90deg, #6B7280, #9CA3AF)',
+    cancelled: 'linear-gradient(90deg, #EF4444, #F87171)',
+  };
+
+  const statusPill = (status) => {
+    const m = STATUS_META[status] || { color: '#888', bg: 'rgba(136,136,136,0.1)', border: 'rgba(136,136,136,0.2)', label: capitalize(status), dot: '#888' };
+    return `<span style="
+      display:inline-flex;align-items:center;gap:5px;
+      background:${m.bg};border:1px solid ${m.border};
+      color:${m.color};border-radius:100px;
+      font-size:10px;font-weight:700;letter-spacing:0.08em;
+      padding:3px 10px;text-transform:uppercase;">
+      <span style="width:5px;height:5px;border-radius:50%;background:${m.dot};flex-shrink:0;
+        box-shadow:0 0 6px ${m.dot};animation:pulseDot 2s ease-in-out infinite;"></span>
+      ${m.label}
+    </span>`;
+  };
+
+  const sectionHeader = (icon, label, count, color, addTopGap = false) => `
+    <div class="orders-section-header" style="margin-top:${addTopGap ? '32px' : '0'};">
+      <div class="orders-section-icon" style="background:${color}15;color:${color};">${icon}</div>
+      <span class="orders-section-label" style="color:${color};">${label}</span>
+      <span class="orders-section-count">${count} order${count !== 1 ? 's' : ''}</span>
+      <div class="orders-section-line" style="background:${color}25;"></div>
+    </div>`;
+
+  const emptySection = (msg) => `
+    <div class="orders-section-empty">${msg}</div>`;
+
+  const buildCard = (o, sectionType) => {
+    const isActive = sectionType === 'active';
+    const isServed = sectionType === 'served';
+    const m = STATUS_META[o.status] || STATUS_META.paid;
+
+    const items = (o.items || []).map(it => `
+      <div class="order-item-row">
+        <div class="order-item-left">
+          <span class="order-item-qty">${it.qty}×</span>
+          <span class="order-item-name">${escapeHtml(it.name)}</span>
+        </div>
+        <span class="order-item-price">₱${((it.price || 0) * it.qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+      </div>`).join('');
+
+    const ts = o.createdAt?.toDate
+      ? o.createdAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+      : '—';
+
+    const timeSince = o.createdAt?.toDate ? getTimeSince(o.createdAt.toDate()) : '';
+
+    // elapsed time indicator for active orders
+    const elapsedBadge = isActive ? `
+      <div class="order-elapsed">
+        <span class="order-elapsed-icon">⏱</span>
+        <span>${timeSince}</span>
+      </div>` : '';
+
+    const lockBadge = !isActive ? `
+      <span class="order-lock-badge">🔒 Locked</span>` : '';
+
+    let actionBlock = '';
+
+    if (isActive) {
+      const nextMap = { pending: ['preparing','Mark as Preparing'], preparing: ['served','Mark as Served'] };
+      const [nextStatus, nextLabel] = nextMap[o.status] || [];
+      actionBlock = `
+        <div class="order-actions">
+          ${nextStatus ? `<button class="order-btn-primary" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
+          <div class="order-actions-row">
+            <button class="order-btn-secondary" onclick="window._editOrder('${o.id}')">✏ Edit</button>
+            <button class="order-btn-secondary" onclick="window._showReceipt('${o.id}')">🧾 Receipt</button>
+          </div>
+          <button class="order-btn-cancel" onclick="window._updateStatus('${o.id}','cancelled')">✕ Cancel Order</button>
+        </div>`;
+    } else if (isServed) {
+      actionBlock = `
+        <div class="order-actions">
+          <button class="order-btn-pay" onclick="window._updateStatus('${o.id}','paid')">✓ Mark as Paid</button>
+          <button class="order-btn-secondary" onclick="window._showReceipt('${o.id}')">🧾 Receipt</button>
+        </div>`;
+    } else {
+      actionBlock = `
+        <div class="order-actions">
+          <button class="order-btn-secondary full" onclick="window._showReceipt('${o.id}')">🧾 View Receipt</button>
+        </div>`;
+    }
+
+    const dimmed = (sectionType === 'paid' || sectionType === 'cancelled') ? 'order-card-dimmed' : '';
+
+    return `
+      <div class="order-card-v2 ${dimmed}" style="--card-accent:${m.color};--card-border:${m.border};">
+        <div class="order-card-stripe" style="background:${STRIPE_GRADIENT[o.status] || '#444'};"></div>
+        <div class="order-card-inner">
+
+          <!-- Header row -->
+          <div class="order-card-header">
+            <div class="order-card-id-row">
+              <span class="order-card-id">#${o.id.slice(-5).toUpperCase()}</span>
+              ${statusPill(o.status)}
+              ${lockBadge}
+            </div>
+            <div class="order-card-time-col">
+              <span class="order-card-time">${ts}</span>
+              ${elapsedBadge}
+            </div>
+          </div>
+
+          <!-- Table + waiter -->
+          <div class="order-card-meta">
+            <div class="order-meta-table">
+              <span class="order-meta-label">Table</span>
+              <span class="order-meta-value">${o.tableNumber || '?'}</span>
+            </div>
+            <div class="order-meta-divider"></div>
+            <div class="order-meta-waiter">
+              <span class="order-meta-label">Waiter</span>
+              <span class="order-meta-value">${escapeHtml(o.waiterName || 'Unknown')}</span>
+            </div>
+          </div>
+
+          <!-- Items -->
+          <div class="order-items-list">
+            ${items}
+          </div>
+
+          ${o.note ? `<div class="order-note">📝 ${escapeHtml(o.note)}</div>` : ''}
+
+          <!-- Total -->
+          <div class="order-total-row">
+            <span class="order-total-label">Total</span>
+            <span class="order-total-val">₱${(o.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          ${actionBlock}
+        </div>
+      </div>`;
+  };
+
+  let html = '';
+  html += sectionHeader('⏳', 'Active Orders', activeOrders.length, '#F59E0B', false);
+  html += activeOrders.length
+    ? activeOrders.map(o => buildCard(o, 'active')).join('')
+    : emptySection('No active orders right now.');
+
+  html += sectionHeader('✅', 'Served — Awaiting Payment', servedOrders.length, '#34D399', true);
+  html += servedOrders.length
+    ? servedOrders.map(o => buildCard(o, 'served')).join('')
+    : emptySection('No orders awaiting payment.');
+
+  html += sectionHeader('🔒', 'Paid Orders', paidOrders.length, '#9CA3AF', true);
+  html += paidOrders.length
+    ? paidOrders.map(o => buildCard(o, 'paid')).join('')
+    : emptySection('No paid orders yet.');
+
+  if (cancelledOrders.length && (activeFilter === 'all' || activeFilter === 'cancelled')) {
+    html += sectionHeader('✕', 'Cancelled', cancelledOrders.length, '#F87171', true);
+    html += cancelledOrders.map(o => buildCard(o, 'cancelled')).join('');
+  }
+
+  grid.innerHTML = html;
 }
+
+function getTimeSince(date) {
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m ago`;
+}
+
 window._updateStatus = updateOrderStatus;
 
 // ── Tables view ──
-let tableStatuses = {};   // keyed by tableNumber (int)
-let tableDocsList = [];   // full list [{docId, tableNumber, name, capacity, status, ...}]
+let tableStatuses = {};
+let tableDocsList = [];
 
-// Live listener on tables collection
 onSnapshot(collection(db, 'tables'), snap => {
   tableStatuses = {};
   tableDocsList = [];
   snap.forEach(d => {
     const data = d.data();
-    // Resolve tableNumber: prefer stored field, fall back to ID parsing
     const rawNum = data.tableNumber
       ? parseInt(data.tableNumber)
       : parseInt(d.id.replace('table_', ''));
     const num = isNaN(rawNum) ? null : rawNum;
-    if (!num) return; // skip malformed docs
-    // Deduplicate: keep the first doc seen for each table number
-    // (in practice prefer docs where tableNumber field is explicitly set)
+    if (!num) return;
     if (tableStatuses[num]) {
-      // Already have this number — keep whichever has an explicit tableNumber field
       if (!data.tableNumber) return;
     }
     tableStatuses[num] = { docId: d.id, ...data, tableNumber: num };
-    // Remove any earlier duplicate entry in the list
     const existIdx = tableDocsList.findIndex(t => t.tableNumber === num);
     if (existIdx !== -1) tableDocsList.splice(existIdx, 1);
     tableDocsList.push({ docId: d.id, tableNumber: num, ...data });
@@ -258,28 +430,51 @@ const STATUS_CFG = {
   free:       { icon: '🪑', label: 'Free',       textColor: '#5e5e5e' },
   reserved:   { icon: '📋', label: 'Reserved',   textColor: '#c9973a' },
   'walk-in':  { icon: '🍽️', label: 'Walk-in',    textColor: '#e8c07a' },
-  pending:    { icon: '⏳', label: 'Pending',    textColor: '#f39c12' },
-  preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#3498db' },
-  served:     { icon: '✅', label: 'Served',     textColor: '#2ecc71' },
+  pending:    { icon: '⏳', label: 'Pending',    textColor: '#F59E0B' },
+  preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#60A5FA' },
+  served:     { icon: '✅', label: 'Served',     textColor: '#34D399' },
   billed:     { icon: '💰', label: 'Billed',     textColor: '#9b59b6' },
 };
 
+// ═══════════════════════════════════════════════════════════════════
+// TABLES — with live order sync fix
+// ═══════════════════════════════════════════════════════════════════
 function renderTablesGrid() {
   const grid = document.getElementById('tablesGrid');
   if (!grid) return;
 
+  // Build a live-order status map keyed by tableNumber
+  const liveOrderStatus = {};
+  const liveOrderWaiter = {};
+  allOrders.forEach(o => {
+    if (!o.tableNumber) return;
+    const n = o.tableNumber;
+    const priority = { pending: 3, preparing: 2, served: 1 };
+    if (priority[o.status] !== undefined) {
+      if (!liveOrderStatus[n] || priority[o.status] > priority[liveOrderStatus[n]]) {
+        liveOrderStatus[n] = o.status;
+        liveOrderWaiter[n] = o.waiterName || null;
+      }
+    }
+  });
+
   const cards = tableDocsList.map(entry => {
     const n    = entry.tableNumber;
     const data = tableStatuses[n];
-    const rawSt = (data?.status || 'free').toLowerCase().trim();
+
+    // Live orders ALWAYS win over stored status
+    const rawSt = liveOrderStatus[n]
+      ? liveOrderStatus[n]
+      : ((data?.status || 'free').toLowerCase().trim());
     const st = rawSt === 'available' ? 'free' : rawSt;
 
     const cfg       = STATUS_CFG[st] || STATUS_CFG.free;
-    const waiter    = data?.waiterName || null;
+    const waiter    = liveOrderWaiter[n] || data?.waiterName || null;
     const guestName = data?.reservation?.guestName || null;
     const resTime   = data?.reservation?.time || null;
     const label     = data?.name ? data.name : `Table ${n}`;
     const cap       = data?.capacity ? `· ${data.capacity} seats` : '';
+    const isOccupied = !!liveOrderStatus[n];
 
     return `
       <div class="table-card ${st}">
@@ -291,8 +486,14 @@ function renderTablesGrid() {
             ${cfg.label}
           </span>
         </div>
-
-        ${st === 'reserved' ? `
+        ${isOccupied ? `
+          <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">
+            👤 ${escapeHtml(waiter || '—')}
+          </div>
+          <div class="table-card-info" style="color:${cfg.textColor};font-size:11px;opacity:0.7;">
+            Active order · locked
+          </div>
+        ` : st === 'reserved' ? `
           <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">
             👤 ${escapeHtml(guestName || '—')}
           </div>
@@ -314,7 +515,6 @@ function renderTablesGrid() {
             ${waiter ? `👤 ${escapeHtml(waiter)}` : 'No waiter assigned'}
           </div>
         `}
-
         <div style="display:flex;gap:6px;margin-top:4px;">
           <button class="btn-sm" style="flex:1;" onclick="window._openEditTableModal(${n})">Edit</button>
           <button class="btn-sm danger" onclick="window._deleteTable(${n})" title="Delete table">✕</button>
@@ -322,7 +522,6 @@ function renderTablesGrid() {
       </div>`;
   });
 
-  // Add-table ghost card at the end
   cards.push(`
     <div class="table-card free add-table-card" onclick="window._openAddTableModal()"
          style="cursor:pointer;border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0.65;transition:opacity .2s;">
@@ -333,31 +532,28 @@ function renderTablesGrid() {
   grid.innerHTML = cards.join('');
 }
 
-// expose for modal trigger from grid card
 window._openAddTableModal = () => openTableModal('add');
 
 // ════════════════════════════════════════
 // ── TABLE ADD / EDIT / DELETE MODAL ──
 // ════════════════════════════════════════
-
-let tableModalMode = 'add'; // 'add' | 'edit'
-let tableModalTarget = null; // tableNumber when editing
+let tableModalMode = 'add';
+let tableModalTarget = null;
 
 function openTableModal(mode, tableNum = null) {
   tableModalMode = mode;
   tableModalTarget = tableNum;
 
-  const modal = document.getElementById('tableModal');
-  const title = document.getElementById('tableModalTitle');
+  const modal    = document.getElementById('tableModal');
+  const title    = document.getElementById('tableModalTitle');
   const numInput = document.getElementById('tableModalNumber');
-  const nameInput = document.getElementById('tableModalName');
-  const capInput  = document.getElementById('tableModalCapacity');
-  const numRow    = document.getElementById('tableModalNumberRow');
+  const nameInput= document.getElementById('tableModalName');
+  const capInput = document.getElementById('tableModalCapacity');
+  const numRow   = document.getElementById('tableModalNumberRow');
 
   if (mode === 'add') {
     title.textContent = 'Add New Table';
     numRow.style.display = '';
-    // Suggest next table number
     const existing = tableDocsList.map(t => t.tableNumber);
     let next = 1;
     while (existing.includes(next)) next++;
@@ -405,13 +601,8 @@ document.getElementById('tableModalSave').onclick = async () => {
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       await setDoc(doc(db, 'tables', `table_${num}`), {
-        tableNumber: num,
-        name:        name || null,
-        capacity:    capacity || null,
-        status:      'free',
-        reservation: null,
-        waiterId:    null,
-        waiterName:  null,
+        tableNumber: num, name: name || null, capacity: capacity || null,
+        status: 'free', reservation: null, waiterId: null, waiterName: null,
         lastUpdated: serverTimestamp()
       });
       showToast(`✓ Table ${num} added.`);
@@ -421,18 +612,13 @@ document.getElementById('tableModalSave').onclick = async () => {
     } finally {
       btn.disabled = false; btn.textContent = 'Save';
     }
-
   } else {
-    // Edit mode
     const data = tableStatuses[tableModalTarget];
     if (!data) { showToast('Table not found.'); return; }
-
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       await updateDoc(doc(db, 'tables', data.docId), {
-        name:        name || null,
-        capacity:    capacity || null,
-        lastUpdated: serverTimestamp()
+        name: name || null, capacity: capacity || null, lastUpdated: serverTimestamp()
       });
       showToast(`✓ Table ${tableModalTarget} updated.`);
       document.getElementById('tableModal').classList.remove('show');
@@ -457,8 +643,7 @@ window._deleteTable = async (tableNum) => {
   showConfirm({
     title: `Delete ${label}`,
     message: `Are you sure you want to permanently delete ${label}? ${warnMsg} This cannot be undone.`,
-    okLabel: 'Delete',
-    okClass: 'danger',
+    okLabel: 'Delete', okClass: 'danger',
     onOk: async () => {
       try {
         await deleteDoc(doc(db, 'tables', data.docId));
@@ -471,14 +656,12 @@ window._deleteTable = async (tableNum) => {
 };
 
 // ── Reserve Modal ──
-
 let reserveTargetTable = null;
 
 window._openReserveModal = (tableNum) => {
   reserveTargetTable = tableNum;
   document.getElementById('reserveTableLabel').textContent = `Reserve Table ${tableNum}`;
   document.getElementById('reserveGuestName').value = '';
-  // Reset dropdowns to defaults
   document.getElementById('reserveHour').value   = '7';
   document.getElementById('reserveMinute').value = '00';
   document.getElementById('reserveAmPm').value   = 'PM';
@@ -488,7 +671,6 @@ document.getElementById('reserveModalCancel').onclick = () => {
   document.getElementById('reserveModal').classList.remove('show');
   reserveTargetTable = null;
 };
-
 document.getElementById('reserveModal').onclick = (e) => {
   if (e.target === document.getElementById('reserveModal')) {
     document.getElementById('reserveModal').classList.remove('show');
@@ -498,96 +680,98 @@ document.getElementById('reserveModal').onclick = (e) => {
 
 document.getElementById('reserveModalConfirm').onclick = async () => {
   const guestName = document.getElementById('reserveGuestName').value.trim();
-  const hour      = document.getElementById('reserveHour').value;
-  const minute    = document.getElementById('reserveMinute').value;
-  const ampm      = document.getElementById('reserveAmPm').value;
-  const time      = `${hour}:${minute} ${ampm}`;   // e.g. "7:30 PM"
+  const hour   = document.getElementById('reserveHour').value;
+  const minute = document.getElementById('reserveMinute').value;
+  const ampm   = document.getElementById('reserveAmPm').value;
+  const time   = `${hour}:${minute} ${ampm}`;
 
-  if (!guestName) {
-    showToast('⚠ Please enter the guest name.');
-    return;
-  }
+  if (!guestName) { showToast('⚠ Please enter the guest name.'); return; }
 
   const data = tableStatuses[reserveTargetTable];
   if (!data) { showToast('Table not found.'); return; }
 
   const btn = document.getElementById('reserveModalConfirm');
   btn.disabled = true; btn.textContent = 'Saving…';
-
   try {
     await updateDoc(doc(db, 'tables', data.docId), {
-      status:      'reserved',
-      reservation: { guestName, time },
-      waiterId:    null,
-      waiterName:  null,
-      lastUpdated: serverTimestamp()
+      status: 'reserved', reservation: { guestName, time },
+      waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
     });
     showToast(`✓ Table ${reserveTargetTable} reserved for ${guestName} at ${time}`);
     document.getElementById('reserveModal').classList.remove('show');
     reserveTargetTable = null;
   } catch(err) {
-    showToast('❌ Failed to save reservation.');
-    console.error(err);
+    showToast('❌ Failed to save reservation.'); console.error(err);
   } finally {
     btn.disabled = false; btn.textContent = 'Confirm Reservation';
   }
 };
 
-// ── Remove Reservation ──
 window._removeReservation = async (tableNum) => {
   if (!confirm(`Remove reservation for Table ${tableNum}?`)) return;
   const data = tableStatuses[tableNum];
   if (!data) return;
   try {
     await updateDoc(doc(db, 'tables', data.docId), {
-      status:      'free',
-      reservation: null,
-      lastUpdated: serverTimestamp()
+      status: 'free', reservation: null, lastUpdated: serverTimestamp()
     });
     showToast(`✓ Reservation for Table ${tableNum} removed.`);
   } catch(err) {
-    showToast('❌ Failed to remove reservation.');
-    console.error(err);
+    showToast('❌ Failed to remove reservation.'); console.error(err);
   }
 };
 
-// ── Clear All Tables ──
-document.getElementById('clearAllTablesBtn').onclick = async () => {
-  if (!confirm('Reset ALL tables to free and clear all active orders? This cannot be undone.')) return;
-  try {
-    // 1. Reset all table docs to free
-    const snap = await getDocs(collection(db, 'tables'));
-    await Promise.all(snap.docs.map(d =>
-      updateDoc(d.ref, {
-        status:      'free',
-        reservation: null,
-        waiterId:    null,
-        waiterName:  null,
-        lastUpdated: serverTimestamp()
-      })
-    ));
+// ═══════════════════════════════════════════════════════════════════
+// Clear All Tables modal
+// ═══════════════════════════════════════════════════════════════════
+function initClearTablesModal() {
+  const modal      = document.getElementById('clearTablesModal');
+  const openBtn    = document.getElementById('clearAllTablesBtn');
+  const closeBtn   = document.getElementById('clearTablesModalClose');
+  const cancelBtn  = document.getElementById('clearTablesModalCancel');
+  const confirmBtn = document.getElementById('clearTablesModalConfirm');
 
-    // 2. Mark all active orders as paid
-    const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
-    await Promise.all(active.map(o =>
-      updateDoc(doc(db, 'orders', o.id), { status: 'paid', updatedAt: serverTimestamp() })
-    ));
+  if (!modal || !openBtn) return;
 
-    showToast('✓ All tables cleared.');
-  } catch(err) {
-    showToast('❌ Failed to clear tables.');
-    console.error(err);
-  }
-};
+  openBtn.onclick   = () => modal.classList.add('show');
+  closeBtn.onclick  = () => modal.classList.remove('show');
+  cancelBtn.onclick = () => modal.classList.remove('show');
+  modal.onclick = e => { if (e.target === modal) modal.classList.remove('show'); };
 
-// ═══════════════════════════════════════════════════
+  confirmBtn.onclick = async () => {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Clearing…';
+    try {
+      const snap = await getDocs(collection(db, 'tables'));
+      await Promise.all(snap.docs.map(d =>
+        updateDoc(d.ref, {
+          status: 'free', reservation: null,
+          waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
+        })
+      ));
+      const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
+      await Promise.all(active.map(o =>
+        updateDoc(doc(db, 'orders', o.id), { status: 'paid', updatedAt: serverTimestamp() })
+      ));
+      modal.classList.remove('show');
+      showToast('✓ All tables cleared.');
+    } catch(err) {
+      showToast('❌ Failed to clear tables.'); console.error(err);
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Yes, Clear All Tables';
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // ── MENU (with Image Upload) ──
-// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 let menuItems = [], editMenuId = null;
 let menuCatFilter = 'all';
 let menuSearchQuery = '';
-let pendingImageFile = null;   // File object staged for upload
-let currentImageUrl  = null;   // Existing URL when editing
+let pendingImageFile = null;
+let currentImageUrl  = null;
 
 async function loadMenu() {
   const snap = await getDocs(collection(db,'menu'));
@@ -596,7 +780,6 @@ async function loadMenu() {
   renderMenuGrid();
 }
 
-// ── Menu search ──
 document.getElementById('menuSearch').addEventListener('input', e => {
   menuSearchQuery = e.target.value.trim().toLowerCase();
   renderMenuGrid();
@@ -613,7 +796,6 @@ function buildMenuCategoryTabs() {
   }));
 }
 
-// ── Time-based availability rules ──
 const TIME_RESTRICTED = {
   'Bento sa Salo': { start: 11, end: 15 },
 };
@@ -680,7 +862,6 @@ function renderMenuGrid() {
       bannerText  = m.available === false ? 'Unavailable' : 'Available';
     }
 
-    // ── Image slot — filled async below ──
     return `
     <div class="menu-card ${!isAvailable ? 'unavailable' : ''}">
       <div class="menu-card-img-placeholder" id="img-slot-${m.id}">🍽️</div>
@@ -689,9 +870,9 @@ function renderMenuGrid() {
         ${bannerText}
       </div>
       <div class="menu-card-body">
-        <div class="menu-card-cat">${m.category || 'Other'}</div>
-        <div class="menu-card-name">${m.name || '—'}</div>
-        <div class="menu-card-desc">${m.description || ''}</div>
+        <div class="menu-card-cat">${escapeHtml(m.category || 'Other')}</div>
+        <div class="menu-card-name">${escapeHtml(m.name || '—')}</div>
+        <div class="menu-card-desc">${escapeHtml(m.description || '')}</div>
         ${soldBadge}
       </div>
       <div class="menu-card-footer">
@@ -704,7 +885,6 @@ function renderMenuGrid() {
     </div>`;
   }).join('');
 
-  // Inject images async one by one — never put base64 in innerHTML
   items.forEach((m, i) => {
     if (!m.imageUrl) return;
     setTimeout(() => {
@@ -756,13 +936,11 @@ function clearImagePreview() {
   currentImageUrl  = null;
 }
 
-// Click on zone → open file picker
 imgUploadZone.addEventListener('click', e => {
   if (e.target === imgRemoveBtn) return;
   menuItemImageIn.click();
 });
 
-// Drag & Drop
 imgUploadZone.addEventListener('dragover', e => { e.preventDefault(); imgUploadZone.classList.add('drag-over'); });
 imgUploadZone.addEventListener('dragleave', () => imgUploadZone.classList.remove('drag-over'));
 imgUploadZone.addEventListener('drop', e => {
@@ -772,12 +950,10 @@ imgUploadZone.addEventListener('drop', e => {
   if (file) handleImageFile(file);
 });
 
-// File input change
 menuItemImageIn.addEventListener('change', () => {
   if (menuItemImageIn.files[0]) handleImageFile(menuItemImageIn.files[0]);
 });
 
-// Remove button
 imgRemoveBtn.addEventListener('click', e => {
   e.stopPropagation();
   clearImagePreview();
@@ -792,7 +968,6 @@ function handleImageFile(file) {
   reader.readAsDataURL(file);
 }
 
-// ── Convert image file to compressed base64 (max ~700KB output) ──
 function compressImageToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -802,22 +977,18 @@ function compressImageToBase64(file) {
       img.onerror = reject;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX = 800; // max width/height in px
+        const MAX = 800;
         let w = img.width, h = img.height;
         if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
         else if (h > MAX)     { w = Math.round(w * MAX / h); h = MAX; }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-        // Start at quality 0.8, reduce until under 700KB
         let quality = 0.8;
         let base64 = canvas.toDataURL('image/jpeg', quality);
         while (base64.length > 700_000 && quality > 0.3) {
           quality -= 0.1;
           base64 = canvas.toDataURL('image/jpeg', quality);
         }
-
-        // Animate progress bar to 100%
         imgProgress.style.display = 'block';
         imgBar.style.width = '0%';
         let pct = 0;
@@ -829,7 +1000,6 @@ function compressImageToBase64(file) {
             setTimeout(() => { imgProgress.style.display = 'none'; imgBar.style.width = '0%'; }, 400);
           }
         }, 60);
-
         resolve(base64);
       };
       img.src = e.target.result;
@@ -838,7 +1008,6 @@ function compressImageToBase64(file) {
   });
 }
 
-// ── Open modal for Add ──
 document.getElementById('addMenuItemBtn').onclick = () => {
   editMenuId = null;
   document.getElementById('menuModalTitle').textContent = 'Add Menu Item';
@@ -848,7 +1017,6 @@ document.getElementById('addMenuItemBtn').onclick = () => {
   document.getElementById('menuModal').classList.add('show');
 };
 
-// ── Open modal for Edit ──
 window._editMenu = id => {
   const item = menuItems.find(m=>m.id===id); if(!item)return;
   editMenuId = id;
@@ -858,7 +1026,6 @@ window._editMenu = id => {
   document.getElementById('menuItemCategory').value = item.category||'';
   document.getElementById('menuItemDesc').value     = item.description||'';
   document.getElementById('menuItemAvail').value    = item.available===false ? 'false' : 'true';
-  // Load existing image
   clearImagePreview();
   if (item.imageUrl) {
     currentImageUrl = item.imageUrl;
@@ -867,18 +1034,15 @@ window._editMenu = id => {
   document.getElementById('menuModal').classList.add('show');
 };
 
-// ── Delete ──
 window._deleteMenu = async id => {
   if(!confirm('Delete this menu item?')) return;
   await deleteDoc(doc(db,'menu',id));
   await loadMenu(); showToast('Item deleted.');
 };
 
-// ── Close modal ──
 document.getElementById('menuModalClose').onclick  = () => { document.getElementById('menuModal').classList.remove('show'); clearImagePreview(); };
 document.getElementById('menuModalCancel').onclick = () => { document.getElementById('menuModal').classList.remove('show'); clearImagePreview(); };
 
-// ── Save ──
 document.getElementById('menuModalSave').onclick = async () => {
   const name        = document.getElementById('menuItemName').value.trim();
   const price       = parseFloat(document.getElementById('menuItemPrice').value) || 0;
@@ -889,26 +1053,20 @@ document.getElementById('menuModalSave').onclick = async () => {
   if (!name) { showToast('Please enter a name.'); return; }
 
   const saveBtn = document.getElementById('menuModalSave');
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving…';
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
 
   try {
     let imageUrl = currentImageUrl || null;
-
-    // Compress and convert new image to base64 if one was staged
     if (pendingImageFile) {
       showToast('Processing image…');
       imageUrl = await compressImageToBase64(pendingImageFile);
     }
-
     const data = { name, price, category, description, available, imageUrl };
-
     if (editMenuId) {
       await updateDoc(doc(db,'menu',editMenuId), data);
     } else {
       await addDoc(collection(db,'menu'), { ...data, createdAt: serverTimestamp() });
     }
-
     document.getElementById('menuModal').classList.remove('show');
     clearImagePreview();
     await loadMenu();
@@ -917,8 +1075,7 @@ document.getElementById('menuModalSave').onclick = async () => {
     console.error(e);
     showToast('Failed to save item: ' + e.message);
   } finally {
-    saveBtn.disabled = false;
-    saveBtn.textContent = 'Save Item';
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Item';
   }
 };
 
@@ -952,8 +1109,7 @@ function renderBilling() {
       <td style="white-space:nowrap">${ts}</td>
       <td><span class="status-badge ${o.status}">${capitalize(o.status||'')}</span></td>
       <td style="white-space:nowrap;display:flex;gap:6px;align-items:center;">
-        ${nextStatus?`<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>`:'<span>—</span>'}
-        ${o.status!=='paid'?`</button>`:''}
+        ${nextStatus?`<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>`:'<span style="color:var(--text-muted);font-size:11px;">—</span>'}
         <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
       </td>
     </tr>`;
@@ -1045,13 +1201,11 @@ window._approveStaff = (uid, name) => {
   showConfirm({
     title: 'Approve Staff',
     message: `Approve ${name||'this waiter'} and grant them access to the system?`,
-    okLabel: '✓ Approve',
-    okClass: 'gold',
+    okLabel: '✓ Approve', okClass: 'gold',
     onOk: async () => {
       try {
         await updateDoc(doc(db,'Users',uid), {
-          status: 'approved',
-          approvedAt: serverTimestamp(),
+          status: 'approved', approvedAt: serverTimestamp(),
           approvedBy: (document.getElementById('userNameSidebar').textContent || 'Admin')
         });
         showToast(`✅ ${name||'Waiter'} has been approved.`);
@@ -1065,8 +1219,7 @@ window._rejectStaff = (uid, name) => {
   showConfirm({
     title: 'Reject / Suspend Staff',
     message: `Reject or suspend ${name||'this waiter'}? They will not be able to log in.`,
-    okLabel: '✗ Reject',
-    okClass: 'danger',
+    okLabel: '✗ Reject', okClass: 'danger',
     onOk: async () => {
       try {
         await updateDoc(doc(db,'Users',uid), { status: 'rejected', rejectedAt: serverTimestamp() });
@@ -1117,26 +1270,31 @@ function renderReports() {
       <div class="bar-track"><div class="bar-fill ${s}" style="width:${(counts[s]/max)*100}%"></div></div>
       <span class="bar-count">${counts[s]}</span>
     </div>`).join('');
-  
 
   renderMonthlyReport();
   renderDailySalesReport();
   renderSalesCalendar();
 }
 
-// ── Order edit / receipt / table helpers ──
+// ── Order edit / receipt ──
 let editingOrderId = null;
 
 window._editOrder = id => {
   const o = allOrders.find(x=>x.id===id);
   if(!o){ showToast('Order not found'); return; }
+
+  if (['served','paid'].includes(o.status)) {
+    showToast('🔒 This order is locked and cannot be edited.');
+    return;
+  }
+
   editingOrderId = id;
   const body = document.getElementById('orderModalBody');
   const items = (o.items||[]).map((it,idx)=>`
     <div class="form-row" data-idx="${idx}">
       <div class="form-group"><label>Item</label><input type="text" value="${escapeHtml(it.name)}" disabled></div>
       <div class="form-group"><label>Price</label><input type="number" value="${it.price||0}" disabled></div>
-      <div class="form-group"><label>Qty</label><input type="number" class="edit-qty" value="${it.qty||1}" min="0"></div>
+      <div class="form-group"><label>Qty (1–20)</label><input type="number" class="edit-qty" value="${Math.min(it.qty||1,20)}" min="1" max="20"></div>
     </div>`).join('');
   body.innerHTML = `<div style="max-height:360px;overflow:auto;">${items}</div>` +
     `<div style="margin-top:12px;text-align:right">Current total: <strong>₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</strong></div>`;
@@ -1145,15 +1303,35 @@ window._editOrder = id => {
 
 async function saveOrderEdits(){
   if(!editingOrderId){ showToast('No order selected'); return; }
+
+  const order = allOrders.find(o => o.id === editingOrderId);
+  if (order && ['served','paid'].includes(order.status)) {
+    showToast('🔒 Served orders cannot be edited.');
+    document.getElementById('orderModal').classList.remove('show');
+    return;
+  }
+
   const modal = document.getElementById('orderModalBody');
   const rows = modal.querySelectorAll('.form-row');
   const items = [];
+  let capped = false;
+
   rows.forEach(r=>{
-    const name = r.querySelector('input[type="text"]').value;
+    const name  = r.querySelector('input[type="text"]').value;
     const price = parseFloat(r.querySelector('input[type="number"]').value)||0;
-    const qty = parseInt(r.querySelector('.edit-qty').value)||0;
-    if(qty>0) items.push({ name, price, qty });
+    const qtyInput = r.querySelector('.edit-qty');
+    let qty = parseInt(qtyInput.value)||0;
+
+    if (qty > 20) { qty = 20; qtyInput.value = 20; capped = true; }
+    if (qty < 1)  qty = 0;
+    if (qty > 0) items.push({ name, price, qty });
   });
+
+  if (capped) {
+    showToast('⚠ Quantity capped at 20 per item. Please review and save again.');
+    return;
+  }
+
   const total = items.reduce((s,i)=>s+((i.price||0)*(i.qty||0)),0);
   try{
     await updateDoc(doc(db,'orders',editingOrderId), { items, total, updatedAt: serverTimestamp() });
@@ -1184,31 +1362,23 @@ window._toggleTable = async tableNum => {
   }catch(e){ console.error(e); showToast('Failed to update table'); }
 };
 
-window._showTableHistory = tableNum => {
-  const info = tableStatuses[String(tableNum)];
-  showToast(info?JSON.stringify(info):'No manual status set');
-};
-
 // Modal controls
-document.getElementById('orderModalClose').onclick = ()=>document.getElementById('orderModal').classList.remove('show');
-document.getElementById('orderModalCancel').onclick = ()=>document.getElementById('orderModal').classList.remove('show');
-document.getElementById('orderModalSave').onclick = saveOrderEdits;
+document.getElementById('orderModalClose').onclick   = ()=>document.getElementById('orderModal').classList.remove('show');
+document.getElementById('orderModalCancel').onclick  = ()=>document.getElementById('orderModal').classList.remove('show');
+document.getElementById('orderModalSave').onclick    = saveOrderEdits;
 document.getElementById('receiptModalClose').onclick = ()=>document.getElementById('receiptModal').classList.remove('show');
-document.getElementById('receiptModalClose2').onclick = ()=>document.getElementById('receiptModal').classList.remove('show');
-document.getElementById('receiptPrint').onclick = ()=>{ window.print(); };
+document.getElementById('receiptModalClose2').onclick= ()=>document.getElementById('receiptModal').classList.remove('show');
+document.getElementById('receiptPrint').onclick      = ()=>{ window.print(); };
 
 // ── Auto-refresh menu grid every minute ──
 setInterval(() => { if (menuItems.length) renderMenuGrid(); }, 60 * 1000);
 
-
 // ══════════════════════════════════════════════════════
 // MONTHLY REPORT
 // ══════════════════════════════════════════════════════
-
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 let mChart = null;
 
-// ── Init month/year selectors ──
 (function initMonthlySelectors() {
   const now = new Date();
   const monthSel = document.getElementById('monthSelect');
@@ -1231,8 +1401,6 @@ let mChart = null;
 
   monthSel.addEventListener('change', renderMonthlyReport);
   yearSel.addEventListener('change',  renderMonthlyReport);
-
-  // Initial render after orders load
   setTimeout(renderMonthlyReport, 1500);
 })();
 
@@ -1244,7 +1412,6 @@ function renderMonthlyReport() {
   const month = parseInt(monthSel.value);
   const year  = parseInt(yearSel.value);
 
-  // Filter orders for selected month/year
   const monthOrders = allOrders.filter(o => {
     if (!o.createdAt?.toDate) return false;
     const d = o.createdAt.toDate();
@@ -1258,17 +1425,15 @@ function renderMonthlyReport() {
   const cancelledCount = monthOrders.filter(o => o.status === 'cancelled').length;
   const mLabel = `${MONTH_NAMES[month]} ${year}`;
 
-  // ── Stat cards ──
-  document.getElementById('mRev').textContent     = `₱${rev.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-  document.getElementById('mRevSub').textContent  = `${paidOrders.length} paid order${paidOrders.length !== 1 ? 's' : ''}`;
-  document.getElementById('mOrders').textContent  = monthOrders.length || '0';
-  document.getElementById('mOrdersSub').textContent = `${paidOrders.length} paid · ${cancelledCount} cancelled`;
-  document.getElementById('mAvg').textContent     = paidOrders.length ? `₱${avg.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—';
-  document.getElementById('mTables').textContent  = uniqueTables.length || '0';
+  document.getElementById('mRev').textContent      = `₱${rev.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  document.getElementById('mRevSub').textContent   = `${paidOrders.length} paid order${paidOrders.length !== 1 ? 's' : ''}`;
+  document.getElementById('mOrders').textContent   = monthOrders.length || '0';
+  document.getElementById('mOrdersSub').textContent= `${paidOrders.length} paid · ${cancelledCount} cancelled`;
+  document.getElementById('mAvg').textContent      = paidOrders.length ? `₱${avg.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—';
+  document.getElementById('mTables').textContent   = uniqueTables.length || '0';
   document.getElementById('mTopItemsMonth').textContent = mLabel;
   document.getElementById('mChartLabel').textContent    = mLabel;
 
-  // ── Top items ──
   const itemMap = {};
   monthOrders.forEach(o => (o.items || []).forEach(it => {
     const k = it.name || '?';
@@ -1282,14 +1447,13 @@ function renderMonthlyReport() {
     ? topItems.map((it, i) => `
         <tr>
           <td style="color:var(--text-muted);font-size:11px;">${i + 1}</td>
-          <td style="font-weight:600;color:var(--white);">${it.name}</td>
-          <td><span class="status-badge" style="background:var(--gold-dim);color:var(--gold);font-size:9px;">${it.category}</span></td>
+          <td style="font-weight:600;color:var(--white);">${escapeHtml(it.name)}</td>
+          <td><span class="status-badge" style="background:var(--gold-dim);color:var(--gold);font-size:9px;">${escapeHtml(it.category)}</span></td>
           <td>${it.qty}</td>
           <td style="color:var(--gold-light);">₱${it.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
         </tr>`).join('')
     : '<tr><td colspan="5" class="empty-row">No orders this month.</td></tr>';
 
-  // ── Table activity ──
   const tableCount = {};
   monthOrders.forEach(o => {
     if (!o.tableNumber) return;
@@ -1314,7 +1478,6 @@ function renderMonthlyReport() {
         </div>`).join('')
     : '<div style="color:var(--text-muted);font-size:13px;padding:16px 0;text-align:center;">No table data this month.</div>';
 
-  // ── Daily revenue chart ──
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dailyRev = Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
@@ -1352,8 +1515,7 @@ function renderMonthlyReport() {
         }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -1361,12 +1523,8 @@ function renderMonthlyReport() {
               title: ctx => `Day ${ctx[0].label}`,
               label: ctx => `₱${ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
             },
-            backgroundColor: '#141414',
-            borderColor: '#2a2a2a',
-            borderWidth: 1,
-            titleColor: '#f5f0e8',
-            bodyColor: '#c9973a',
-            padding: 10,
+            backgroundColor: '#141414', borderColor: '#2a2a2a', borderWidth: 1,
+            titleColor: '#f5f0e8', bodyColor: '#c9973a', padding: 10,
           }
         },
         scales: {
@@ -1375,14 +1533,10 @@ function renderMonthlyReport() {
             grid: { color: 'rgba(42,42,42,0.5)' },
           },
           y: {
-            ticks: {
-              color: '#5e5e5e',
-              font: { size: 10 },
-              callback: v => v === 0 ? '₱0' : `₱${v.toLocaleString('en-PH')}`
-            },
+            ticks: { color: '#5e5e5e', font: { size: 10 }, callback: v => v === 0 ? '₱0' : `₱${v.toLocaleString('en-PH')}` },
             grid: { color: 'rgba(42,42,42,0.5)' },
             beginAtZero: true,
-          }   
+          }
         }
       }
     });
@@ -1395,7 +1549,6 @@ function renderDailySalesReport() {
   const container = document.getElementById('dailySalesReport');
   if (!container) return;
 
-  // Group all orders by date
   const dayMap = {};
   allOrders.forEach(o => {
     if (!o.createdAt?.toDate) return;
@@ -1403,29 +1556,19 @@ function renderDailySalesReport() {
     const key = d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: '2-digit' });
     if (!dayMap[key]) dayMap[key] = { date: d, label: key, orders: 0, revenue: 0, paid: 0 };
     dayMap[key].orders++;
-    if (o.status === 'paid') {
-      dayMap[key].revenue += (o.total || 0);
-      dayMap[key].paid++;
-    }
+    if (o.status === 'paid') { dayMap[key].revenue += (o.total || 0); dayMap[key].paid++; }
   });
 
   const rows = Object.values(dayMap).sort((a, b) => b.date - a.date);
 
-  if (!rows.length) {
-    container.innerHTML = '<div class="empty-state">No sales data yet.</div>';
-    return;
-  }
+  if (!rows.length) { container.innerHTML = '<div class="empty-state">No sales data yet.</div>'; return; }
 
   container.innerHTML = `
     <div class="table-wrap" style="max-height:400px;">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Total Orders</th>
-            <th>Paid Orders</th>
-            <th>Revenue</th>
-            <th>Avg. Order Value</th>
+            <th>Date</th><th>Total Orders</th><th>Paid Orders</th><th>Revenue</th><th>Avg. Order Value</th>
           </tr>
         </thead>
         <tbody>
@@ -1445,7 +1588,6 @@ function renderDailySalesReport() {
 // ══════════════════════════════════════════════════════
 // SALES CALENDAR
 // ══════════════════════════════════════════════════════
-
 let calYear  = new Date().getFullYear();
 let calMonth = new Date().getMonth();
 let calSelectedDay = null;
@@ -1502,10 +1644,7 @@ function renderSalesCalendar() {
   if (calSelectedDay) renderCalDetail(calSelectedDay, dayMap);
 }
 
-window._calSelectDay = d => {
-  calSelectedDay = d;
-  renderSalesCalendar();
-};
+window._calSelectDay = d => { calSelectedDay = d; renderSalesCalendar(); };
 
 function renderCalDetail(d, dayMap) {
   const panel = document.getElementById('calDetail');
@@ -1552,7 +1691,7 @@ document.getElementById('calNextBtn').onclick = () => {
   calSelectedDay = null; renderSalesCalendar();
 };
 
-document.getElementById('removeReserveCancel2').onclick = 
+document.getElementById('removeReserveCancel2').onclick =
 document.getElementById('removeReserveCancel').onclick = () => {
   document.getElementById('removeReserveModal').classList.remove('show');
 };

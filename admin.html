@@ -577,5 +577,49 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="clearTablesModal">
+  <div class="modal" style="max-width:440px;">
+    <!-- danger gradient strip -->
+    <div style="height:3px;background:linear-gradient(90deg,transparent,var(--red),#e74c3c,var(--red),transparent);"></div>
+ 
+    <div class="modal-header">
+      <span class="modal-title" style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">⚠️</span>
+        <span>Clear All Tables</span>
+      </span>
+      <button class="modal-close" id="clearTablesModalClose">✕</button>
+    </div>
+ 
+    <div class="modal-body" style="gap:14px;">
+      <!-- warning banner -->
+      <div style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:18px;flex-shrink:0;margin-top:1px;">🛑</span>
+        <div style="font-size:13px;color:#e07070;line-height:1.65;">
+          This will <strong style="color:var(--white);">reset ALL tables to free</strong> and mark every active order as <strong style="color:var(--white);">Paid</strong>. This action <strong style="color:var(--white);">cannot be undone</strong>.
+        </div>
+      </div>
+ 
+      <p style="font-size:13px;color:var(--text-muted);line-height:1.7;">
+        All current table assignments will be cleared, reservations removed, and active orders will be closed. Use this only at the <strong style="color:var(--white);">end of service</strong> or during a full reset.
+      </p>
+ 
+      <p style="font-size:12px;color:var(--text-muted);font-style:italic;">
+        Are you sure you want to continue?
+      </p>
+    </div>
+ 
+    <div class="modal-footer" style="justify-content:flex-end;gap:10px;">
+      <button class="btn-sm" id="clearTablesModalCancel"
+              style="background:transparent;border-color:var(--border);color:var(--text-muted);">
+        Cancel
+      </button>
+      <button class="btn-sm danger" id="clearTablesModalConfirm"
+              style="background:var(--red-dim);border-color:rgba(192,57,43,0.5);color:var(--red);font-weight:700;">
+        Yes, Clear All Tables
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

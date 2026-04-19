@@ -15,7 +15,7 @@ const showToast = m => { $('toastMsg').textContent=m; $('toast').classList.add('
 // ── State ──
 let waiterName = '', waiterId = '', menuItems = [], cart = {}, selectedTable = null, activeCat = 'all';
 let allOrders = [];
-let tablesData = {}; // { tableNumber: { docId, status, waiterName, waiterId, ... } }
+let tablesData = {};
 let pendingOccupyTable = null;
 let pendingWalkinTable = null;
 let menuPage = 1;
@@ -29,7 +29,6 @@ const getItemsPerPage = () => {
   return ITEMS_PER_PAGE_DESKTOP;
 };
 
-// Re-render menu on resize so page size updates automatically
 window.addEventListener('resize', () => { menuPage = 1; renderMenuGrid(); });
 
 // ── Auth guard ──
@@ -60,13 +59,11 @@ $('logoutBtn').onclick = async () => { await signOut(auth); window.location.href
 async function init() {
   await loadMenu();
 
-  // Listen to orders
   onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderTables();
   });
 
-  // Listen to tables collection — single source of truth for walk-in status
   onSnapshot(collection(db, 'tables'), snap => {
     tablesData = {};
     tablesList = [];
@@ -76,8 +73,7 @@ async function init() {
         ? parseInt(data.tableNumber)
         : parseInt(d.id.replace('table_', ''));
       const num = isNaN(rawNum) ? null : rawNum;
-      if (!num) return; // skip malformed docs
-      // Deduplicate: prefer doc with explicit tableNumber field
+      if (!num) return;
       if (tablesData[num] && !data.tableNumber) return;
       tablesData[num] = { docId: d.id, ...data, tableNumber: num };
       const existIdx = tablesList.findIndex(t => t.tableNumber === num);
@@ -90,7 +86,7 @@ async function init() {
 }
 
 // ── TABLE RENDERING ──
-let tablesList = []; // sorted list of table docs from Firestore
+let tablesList = [];
 
 function renderTables() {
   const orderOccupied = {};
@@ -107,17 +103,16 @@ function renderTables() {
 
   grid.innerHTML = tablesList.map(entry => {
     const n = entry.tableNumber;
-    const orderInfo        = orderOccupied[n];
-    const tableDoc         = tablesData[n];
-    const isWalkIn         = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
-    const isWalkInYours    = isWalkIn && tableDoc.waiterId === waiterId;
-    const isReserved       = !orderInfo && tableDoc && tableDoc.status === 'reserved';
+    const orderInfo         = orderOccupied[n];
+    const tableDoc          = tablesData[n];
+    const isWalkIn          = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
+    const isWalkInYours     = isWalkIn && tableDoc.waiterId === waiterId;
+    const isReserved        = !orderInfo && tableDoc && tableDoc.status === 'reserved';
     const isOccupiedNoOrder = !orderInfo && tableDoc && tableDoc.status === 'occupied';
-    const isOccupiedYours  = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
-    const isYours          = orderInfo && orderInfo.waiterId === waiterId;
-    const isTakenOrder     = orderInfo && !isYours;
+    const isOccupiedYours   = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
+    const isYours           = orderInfo && orderInfo.waiterId === waiterId;
+    const isTakenOrder      = orderInfo && !isYours;
 
-    // Display label: custom name if set, else "Table N"
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
     const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
 
@@ -163,7 +158,7 @@ function renderTables() {
   }).join('');
 }
 
-// ── MARK OCCUPIED — updates tables collection ──
+// ── MARK OCCUPIED ──
 window._openOccupyModal = (num) => {
   pendingOccupyTable = num;
   $('occupiedTableBadge').textContent = `Table ${num}`;
@@ -183,10 +178,7 @@ $('confirmMarkOccupied').onclick = async () => {
     const tableDoc = tablesData[pendingOccupyTable];
     const ref = doc(db, 'tables', tableDoc ? tableDoc.docId : `table_${pendingOccupyTable}`);
     await updateDoc(ref, {
-      status: 'walk-in',
-      waiterId,
-      waiterName,
-      lastUpdated: serverTimestamp()
+      status: 'walk-in', waiterId, waiterName, lastUpdated: serverTimestamp()
     });
     $('occupiedModal').classList.remove('show');
     const os = $('occupiedSuccess');
@@ -234,10 +226,7 @@ $('startOrderFromWalkin').onclick = async () => {
   if (tableDoc) {
     try {
       await updateDoc(doc(db, 'tables', tableDoc.docId), {
-        status: 'occupied',   // ← was 'available'
-        waiterId,
-        waiterName,
-        lastUpdated: serverTimestamp()
+        status: 'occupied', waiterId, waiterName, lastUpdated: serverTimestamp()
       });
     } catch(e) { /* non-blocking */ }
   }
@@ -252,10 +241,7 @@ $('freeTableBtn').onclick = async () => {
   if (tableDoc) {
     try {
       await updateDoc(doc(db, 'tables', tableDoc.docId), {
-        status: 'available',
-        waiterId: null,
-        waiterName: null,
-        lastUpdated: serverTimestamp()
+        status: 'available', waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
       });
       $('freeTableModal').classList.remove('show');
       showToast(`✅ Table ${pendingWalkinTable} marked as free.`);
@@ -266,6 +252,7 @@ $('freeTableBtn').onclick = async () => {
     }
   }
 };
+
 // ── RESERVED TABLE MODAL ──
 window._openReservedModal = (num) => {
   const tableDoc = tablesData[num];
@@ -282,21 +269,15 @@ $('reservedModalClose').onclick = $('reservedModalCancel').onclick = () => {
 };
 
 $('confirmArrivalBtn').onclick = async () => {
-  const num = parseInt($('reservedModal').dataset.table); // ✅ already parseInt'd here
+  const num = parseInt($('reservedModal').dataset.table);
   if (!num) return;
   const btn = $('confirmArrivalBtn');
   btn.disabled = true; btn.classList.add('loading');
   try {
     const tableDoc = tablesData[num];
-    if (!tableDoc?.docId) {
-      showToast('❌ Table document not found.');
-      return;
-    }
+    if (!tableDoc?.docId) { showToast('❌ Table document not found.'); return; }
     await updateDoc(doc(db, 'tables', tableDoc.docId), {
-      status: 'occupied',
-      waiterId,
-      waiterName,
-      lastUpdated: serverTimestamp()
+      status: 'occupied', waiterId, waiterName, lastUpdated: serverTimestamp()
     });
     $('reservedModal').classList.remove('show');
     goToOrder(num);
@@ -321,7 +302,7 @@ function goToOrder(num) {
   setupCatScrollBtns();
 }
 
-// ── BACK TO TABLES (shared function) ──
+// ── BACK TO TABLES ──
 function goBackToTables() {
   const st = $('stepTables'), so = $('stepOrder');
   st.classList.remove('hidden', 'out-left');
@@ -340,18 +321,14 @@ function pill2Reset()  { $('pill2').className='step-pill'; }
 function pill3Active() { $('pill3').className='step-pill active clickable'; }
 function pill3Reset()  { $('pill3').className='step-pill'; }
 
-// ── PILL CLICK NAVIGATION ──
 $('pill1').addEventListener('click', () => {
-  // Only navigate back if we're past step 1 (pill1 is 'done')
   if ($('pill1').classList.contains('done')) {
-    // Close confirm modal if open
     $('confirmModal').classList.remove('show');
     goBackToTables();
   }
 });
 
 $('pill3').addEventListener('click', () => {
-  // Only trigger if on step 2 (pill2 is active) and cart has items
   if ($('pill2').classList.contains('active') || $('pill2').classList.contains('done')) {
     const items = Object.values(cart);
     if (!items.length) { showToast('⚠ Add items to the cart first.'); return; }
@@ -390,7 +367,6 @@ function renderMenuGrid() {
   if (q) items = items.filter(m => (m.name||'').toLowerCase().includes(q) || (m.description||'').toLowerCase().includes(q));
   const grid = $('menuGrid');
 
-  // Remove old pagination if any
   const oldPager = document.getElementById('menuPagination');
   if (oldPager) oldPager.remove();
 
@@ -407,8 +383,10 @@ function renderMenuGrid() {
     const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeDesc = (m.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeCat  = (m.category||'Other').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Show qty limit warning badge when at max
+    const atMax = inCart && inCart.qty >= 20;
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
-      ${inCart ? `<div class="cart-badge-pill">×${inCart.qty}</div>` : ''}
+      ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
       ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
       <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;">🍽️</div>
       <div class="mic-body">
@@ -417,7 +395,7 @@ function renderMenuGrid() {
         <div class="mic-desc">${safeDesc}</div>
         <div class="mic-footer">
           <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-          ${!unavail ? `<button class="mic-add" onclick="event.stopPropagation();window._addToCart('${m.id}')">+</button>` : ''}
+          ${!unavail ? `<button class="mic-add${atMax?' mic-add-disabled':''}" onclick="event.stopPropagation();window._addToCart('${m.id}')" ${atMax?'title="Maximum 20 reached"':''}>+</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -438,7 +416,6 @@ function renderMenuGrid() {
     }, i * 20);
   });
 
-  // Render pagination bar if more than one page
   if (totalPages > 1) {
     const menuPanel = document.querySelector('.menu-panel');
     const pager = document.createElement('div');
@@ -447,7 +424,6 @@ function renderMenuGrid() {
 
     const isTablet = window.innerWidth <= 1024;
 
-    // Prev button
     const prevBtn = document.createElement('button');
     prevBtn.className = 'pg-btn' + (menuPage === 1 ? ' pg-disabled' : '');
     prevBtn.textContent = '‹ Prev';
@@ -455,7 +431,6 @@ function renderMenuGrid() {
     prevBtn.onclick = () => { menuPage--; renderMenuGrid(); grid.scrollTop = 0; };
     pager.appendChild(prevBtn);
 
-    // Page pills — smart truncated on tablet, all on desktop
     const pillWrap = document.createElement('div');
     pillWrap.className = 'pg-pills';
 
@@ -475,7 +450,6 @@ function renderMenuGrid() {
     };
 
     if (isTablet && totalPages > 7) {
-      // Smart: always show 1, current±1, last — with … in between
       const pages = new Set([1, totalPages, menuPage, menuPage - 1, menuPage + 1].filter(p => p >= 1 && p <= totalPages));
       const sorted = [...pages].sort((a, b) => a - b);
       sorted.forEach((p, i) => {
@@ -488,7 +462,6 @@ function renderMenuGrid() {
 
     pager.appendChild(pillWrap);
 
-    // Next button
     const nextBtn = document.createElement('button');
     nextBtn.className = 'pg-btn' + (menuPage === totalPages ? ' pg-disabled' : '');
     nextBtn.textContent = 'Next ›';
@@ -496,7 +469,6 @@ function renderMenuGrid() {
     nextBtn.onclick = () => { menuPage++; renderMenuGrid(); grid.scrollTop = 0; };
     pager.appendChild(nextBtn);
 
-    // Count label (hidden on tablet via CSS)
     const countLbl = document.createElement('div');
     countLbl.className = 'pg-count';
     countLbl.textContent = `${start + 1}–${Math.min(start + ITEMS_PER_PAGE, items.length)} of ${items.length} items`;
@@ -506,11 +478,21 @@ function renderMenuGrid() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// IMPROVEMENT #4 — _addToCart: enforce max qty 20 per item
+// ═══════════════════════════════════════════════════════════════════
 window._addToCart = id => {
   const item = menuItems.find(m => m.id === id);
   if (!item || item.available === false) return;
-  if (cart[id]) cart[id].qty++;
-  else cart[id] = { id, name: item.name, price: item.price, qty: 1, category: item.category||'Other' };
+  if (cart[id]) {
+    if (cart[id].qty >= 20) {
+      showToast('⚠ Maximum 20 servings per item allowed.');
+      return;
+    }
+    cart[id].qty++;
+  } else {
+    cart[id] = { id, name: item.name, price: item.price, qty: 1, category: item.category||'Other' };
+  }
   updateCart();
   renderMenuGrid();
 };
@@ -536,7 +518,9 @@ function updateCart() {
     ci.innerHTML = '<div class="cart-empty"><div class="cart-empty-icon">🛒</div>No items yet.<br><span style="font-size:12px">Tap menu items to add.</span></div>';
     return;
   }
-  ci.innerHTML = items.map(i => `
+  ci.innerHTML = items.map(i => {
+    const atMax = i.qty >= 20;
+    return `
     <div class="cart-item">
       <div class="ci-info">
         <div class="ci-name">${i.name}</div>
@@ -545,9 +529,10 @@ function updateCart() {
       <div class="ci-controls">
         <button class="qty-btn" onclick="window._removeFromCart('${i.id}')">−</button>
         <span class="qty-num">${i.qty}</span>
-        <button class="qty-btn" onclick="window._addToCart('${i.id}')">+</button>
+        <button class="qty-btn${atMax?' qty-btn-disabled':''}" onclick="window._addToCart('${i.id}')" ${atMax?'title="Max 20"':''}>+</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── ORDER SUBMISSION ──
@@ -570,11 +555,23 @@ $('confirmModalClose').onclick = $('confirmModalCancel').onclick = () => {
   pill2Active(); pill3Reset();
 };
 
+// ═══════════════════════════════════════════════════════════════════
+// IMPROVEMENT #4 — confirmOrderBtn: validate qty 1–20 before saving
+// ═══════════════════════════════════════════════════════════════════
 $('confirmOrderBtn').onclick = async () => {
   const btn = $('confirmOrderBtn');
   btn.disabled = true; btn.classList.add('loading');
   const newItems = Object.values(cart);
   const note     = $('orderNote').value.trim();
+
+  // Frontend + backend qty guard
+  const overLimit = newItems.filter(i => i.qty > 20 || i.qty < 1);
+  if (overLimit.length) {
+    showToast('⚠ Item quantities must be between 1 and 20.');
+    btn.disabled = false; btn.classList.remove('loading');
+    return;
+  }
+
   try {
     const existingOrder = allOrders.find(o =>
       o.tableNumber === selectedTable &&
@@ -585,8 +582,18 @@ $('confirmOrderBtn').onclick = async () => {
       const merged = [...(existingOrder.items || [])];
       newItems.forEach(newItem => {
         const idx = merged.findIndex(i => i.id === newItem.id);
-        if (idx >= 0) merged[idx] = { ...merged[idx], qty: merged[idx].qty + newItem.qty };
-        else merged.push({ id:newItem.id, name:newItem.name, price:newItem.price, qty:newItem.qty, category:newItem.category });
+        if (idx >= 0) {
+          // Cap merged quantity at 20
+          merged[idx] = { ...merged[idx], qty: Math.min(merged[idx].qty + newItem.qty, 20) };
+        } else {
+          merged.push({
+            id: newItem.id,
+            name: newItem.name,
+            price: newItem.price,
+            qty: Math.min(newItem.qty, 20),
+            category: newItem.category
+          });
+        }
       });
       const newTotal = merged.reduce((s,i) => s + i.price * i.qty, 0);
       const newNote  = [existingOrder.note, note].filter(Boolean).join(' | ');
@@ -597,7 +604,13 @@ $('confirmOrderBtn').onclick = async () => {
       const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
       await addDoc(collection(db,'orders'), {
         tableNumber: selectedTable, waiterId, waiterName,
-        items: newItems.map(i=>({ id:i.id, name:i.name, price:i.price, qty:i.qty, category:i.category })),
+        items: newItems.map(i=>({
+          id: i.id,
+          name: i.name,
+          price: i.price,
+          qty: Math.min(i.qty, 20),
+          category: i.category||'Other'
+        })),
         total, note, status: 'pending',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
@@ -639,22 +652,14 @@ function setupCatScrollBtns() {
 
   btnL.addEventListener('click', function(e) {
     e.preventDefault(); e.stopPropagation();
-    // If at the very start, jump to the end
-    if (s.scrollLeft <= 2) {
-      s.scrollLeft = s.scrollWidth;
-    } else {
-      s.scrollLeft -= STEP;
-    }
+    if (s.scrollLeft <= 2) { s.scrollLeft = s.scrollWidth; }
+    else { s.scrollLeft -= STEP; }
   });
 
   btnR.addEventListener('click', function(e) {
     e.preventDefault(); e.stopPropagation();
-    // If at the very end, jump back to start
-    if (s.scrollLeft >= s.scrollWidth - s.clientWidth - 2) {
-      s.scrollLeft = 0;
-    } else {
-      s.scrollLeft += STEP;
-    }
+    if (s.scrollLeft >= s.scrollWidth - s.clientWidth - 2) { s.scrollLeft = 0; }
+    else { s.scrollLeft += STEP; }
   });
 
   catScrollWired = true;
