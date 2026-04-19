@@ -21,7 +21,7 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('userAvatarSidebar').textContent = name[0].toUpperCase();
   document.getElementById('userAvatarTop').textContent = name[0].toUpperCase();
 
-  loadTables();
+
   loadMenu();
   loadStaff();
 
@@ -102,6 +102,10 @@ onSnapshot(query(ordersRef, orderBy('createdAt','desc')), snap => {
   renderBilling();
   renderReports();
   updateOrderBadge();
+  // Re-render monthly report if already visible
+  if (document.getElementById('view-reports').classList.contains('active')) {
+    renderMonthlyReport();
+  }
 });
 
 function updateOrderBadge() {
@@ -148,9 +152,13 @@ function renderOverviewTableGrid(activeOrders) {
   const grid = document.getElementById('overviewTableGrid');
   const occupied = {};
   activeOrders.forEach(o => { if (o.tableNumber) occupied[o.tableNumber] = o.status; });
-  grid.innerHTML = Array.from({length:10},(_,i)=>{
-    const n = i+1, st = occupied[n] || 'free';
-    return `<div class="mini-table ${st}"><span class="mini-table-num">${n}</span><span class="mini-table-st">${st==='free'?'Free':capitalize(st)}</span></div>`;
+  const tables = tableDocsList.length ? tableDocsList : Array.from({length:10},(_,i)=>({tableNumber:i+1}));
+  grid.innerHTML = tables.map(t => {
+    const n = t.tableNumber;
+    const st = occupied[n] || tableStatuses[n]?.status || 'free';
+    const normSt = st === 'available' ? 'free' : st;
+    const label = t.name || `${n}`;
+    return `<div class="mini-table ${normSt}"><span class="mini-table-num">${escapeHtml(label)}</span><span class="mini-table-st">${normSt==='free'?'Free':capitalize(normSt)}</span></div>`;
   }).join('');
 }
 
@@ -194,60 +202,383 @@ function renderOrders() {
         <ul class="order-items">${items}</ul>
         <div class="order-total">Total: <strong>₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</strong></div>
         <div class="order-card-actions-row">
+        <div class="order-card-actions-top">
           ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
           ${o.status!=='paid' ? `<button class="btn-sm" onclick="window._editOrder('${o.id}')">Edit</button>` : ''}
           <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
-          ${o.status!=='paid' ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
         </div>
+        ${o.status!=='paid' ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
+      </div>
       </div>`;
   }).join('');
 }
 window._updateStatus = updateOrderStatus;
 
 // ── Tables view ──
-let tableStatuses = {};
-async function loadTables() {
-  const snap = await getDocs(collection(db, 'tables'));
-  snap.forEach(d => { tableStatuses[d.id] = d.data(); });
+let tableStatuses = {};   // keyed by tableNumber (int)
+let tableDocsList = [];   // full list [{docId, tableNumber, name, capacity, status, ...}]
+
+// Live listener on tables collection
+onSnapshot(collection(db, 'tables'), snap => {
+  tableStatuses = {};
+  tableDocsList = [];
+  snap.forEach(d => {
+    const data = d.data();
+    // Resolve tableNumber: prefer stored field, fall back to ID parsing
+    const rawNum = data.tableNumber
+      ? parseInt(data.tableNumber)
+      : parseInt(d.id.replace('table_', ''));
+    const num = isNaN(rawNum) ? null : rawNum;
+    if (!num) return; // skip malformed docs
+    // Deduplicate: keep the first doc seen for each table number
+    // (in practice prefer docs where tableNumber field is explicitly set)
+    if (tableStatuses[num]) {
+      // Already have this number — keep whichever has an explicit tableNumber field
+      if (!data.tableNumber) return;
+    }
+    tableStatuses[num] = { docId: d.id, ...data, tableNumber: num };
+    // Remove any earlier duplicate entry in the list
+    const existIdx = tableDocsList.findIndex(t => t.tableNumber === num);
+    if (existIdx !== -1) tableDocsList.splice(existIdx, 1);
+    tableDocsList.push({ docId: d.id, tableNumber: num, ...data });
+  });
+  tableDocsList.sort((a, b) => a.tableNumber - b.tableNumber);
   renderTablesGrid();
+  updateTableCountStat();
+});
+
+function updateTableCountStat() {
+  const sub = document.getElementById('statTablesSub');
+  if (sub) sub.textContent = `of ${tableDocsList.length} tables`;
+  const toolbar = document.querySelector('#view-tables .panel-title--small');
+  if (toolbar) toolbar.textContent = `${tableDocsList.length} Tables · Drag to rearrange status`;
 }
+
+const STATUS_CFG = {
+  free:       { icon: '🪑', label: 'Free',       textColor: '#5e5e5e' },
+  reserved:   { icon: '📋', label: 'Reserved',   textColor: '#c9973a' },
+  'walk-in':  { icon: '🍽️', label: 'Walk-in',    textColor: '#e8c07a' },
+  pending:    { icon: '⏳', label: 'Pending',    textColor: '#f39c12' },
+  preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#3498db' },
+  served:     { icon: '✅', label: 'Served',     textColor: '#2ecc71' },
+  billed:     { icon: '💰', label: 'Billed',     textColor: '#9b59b6' },
+};
 
 function renderTablesGrid() {
   const grid = document.getElementById('tablesGrid');
-  const occupied = {};
-  allOrders.filter(o=>['pending','preparing','served'].includes(o.status)).forEach(o => {
-    if (o.tableNumber) occupied[o.tableNumber] = o;
-  });
-  grid.innerHTML = Array.from({length:10},(_,i)=>{
-    const n = i+1, order = occupied[n];
-    const manual = tableStatuses[String(n)] && tableStatuses[String(n)].manualStatus;
-    const st = order ? order.status : (manual || 'free');
-    const orderId = order ? `#${order.id.slice(-5).toUpperCase()}` : '';
-    const waiter = order ? (order.waiterName||'') : '';
-    const total = order ? `₱${(order.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}` : '';
+  if (!grid) return;
+
+  const cards = tableDocsList.map(entry => {
+    const n    = entry.tableNumber;
+    const data = tableStatuses[n];
+    const rawSt = (data?.status || 'free').toLowerCase().trim();
+    const st = rawSt === 'available' ? 'free' : rawSt;
+
+    const cfg       = STATUS_CFG[st] || STATUS_CFG.free;
+    const waiter    = data?.waiterName || null;
+    const guestName = data?.reservation?.guestName || null;
+    const resTime   = data?.reservation?.time || null;
+    const label     = data?.name ? data.name : `Table ${n}`;
+    const cap       = data?.capacity ? `· ${data.capacity} seats` : '';
+
     return `
       <div class="table-card ${st}">
-        <div class="table-card-num">Table ${n}</div>
-        <div class="table-card-icon">${st==='free'?'🪑':'🍽️'}</div>
-        <div class="table-card-status"><span class="status-badge ${st}">${capitalize(st)}</span></div>
-        ${order ? `<div class="table-card-info">${orderId}<br>${waiter}<br>${total}</div>` : '<div class="table-card-info muted">Available</div>'}
-        ${order && order.status!=='paid' ? `<button class="btn-sm gold" onclick="window._updateStatus('${order.id}','paid')">Mark Paid</button>` : ''}
-        <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;">
-          <button class="btn-sm" onclick="window._toggleTable(${n})">Toggle Occupied</button>
-          <button class="btn-sm" onclick="window._showTableHistory(${n})">Info</button>
+        <div class="table-card-num" style="color:${cfg.textColor}">${escapeHtml(label)}</div>
+        ${cap ? `<div class="table-card-info muted" style="font-size:11px;margin-top:-6px;">${escapeHtml(cap)}</div>` : ''}
+        <div class="table-card-icon">${cfg.icon}</div>
+        <div class="table-card-status">
+          <span class="status-badge ${st}" style="color:${cfg.textColor};border-color:${cfg.textColor}33;background:${cfg.textColor}18">
+            ${cfg.label}
+          </span>
+        </div>
+
+        ${st === 'reserved' ? `
+          <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">
+            👤 ${escapeHtml(guestName || '—')}
+          </div>
+          <div class="table-card-info" style="color:${cfg.textColor};">
+            🕐 ${escapeHtml(resTime || '—')}
+          </div>
+          <button class="btn-sm" style="margin-top:6px;border-color:rgba(192,57,43,0.4);color:#e07070;width:100%;"
+            onclick="window._removeReservation(${n})">
+            ✕ Remove Reservation
+          </button>
+        ` : st === 'free' ? `
+          <div class="table-card-info muted">No waiter assigned</div>
+          <button class="btn-sm gold" style="margin-top:6px;width:100%;"
+            onclick="window._openReserveModal(${n})">
+            + Reserve
+          </button>
+        ` : `
+          <div class="table-card-info" style="color:${cfg.textColor}">
+            ${waiter ? `👤 ${escapeHtml(waiter)}` : 'No waiter assigned'}
+          </div>
+        `}
+
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button class="btn-sm" style="flex:1;" onclick="window._openEditTableModal(${n})">Edit</button>
+          <button class="btn-sm danger" onclick="window._deleteTable(${n})" title="Delete table">✕</button>
         </div>
       </div>`;
-  }).join('');
+  });
+
+  // Add-table ghost card at the end
+  cards.push(`
+    <div class="table-card free add-table-card" onclick="window._openAddTableModal()"
+         style="cursor:pointer;border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0.65;transition:opacity .2s;">
+      <div style="font-size:32px;">＋</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);">Add Table</div>
+    </div>`);
+
+  grid.innerHTML = cards.join('');
 }
 
-document.getElementById('clearAllTablesBtn').onclick = async () => {
-  if (!confirm('Mark ALL active orders as paid?')) return;
-  const active = allOrders.filter(o=>['pending','preparing','served'].includes(o.status));
-  await Promise.all(active.map(o => updateDoc(doc(db,'orders',o.id),{status:'paid',updatedAt:serverTimestamp()})));
-  showToast('All tables cleared.');
+// expose for modal trigger from grid card
+window._openAddTableModal = () => openTableModal('add');
+
+// ════════════════════════════════════════
+// ── TABLE ADD / EDIT / DELETE MODAL ──
+// ════════════════════════════════════════
+
+let tableModalMode = 'add'; // 'add' | 'edit'
+let tableModalTarget = null; // tableNumber when editing
+
+function openTableModal(mode, tableNum = null) {
+  tableModalMode = mode;
+  tableModalTarget = tableNum;
+
+  const modal = document.getElementById('tableModal');
+  const title = document.getElementById('tableModalTitle');
+  const numInput = document.getElementById('tableModalNumber');
+  const nameInput = document.getElementById('tableModalName');
+  const capInput  = document.getElementById('tableModalCapacity');
+  const numRow    = document.getElementById('tableModalNumberRow');
+
+  if (mode === 'add') {
+    title.textContent = 'Add New Table';
+    numRow.style.display = '';
+    // Suggest next table number
+    const existing = tableDocsList.map(t => t.tableNumber);
+    let next = 1;
+    while (existing.includes(next)) next++;
+    numInput.value = next;
+    nameInput.value = '';
+    capInput.value  = '';
+  } else {
+    title.textContent = 'Edit Table';
+    numRow.style.display = 'none';
+    const data = tableStatuses[tableNum];
+    nameInput.value = data?.name || '';
+    capInput.value  = data?.capacity || '';
+  }
+
+  modal.classList.add('show');
+  nameInput.focus();
+}
+
+window._openEditTableModal = (n) => openTableModal('edit', n);
+
+document.getElementById('tableModalClose').onclick =
+document.getElementById('tableModalCancel').onclick = () => {
+  document.getElementById('tableModal').classList.remove('show');
 };
 
-onSnapshot(query(ordersRef, orderBy('createdAt','desc')), () => renderTablesGrid());
+document.getElementById('tableModal').onclick = e => {
+  if (e.target === document.getElementById('tableModal'))
+    document.getElementById('tableModal').classList.remove('show');
+};
+
+document.getElementById('tableModalSave').onclick = async () => {
+  const numInput  = document.getElementById('tableModalNumber');
+  const nameInput = document.getElementById('tableModalName');
+  const capInput  = document.getElementById('tableModalCapacity');
+  const btn       = document.getElementById('tableModalSave');
+
+  const name     = nameInput.value.trim();
+  const capacity = capInput.value ? parseInt(capInput.value) : null;
+
+  if (tableModalMode === 'add') {
+    const num = parseInt(numInput.value);
+    if (!num || num < 1) { showToast('⚠ Enter a valid table number.'); return; }
+    if (tableStatuses[num]) { showToast(`⚠ Table ${num} already exists.`); return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await setDoc(doc(db, 'tables', `table_${num}`), {
+        tableNumber: num,
+        name:        name || null,
+        capacity:    capacity || null,
+        status:      'free',
+        reservation: null,
+        waiterId:    null,
+        waiterName:  null,
+        lastUpdated: serverTimestamp()
+      });
+      showToast(`✓ Table ${num} added.`);
+      document.getElementById('tableModal').classList.remove('show');
+    } catch(err) {
+      showToast('❌ Failed to add table.'); console.error(err);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+
+  } else {
+    // Edit mode
+    const data = tableStatuses[tableModalTarget];
+    if (!data) { showToast('Table not found.'); return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await updateDoc(doc(db, 'tables', data.docId), {
+        name:        name || null,
+        capacity:    capacity || null,
+        lastUpdated: serverTimestamp()
+      });
+      showToast(`✓ Table ${tableModalTarget} updated.`);
+      document.getElementById('tableModal').classList.remove('show');
+    } catch(err) {
+      showToast('❌ Failed to update table.'); console.error(err);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+};
+
+window._deleteTable = async (tableNum) => {
+  const data = tableStatuses[tableNum];
+  if (!data) return;
+  const label = data.name ? `"${data.name}" (Table ${tableNum})` : `Table ${tableNum}`;
+  const rawSt = (data.status || 'free').toLowerCase();
+  const isActive = !['free','reserved'].includes(rawSt);
+  const warnMsg = isActive
+    ? `⚠ Table ${tableNum} currently has active guests/orders. Deleting it will remove the table entry but NOT cancel orders.`
+    : '';
+
+  showConfirm({
+    title: `Delete ${label}`,
+    message: `Are you sure you want to permanently delete ${label}? ${warnMsg} This cannot be undone.`,
+    okLabel: 'Delete',
+    okClass: 'danger',
+    onOk: async () => {
+      try {
+        await deleteDoc(doc(db, 'tables', data.docId));
+        showToast(`✓ ${label} deleted.`);
+      } catch(err) {
+        showToast('❌ Failed to delete table.'); console.error(err);
+      }
+    }
+  });
+};
+
+// ── Reserve Modal ──
+
+let reserveTargetTable = null;
+
+window._openReserveModal = (tableNum) => {
+  reserveTargetTable = tableNum;
+  document.getElementById('reserveTableLabel').textContent = `Reserve Table ${tableNum}`;
+  document.getElementById('reserveGuestName').value = '';
+  // Reset dropdowns to defaults
+  document.getElementById('reserveHour').value   = '7';
+  document.getElementById('reserveMinute').value = '00';
+  document.getElementById('reserveAmPm').value   = 'PM';
+  document.getElementById('reserveModal').classList.add('show');
+};
+document.getElementById('reserveModalCancel').onclick = () => {
+  document.getElementById('reserveModal').classList.remove('show');
+  reserveTargetTable = null;
+};
+
+document.getElementById('reserveModal').onclick = (e) => {
+  if (e.target === document.getElementById('reserveModal')) {
+    document.getElementById('reserveModal').classList.remove('show');
+    reserveTargetTable = null;
+  }
+};
+
+document.getElementById('reserveModalConfirm').onclick = async () => {
+  const guestName = document.getElementById('reserveGuestName').value.trim();
+  const hour      = document.getElementById('reserveHour').value;
+  const minute    = document.getElementById('reserveMinute').value;
+  const ampm      = document.getElementById('reserveAmPm').value;
+  const time      = `${hour}:${minute} ${ampm}`;   // e.g. "7:30 PM"
+
+  if (!guestName) {
+    showToast('⚠ Please enter the guest name.');
+    return;
+  }
+
+  const data = tableStatuses[reserveTargetTable];
+  if (!data) { showToast('Table not found.'); return; }
+
+  const btn = document.getElementById('reserveModalConfirm');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    await updateDoc(doc(db, 'tables', data.docId), {
+      status:      'reserved',
+      reservation: { guestName, time },
+      waiterId:    null,
+      waiterName:  null,
+      lastUpdated: serverTimestamp()
+    });
+    showToast(`✓ Table ${reserveTargetTable} reserved for ${guestName} at ${time}`);
+    document.getElementById('reserveModal').classList.remove('show');
+    reserveTargetTable = null;
+  } catch(err) {
+    showToast('❌ Failed to save reservation.');
+    console.error(err);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirm Reservation';
+  }
+};
+
+// ── Remove Reservation ──
+window._removeReservation = async (tableNum) => {
+  if (!confirm(`Remove reservation for Table ${tableNum}?`)) return;
+  const data = tableStatuses[tableNum];
+  if (!data) return;
+  try {
+    await updateDoc(doc(db, 'tables', data.docId), {
+      status:      'free',
+      reservation: null,
+      lastUpdated: serverTimestamp()
+    });
+    showToast(`✓ Reservation for Table ${tableNum} removed.`);
+  } catch(err) {
+    showToast('❌ Failed to remove reservation.');
+    console.error(err);
+  }
+};
+
+// ── Clear All Tables ──
+document.getElementById('clearAllTablesBtn').onclick = async () => {
+  if (!confirm('Reset ALL tables to free and clear all active orders? This cannot be undone.')) return;
+  try {
+    // 1. Reset all table docs to free
+    const snap = await getDocs(collection(db, 'tables'));
+    await Promise.all(snap.docs.map(d =>
+      updateDoc(d.ref, {
+        status:      'free',
+        reservation: null,
+        waiterId:    null,
+        waiterName:  null,
+        lastUpdated: serverTimestamp()
+      })
+    ));
+
+    // 2. Mark all active orders as paid
+    const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
+    await Promise.all(active.map(o =>
+      updateDoc(doc(db, 'orders', o.id), { status: 'paid', updatedAt: serverTimestamp() })
+    ));
+
+    showToast('✓ All tables cleared.');
+  } catch(err) {
+    showToast('❌ Failed to clear tables.');
+    console.error(err);
+  }
+};
 
 // ═══════════════════════════════════════════════════
 // ── MENU (with Image Upload) ──
@@ -608,7 +939,7 @@ function renderBilling() {
       <td><span class="status-badge ${o.status}">${capitalize(o.status||'')}</span></td>
       <td style="white-space:nowrap;display:flex;gap:6px;align-items:center;">
         ${nextStatus?`<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>`:'<span>—</span>'}
-        ${o.status!=='paid'?`<button class="btn-sm" onclick="window._editOrder('${o.id}')">Edit</button>`:''}
+        ${o.status!=='paid'?`</button>`:''}
         <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
       </td>
     </tr>`;
@@ -772,6 +1103,11 @@ function renderReports() {
       <div class="bar-track"><div class="bar-fill ${s}" style="width:${(counts[s]/max)*100}%"></div></div>
       <span class="bar-count">${counts[s]}</span>
     </div>`).join('');
+  
+
+  renderMonthlyReport();
+  renderDailySalesReport();
+  renderSalesCalendar();
 }
 
 // ── Order edit / receipt / table helpers ──
@@ -849,3 +1185,360 @@ document.getElementById('receiptPrint').onclick = ()=>{ window.print(); };
 
 // ── Auto-refresh menu grid every minute ──
 setInterval(() => { if (menuItems.length) renderMenuGrid(); }, 60 * 1000);
+
+
+// ══════════════════════════════════════════════════════
+// MONTHLY REPORT
+// ══════════════════════════════════════════════════════
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let mChart = null;
+
+// ── Init month/year selectors ──
+(function initMonthlySelectors() {
+  const now = new Date();
+  const monthSel = document.getElementById('monthSelect');
+  const yearSel  = document.getElementById('yearSelect');
+  if (!monthSel || !yearSel) return;
+
+  MONTH_NAMES.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = m;
+    if (i === now.getMonth()) opt.selected = true;
+    monthSel.appendChild(opt);
+  });
+
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === now.getFullYear()) opt.selected = true;
+    yearSel.appendChild(opt);
+  }
+
+  monthSel.addEventListener('change', renderMonthlyReport);
+  yearSel.addEventListener('change',  renderMonthlyReport);
+
+  // Initial render after orders load
+  setTimeout(renderMonthlyReport, 1500);
+})();
+
+function renderMonthlyReport() {
+  const monthSel = document.getElementById('monthSelect');
+  const yearSel  = document.getElementById('yearSelect');
+  if (!monthSel || !yearSel) return;
+
+  const month = parseInt(monthSel.value);
+  const year  = parseInt(yearSel.value);
+
+  // Filter orders for selected month/year
+  const monthOrders = allOrders.filter(o => {
+    if (!o.createdAt?.toDate) return false;
+    const d = o.createdAt.toDate();
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+
+  const paidOrders = monthOrders.filter(o => o.status === 'paid');
+  const rev        = paidOrders.reduce((s, o) => s + (o.total || 0), 0);
+  const avg        = paidOrders.length ? rev / paidOrders.length : 0;
+  const uniqueTables = [...new Set(monthOrders.filter(o => o.tableNumber).map(o => o.tableNumber))];
+  const cancelledCount = monthOrders.filter(o => o.status === 'cancelled').length;
+  const mLabel = `${MONTH_NAMES[month]} ${year}`;
+
+  // ── Stat cards ──
+  document.getElementById('mRev').textContent     = `₱${rev.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  document.getElementById('mRevSub').textContent  = `${paidOrders.length} paid order${paidOrders.length !== 1 ? 's' : ''}`;
+  document.getElementById('mOrders').textContent  = monthOrders.length || '0';
+  document.getElementById('mOrdersSub').textContent = `${paidOrders.length} paid · ${cancelledCount} cancelled`;
+  document.getElementById('mAvg').textContent     = paidOrders.length ? `₱${avg.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—';
+  document.getElementById('mTables').textContent  = uniqueTables.length || '0';
+  document.getElementById('mTopItemsMonth').textContent = mLabel;
+  document.getElementById('mChartLabel').textContent    = mLabel;
+
+  // ── Top items ──
+  const itemMap = {};
+  monthOrders.forEach(o => (o.items || []).forEach(it => {
+    const k = it.name || '?';
+    if (!itemMap[k]) itemMap[k] = { name: k, category: it.category || '—', qty: 0, revenue: 0 };
+    itemMap[k].qty     += (it.qty || 1);
+    itemMap[k].revenue += (it.price || 0) * (it.qty || 1);
+  }));
+  const topItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty).slice(0, 10);
+
+  document.getElementById('mTopItemsBody').innerHTML = topItems.length
+    ? topItems.map((it, i) => `
+        <tr>
+          <td style="color:var(--text-muted);font-size:11px;">${i + 1}</td>
+          <td style="font-weight:600;color:var(--white);">${it.name}</td>
+          <td><span class="status-badge" style="background:var(--gold-dim);color:var(--gold);font-size:9px;">${it.category}</span></td>
+          <td>${it.qty}</td>
+          <td style="color:var(--gold-light);">₱${it.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="5" class="empty-row">No orders this month.</td></tr>';
+
+  // ── Table activity ──
+  const tableCount = {};
+  monthOrders.forEach(o => {
+    if (!o.tableNumber) return;
+    const n = o.tableNumber;
+    if (!tableCount[n]) tableCount[n] = { orders: 0, revenue: 0 };
+    tableCount[n].orders++;
+    tableCount[n].revenue += (o.total || 0);
+  });
+  const sortedTables = Object.entries(tableCount).sort((a, b) => b[1].orders - a[1].orders);
+  const maxOrders    = sortedTables.length ? sortedTables[0][1].orders : 1;
+
+  document.getElementById('mTableActivity').innerHTML = sortedTables.length
+    ? sortedTables.map(([num, data]) => `
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:var(--white);">Table ${num}</span>
+            <span style="font-size:11px;color:var(--text-muted);">${data.orders} order${data.orders !== 1 ? 's' : ''} · ₱${data.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div style="height:7px;background:var(--black-mid);border-radius:100px;overflow:hidden;">
+            <div style="height:100%;width:${(data.orders / maxOrders) * 100}%;background:var(--gold);border-radius:100px;transition:width 0.5s cubic-bezier(0.16,1,0.3,1);min-width:3px;"></div>
+          </div>
+        </div>`).join('')
+    : '<div style="color:var(--text-muted);font-size:13px;padding:16px 0;text-align:center;">No table data this month.</div>';
+
+  // ── Daily revenue chart ──
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dailyRev = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    return paidOrders
+      .filter(o => o.createdAt.toDate().getDate() === day)
+      .reduce((s, o) => s + (o.total || 0), 0);
+  });
+  const labels = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  const canvas = document.getElementById('mRevenueChart');
+  if (!canvas) return;
+
+  if (mChart) { mChart.destroy(); mChart = null; }
+
+  function drawMChart() {
+    if (typeof Chart === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+      s.onload = drawMChart;
+      document.head.appendChild(s);
+      return;
+    }
+    mChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Revenue (₱)',
+          data: dailyRev,
+          backgroundColor: 'rgba(201,151,58,0.35)',
+          borderColor: '#c9973a',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => `Day ${ctx[0].label}`,
+              label: ctx => `₱${ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+            },
+            backgroundColor: '#141414',
+            borderColor: '#2a2a2a',
+            borderWidth: 1,
+            titleColor: '#f5f0e8',
+            bodyColor: '#c9973a',
+            padding: 10,
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#5e5e5e', font: { size: 10 }, autoSkip: true, maxTicksLimit: 16 },
+            grid: { color: 'rgba(42,42,42,0.5)' },
+          },
+          y: {
+            ticks: {
+              color: '#5e5e5e',
+              font: { size: 10 },
+              callback: v => v === 0 ? '₱0' : `₱${v.toLocaleString('en-PH')}`
+            },
+            grid: { color: 'rgba(42,42,42,0.5)' },
+            beginAtZero: true,
+          }   
+        }
+      }
+    });
+  }
+  drawMChart();
+}
+
+// ── Daily Sales Report ──
+function renderDailySalesReport() {
+  const container = document.getElementById('dailySalesReport');
+  if (!container) return;
+
+  // Group all orders by date
+  const dayMap = {};
+  allOrders.forEach(o => {
+    if (!o.createdAt?.toDate) return;
+    const d = o.createdAt.toDate();
+    const key = d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: '2-digit' });
+    if (!dayMap[key]) dayMap[key] = { date: d, label: key, orders: 0, revenue: 0, paid: 0 };
+    dayMap[key].orders++;
+    if (o.status === 'paid') {
+      dayMap[key].revenue += (o.total || 0);
+      dayMap[key].paid++;
+    }
+  });
+
+  const rows = Object.values(dayMap).sort((a, b) => b.date - a.date);
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty-state">No sales data yet.</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="table-wrap" style="max-height:400px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Total Orders</th>
+            <th>Paid Orders</th>
+            <th>Revenue</th>
+            <th>Avg. Order Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td style="font-weight:600;color:var(--off-white);">${r.label}</td>
+              <td>${r.orders}</td>
+              <td>${r.paid}</td>
+              <td style="color:var(--gold-light);font-weight:600;">₱${r.revenue.toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
+              <td>${r.paid ? '₱' + (r.revenue / r.paid).toLocaleString('en-PH',{minimumFractionDigits:2}) : '—'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// SALES CALENDAR
+// ══════════════════════════════════════════════════════
+
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calSelectedDay = null;
+
+function buildCalDayMap(year, month) {
+  const map = {};
+  allOrders.forEach(o => {
+    if (!o.createdAt?.toDate) return;
+    const d = o.createdAt.toDate();
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const day = d.getDate();
+    if (!map[day]) map[day] = { orders: [], revenue: 0, paid: 0 };
+    map[day].orders.push(o);
+    if (o.status === 'paid') { map[day].revenue += (o.total || 0); map[day].paid++; }
+  });
+  return map;
+}
+
+function renderSalesCalendar() {
+  const titleEl = document.getElementById('calTitle');
+  const grid    = document.getElementById('calGrid');
+  if (!titleEl || !grid) return;
+
+  titleEl.textContent = `${MONTH_NAMES[calMonth]} ${calYear}`;
+  const dayMap = buildCalDayMap(calYear, calMonth);
+  const firstDow = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const today = new Date();
+  const isThisMonth = today.getFullYear() === calYear && today.getMonth() === calMonth;
+  const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let html = DOWS.map(d => `<div class="cal-dow-cell">${d}</div>`).join('');
+  for (let i = 0; i < firstDow; i++) html += `<div class="cal-day-cell empty"></div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const data = dayMap[d];
+    const isToday  = isThisMonth && today.getDate() === d;
+    const isSel    = calSelectedDay === d;
+    const hasSales = !!data;
+    const cls = ['cal-day-cell', isToday ? 'today' : '', isSel ? 'selected' : '', !hasSales ? 'no-sale' : ''].filter(Boolean).join(' ');
+    const revHtml = data ? `<div class="cal-day-rev">₱${data.revenue >= 1000 ? (data.revenue/1000).toFixed(1)+'k' : data.revenue.toLocaleString()}</div>` : '';
+    const cntHtml = data ? `<div class="cal-day-cnt">${data.orders.length} orders</div>` : '';
+    const onclick = hasSales ? `window._calSelectDay(${d})` : '';
+    html += `<div class="${cls}" ${onclick ? `onclick="${onclick}"` : ''}>
+      <div class="cal-day-num">${d}</div>${revHtml}${cntHtml}
+    </div>`;
+  }
+
+  const totalCells = firstDow + daysInMonth;
+  const trailing = (7 - totalCells % 7) % 7;
+  for (let i = 0; i < trailing; i++) html += `<div class="cal-day-cell empty"></div>`;
+  grid.innerHTML = html;
+
+  if (calSelectedDay) renderCalDetail(calSelectedDay, dayMap);
+}
+
+window._calSelectDay = d => {
+  calSelectedDay = d;
+  renderSalesCalendar();
+};
+
+function renderCalDetail(d, dayMap) {
+  const panel = document.getElementById('calDetail');
+  if (!panel) return;
+  const data = dayMap[d];
+  if (!data) { panel.innerHTML = '<div class="empty-state">No sales this day.</div>'; return; }
+
+  const dateLabel = new Date(calYear, calMonth, d).toLocaleDateString('en-PH', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const avg = data.paid ? data.revenue / data.paid : 0;
+  const sorted = [...data.orders].sort((a, b) => (b.total||0) - (a.total||0));
+
+  panel.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:var(--white);">${dateLabel}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Revenue</div><div class="cal-detail-stat-val" style="color:var(--gold-light);">₱${data.revenue.toLocaleString('en-PH',{minimumFractionDigits:2})}</div></div>
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Orders</div><div class="cal-detail-stat-val">${data.orders.length}</div></div>
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Paid</div><div class="cal-detail-stat-val">${data.paid}</div></div>
+      <div class="cal-detail-stat"><div class="cal-detail-stat-label">Avg value</div><div class="cal-detail-stat-val">${data.paid ? '₱'+(avg).toLocaleString('en-PH',{minimumFractionDigits:2}) : '—'}</div></div>
+    </div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);">All orders</div>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;">
+      ${sorted.map(o => {
+        const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—';
+        return `<div style="background:var(--black-mid);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <div class="mono" style="font-size:11px;">#${o.id.slice(-5).toUpperCase()}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Table ${o.tableNumber||'?'} · ${o.waiterName||'—'} · ${ts}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;font-weight:600;color:var(--white);">₱${(o.total||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
+            <span class="status-badge ${o.status}" style="font-size:9px;">${o.status}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+document.getElementById('calPrevBtn').onclick = () => {
+  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+  calSelectedDay = null; renderSalesCalendar();
+};
+document.getElementById('calNextBtn').onclick = () => {
+  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+  calSelectedDay = null; renderSalesCalendar();
+};
+
+document.getElementById('removeReserveCancel2').onclick = 
+document.getElementById('removeReserveCancel').onclick = () => {
+  document.getElementById('removeReserveModal').classList.remove('show');
+};

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Salo sa Antipolo — Billing</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="admin.css"/>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+<div class="bg"></div>
+<div class="bg-dots"></div>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><img src="img/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+    <div class="brand-text">
+      <span class="brand-name">Salo sa</span>
+      <em class="brand-italic">Antipolo</em>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a href="admin-overview.html" class="nav-item" data-view="overview">
+      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
+    </a>
+    <a href="admin-orders.html" class="nav-item" data-view="orders">
+      <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
+      <span class="nav-badge" id="ordersBadge">0</span>
+    </a>
+    <a href="admin-tables.html" class="nav-item" data-view="tables">
+      <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
+    </a>
+    <a href="admin-menu.html" class="nav-item" data-view="menu">
+      <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
+    </a>
+
+    <div class="nav-section-label">Management</div>
+    <a href="admin-billing.html" class="nav-item active" data-view="billing">
+      <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
+    </a>
+    <a href="admin-staff.html" class="nav-item" data-view="staff">
+      <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+    </a>
+    <a href="admin-reports.html" class="nav-item" data-view="reports">
+      <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="user-avatar" id="userAvatarSidebar">A</div>
+    <div class="user-info">
+      <span class="user-name" id="userNameSidebar">Admin</span>
+      <span class="user-role">Administrator</span>
+    </div>
+    <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
+  </div>
+</aside>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="main" id="main">
+  <header class="topbar">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div class="topbar-left">
+      <h1 class="page-title" id="pageTitle">Billing</h1>
+      <span class="page-date" id="pageDate"></span>
+    </div>
+    <div class="topbar-right">
+      <div class="live-indicator"><span class="live-dot"></span>Live</div>
+      <div class="topbar-user">
+        <span id="topbarName">Admin</span>
+        <div class="user-avatar sm" id="userAvatarTop">A</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="view active">
+    <div class="view-toolbar">
+      <div class="filter-tabs">
+        <button class="ftab active" data-bstatus="all">All</button>
+        <button class="ftab" data-bstatus="unpaid">Unpaid</button>
+        <button class="ftab" data-bstatus="paid">Paid</button>
+      </div>
+      <div class="toolbar-right">
+        <div class="stat-inline"><span class="stat-inline-label">Today's Total:</span><span class="stat-inline-val" id="billingTodayTotal">₱0.00</span></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Order ID</th><th>Table</th><th>Waiter</th><th>Items</th><th>Total</th><th>Date/Time</th><th>Status</th></tr></thead>
+        <tbody id="billingTableBody"><tr><td colspan="7" class="empty-row">Loading billing data…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
+
+<script type="module" src="admin.js"></script>
+
+<script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
+</body>
+</html>
