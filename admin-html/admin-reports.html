@@ -2,182 +2,181 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0;url=../admin.html#reports" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Redirecting...</title>
+  <title>Salo sa Antipolo — Reports</title>
+  <link rel="stylesheet" href="../admin.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
-<body><script>window.location.href='../admin.html#reports';</script></body>
-</html>
+<body>
+  <div class="bg"></div>
+  <div class="bg-dots"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
 
-<div class="bg"></div>
-<div class="bg-dots"></div>
-<div class="corner corner-tl"></div>
-<div class="corner corner-tr"></div>
-<div class="corner corner-bl"></div>
-<div class="corner corner-br"></div>
-
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-brand">
-    <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
-    <div class="brand-text">
-      <span class="brand-name">Salo sa</span>
-      <em class="brand-italic">Antipolo</em>
-    </div>
-  </div>
-
-  <nav class="sidebar-nav">
-    <div class="nav-section-label">Main</div>
-    <a href="admin-overview.html" class="nav-item" data-view="overview">
-      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
-    </a>
-    <a href="admin-orders.html" class="nav-item" data-view="orders">
-      <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
-      <span class="nav-badge" id="ordersBadge">0</span>
-    </a>
-    <a href="admin-tables.html" class="nav-item" data-view="tables">
-      <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
-    </a>
-    <a href="admin-menu.html" class="nav-item" data-view="menu">
-      <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
-    </a>
-
-    <div class="nav-section-label">Management</div>
-    <a href="admin-billing.html" class="nav-item" data-view="billing">
-      <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
-    </a>
-    <a href="admin-staff.html" class="nav-item" data-view="staff">
-      <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
-    </a>
-    <a href="admin-reports.html" class="nav-item active" data-view="reports">
-      <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
-    </a>
-  </nav>
-
-  <div class="sidebar-user">
-    <div class="user-avatar" id="userAvatarSidebar">A</div>
-    <div class="user-info">
-      <span class="user-name" id="userNameSidebar">Admin</span>
-      <span class="user-role">Administrator</span>
-    </div>
-    <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
-  </div>
-</aside>
-
-<div class="overlay" id="overlay"></div>
-
-<div class="main" id="main">
-  <header class="topbar">
-    <button class="hamburger" id="hamburger">☰</button>
-    <div class="topbar-left">
-      <h1 class="page-title" id="pageTitle">Reports</h1>
-      <span class="page-date" id="pageDate"></span>
-    </div>
-    <div class="topbar-right">
-      <div class="live-indicator"><span class="live-dot"></span>Live</div>
-      <div class="topbar-user">
-        <span id="topbarName">Admin</span>
-        <div class="user-avatar sm" id="userAvatarTop">A</div>
-      </div>
-    </div>
-  </header>
-
-  <div class="view active">
-    <div class="view-toolbar">
-      <select class="month-year-select" id="rptMonthSelect">
-        <option value="">Select Month</option>
-      </select>
-      <span class="toolbar-subtitle" id="calTitle"></span>
-    </div>
-
-    <div class="stats-grid three">
-      <div class="stat-card gold">
-        <div class="stat-card-icon"><i data-lucide="banknote"></i></div>
-        <div class="stat-card-label">Monthly Revenue</div>
-        <div class="stat-card-value" id="rptMonthRev">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon"><i data-lucide="shopping-bag"></i></div>
-        <div class="stat-card-label">Total Orders</div>
-        <div class="stat-card-value" id="rptMonthOrders">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon"><i data-lucide="utensils"></i></div>
-        <div class="stat-card-label">Avg. Per Order</div>
-        <div class="stat-card-value" id="rptMonthAvg">—</div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+      <div class="brand-text">
+        <span class="brand-name">Salo sa</span>
+        <em class="brand-italic">Antipolo</em>
       </div>
     </div>
 
-    <div class="content-row">
-      <div class="panel wide" id="calendarPanel">
-        <div class="panel-header">
-          <span class="panel-title">Sales Calendar</span>
-          <span class="panel-subtitle">Click a day to view details</span>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="admin-overview.html" class="nav-item" data-view="overview">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
+      </a>
+      <a href="admin-orders.html" class="nav-item" data-view="orders">
+        <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
+        <span class="nav-badge" id="ordersBadge">0</span>
+      </a>
+      <a href="admin-tables.html" class="nav-item" data-view="tables">
+        <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
+      </a>
+      <a href="admin-menu.html" class="nav-item" data-view="menu">
+        <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
+      </a>
+
+      <div class="nav-section-label">Management</div>
+      <a href="admin-billing.html" class="nav-item" data-view="billing">
+        <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
+      </a>
+      <a href="admin-staff.html" class="nav-item" data-view="staff">
+        <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+      </a>
+      <a href="admin-reports.html" class="nav-item active" data-view="reports">
+        <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatarSidebar">A</div>
+      <div class="user-info">
+        <span class="user-name" id="userNameSidebar">Admin</span>
+        <span class="user-role">Administrator</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
+    </div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-left">
+        <h1 class="page-title" id="pageTitle">Reports</h1>
+        <span class="page-date" id="pageDate"></span>
+      </div>
+      <div class="topbar-right">
+        <div class="live-indicator"><span class="live-dot"></span>Live</div>
+        <div class="topbar-user">
+          <span id="topbarName">Admin</span>
+          <div class="user-avatar sm" id="userAvatarTop">A</div>
         </div>
-        <div class="cal-header">
-          <div class="cal-dow-cell">Sun</div>
-          <div class="cal-dow-cell">Mon</div>
-          <div class="cal-dow-cell">Tue</div>
-          <div class="cal-dow-cell">Wed</div>
-          <div class="cal-dow-cell">Thu</div>
-          <div class="cal-dow-cell">Fri</div>
-          <div class="cal-dow-cell">Sat</div>
-        </div>
-        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    </header>
+
+    <div class="view active">
+      <div class="view-toolbar">
+        <select class="month-year-select" id="rptMonthSelect">
+          <option value="">Select Month</option>
+        </select>
+        <span class="toolbar-subtitle" id="calTitle"></span>
       </div>
 
-      <div class="panel" id="dayDetailPanel">
-        <div class="panel-header">
-          <span class="panel-title" id="dayDetailTitle">Daily Summary</span>
+      <div class="stats-grid">
+        <div class="stat-card gold">
+          <div class="stat-card-icon"><i data-lucide="banknote"></i></div>
+          <div class="stat-card-label">Monthly Revenue</div>
+          <div class="stat-card-value" id="rptMonthRev">—</div>
         </div>
-        <div class="day-summary-cards">
-          <div class="summary-card gold">
-            <div class="summary-icon"><i data-lucide="banknote"></i></div>
-            <div class="summary-label">Revenue</div>
-            <div class="summary-value" id="dayDetailRev">₱0</div>
+        <div class="stat-card">
+          <div class="stat-card-icon"><i data-lucide="shopping-bag"></i></div>
+          <div class="stat-card-label">Total Orders</div>
+          <div class="stat-card-value" id="rptMonthOrders">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon"><i data-lucide="utensils"></i></div>
+          <div class="stat-card-label">Avg. Per Order</div>
+          <div class="stat-card-value" id="rptMonthAvg">—</div>
+        </div>
+      </div>
+
+      <div class="content-row">
+        <div class="panel wide" id="calendarPanel">
+          <div class="panel-header">
+            <span class="panel-title">Sales Calendar</span>
+            <span class="panel-subtitle">Click a day to view details</span>
           </div>
-          <div class="summary-card">
-            <div class="summary-icon"><i data-lucide="shopping-bag"></i></div>
-            <div class="summary-label">Orders</div>
-            <div class="summary-value" id="dayDetailOrders">0</div>
+          <div class="cal-header">
+            <div class="cal-dow-cell">Sun</div>
+            <div class="cal-dow-cell">Mon</div>
+            <div class="cal-dow-cell">Tue</div>
+            <div class="cal-dow-cell">Wed</div>
+            <div class="cal-dow-cell">Thu</div>
+            <div class="cal-dow-cell">Fri</div>
+            <div class="cal-dow-cell">Sat</div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+
+        <div class="panel" id="dayDetailPanel">
+          <div class="panel-header">
+            <span class="panel-title" id="dayDetailTitle">Daily Summary</span>
+          </div>
+          <div class="summary-cards">
+            <div class="summary-card gold">
+              <div class="summary-icon"><i data-lucide="banknote"></i></div>
+              <div class="summary-label">Revenue</div>
+              <div class="summary-value" id="dayDetailRev">₱0</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-icon"><i data-lucide="shopping-bag"></i></div>
+              <div class="summary-label">Orders</div>
+              <div class="summary-value" id="dayDetailOrders">0</div>
+            </div>
+          </div>
+          <div class="panel-header-sub">Items Sold</div>
+          <div class="table-wrap">
+            <table class="data-table compact">
+              <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+              <tbody id="dayDetailItems"><tr><td colspan="3" class="empty-row">Select a day</td></tr></tbody>
+            </table>
           </div>
         </div>
-        <div class="panel-header-sub">Items Sold</div>
-        <div class="table-wrap">
-          <table class="data-table compact">
-            <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
-            <tbody id="dayDetailItems"><tr><td colspan="3" class="empty-row">Select a day</td></tr></tbody>
-          </table>
-        </div>
       </div>
-    </div>
 
-    <div class="content-row">
-      <div class="panel wide">
-        <div class="panel-header">
-          <span class="panel-title">Top Selling Items</span>
-          <span class="panel-subtitle">This month</span>
+      <div class="content-row">
+        <div class="panel wide">
+          <div class="panel-header">
+            <span class="panel-title">Top Selling Items</span>
+            <span class="panel-subtitle">This month</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Item</th><th>Category</th><th>Sold</th><th>Revenue</th></tr></thead>
+              <tbody id="topItemsBody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Item</th><th>Category</th><th>Sold</th><th>Revenue</th></tr></thead>
-            <tbody id="topItemsBody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">Order Status</span></div>
-        <div class="chart-container">
-          <div class="chart-bars" id="statusChart"></div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Order Status</span></div>
+          <div class="chart-container">
+            <div class="chart-bars" id="statusChart"></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
+  <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-<script type="module" src="../admin-js/admin-reports.js"></script>
+  <script type="module" src="../admin-js/admin-reports.js"></script>
 
-<script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
+  <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
 </body>
 </html>

@@ -405,7 +405,7 @@ window._removeReservation = async (tableNum) => {
   if (!confirm(`Remove reservation for Table ${tableNum}?`)) return;
   const data = tableStatuses[tableNum];
   if (!data) return;
-  try { await updateDoc(doc(db, 'tables', data.docId), { status: 'free', reservation: null, lastUpdated: serverTimestamp() }; showToast(`Reservation for Table ${tableNum} removed.`); }
+  try { await updateDoc(doc(db, 'tables', data.docId), { status: 'free', reservation: null, lastUpdated: serverTimestamp() }); showToast(`Reservation for Table ${tableNum} removed.`); }
   catch (err) { showToast('Failed to remove reservation.'); console.error(err); }
 };
 
