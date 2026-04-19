@@ -443,24 +443,7 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   width: 100%; text-align: center; padding-top: 2px;
 }
 
-/* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* ── RESPONSIVE ── */
-@media (max-width: 720px) {
-  .cart-panel { width: 260px; }
-  .menu-items { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 560px) {
-  .order-layout { flex-direction: column; }
-  .menu-panel { border-right: none; border-bottom: 1px solid var(--border); flex: none; height: 55%; }
-  .cart-panel { width: 100%; flex:none; height: 45%; }
-  .menu-items { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .step-pills { display: none; }
-  .step-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-}
+/* Scrollbar & responsive styles moved to waiter-responsiveness.css */
 /* ═══════ DYNAMIC TABLE ENHANCEMENTS ═══════ */
 .table-cap {
   font-size: 10px;

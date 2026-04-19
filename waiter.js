@@ -19,7 +19,18 @@ let tablesData = {}; // { tableNumber: { docId, status, waiterName, waiterId, ..
 let pendingOccupyTable = null;
 let pendingWalkinTable = null;
 let menuPage = 1;
-const ITEMS_PER_PAGE = 14;
+const ITEMS_PER_PAGE_DESKTOP = 14;
+const ITEMS_PER_PAGE_MEDIUM  = 10;
+const ITEMS_PER_PAGE_TABLET  = 6;
+const getItemsPerPage = () => {
+  const w = window.innerWidth;
+  if (w <= 768)  return ITEMS_PER_PAGE_TABLET;
+  if (w <= 1024) return ITEMS_PER_PAGE_MEDIUM;
+  return ITEMS_PER_PAGE_DESKTOP;
+};
+
+// Re-render menu on resize so page size updates automatically
+window.addEventListener('resize', () => { menuPage = 1; renderMenuGrid(); });
 
 // ── Auth guard ──
 onAuthStateChanged(auth, async user => {
@@ -373,6 +384,7 @@ window._setCat = cat => {
 $('menuSearch').addEventListener('input', () => { menuPage = 1; renderMenuGrid(); });
 
 function renderMenuGrid() {
+  const ITEMS_PER_PAGE = getItemsPerPage();
   const q = $('menuSearch').value.toLowerCase().trim();
   let items = activeCat === 'all' ? menuItems : menuItems.filter(m => (m.category||'Other') === activeCat);
   if (q) items = items.filter(m => (m.name||'').toLowerCase().includes(q) || (m.description||'').toLowerCase().includes(q));
@@ -433,6 +445,8 @@ function renderMenuGrid() {
     pager.id = 'menuPagination';
     pager.className = 'menu-pagination';
 
+    const isTablet = window.innerWidth <= 1024;
+
     // Prev button
     const prevBtn = document.createElement('button');
     prevBtn.className = 'pg-btn' + (menuPage === 1 ? ' pg-disabled' : '');
@@ -441,16 +455,37 @@ function renderMenuGrid() {
     prevBtn.onclick = () => { menuPage--; renderMenuGrid(); grid.scrollTop = 0; };
     pager.appendChild(prevBtn);
 
-    // Page pills
+    // Page pills — smart truncated on tablet, all on desktop
     const pillWrap = document.createElement('div');
     pillWrap.className = 'pg-pills';
-    for (let p = 1; p <= totalPages; p++) {
+
+    const makePill = (p) => {
       const pill = document.createElement('button');
       pill.className = 'pg-pill' + (p === menuPage ? ' pg-pill-active' : '');
       pill.textContent = p;
       pill.onclick = ((page) => () => { menuPage = page; renderMenuGrid(); grid.scrollTop = 0; })(p);
       pillWrap.appendChild(pill);
+    };
+
+    const makeDots = () => {
+      const dots = document.createElement('span');
+      dots.className = 'pg-dots';
+      dots.textContent = '…';
+      pillWrap.appendChild(dots);
+    };
+
+    if (isTablet && totalPages > 7) {
+      // Smart: always show 1, current±1, last — with … in between
+      const pages = new Set([1, totalPages, menuPage, menuPage - 1, menuPage + 1].filter(p => p >= 1 && p <= totalPages));
+      const sorted = [...pages].sort((a, b) => a - b);
+      sorted.forEach((p, i) => {
+        if (i > 0 && p - sorted[i - 1] > 1) makeDots();
+        makePill(p);
+      });
+    } else {
+      for (let p = 1; p <= totalPages; p++) makePill(p);
     }
+
     pager.appendChild(pillWrap);
 
     // Next button
@@ -461,7 +496,7 @@ function renderMenuGrid() {
     nextBtn.onclick = () => { menuPage++; renderMenuGrid(); grid.scrollTop = 0; };
     pager.appendChild(nextBtn);
 
-    // Count label
+    // Count label (hidden on tablet via CSS)
     const countLbl = document.createElement('div');
     countLbl.className = 'pg-count';
     countLbl.textContent = `${start + 1}–${Math.min(start + ITEMS_PER_PAGE, items.length)} of ${items.length} items`;
