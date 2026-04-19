@@ -907,3 +907,6 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .cal-detail-stat { background:var(--black-mid); border-radius:8px; padding:10px 12px; }
 .cal-detail-stat-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
 .cal-detail-stat-val { font-size:20px; color:var(--gold-light); }
+/* ═══════ TABLE ADD / EDIT MODAL ═══════ */
+.add-table-card:hover { opacity: 1 !important; border-color: var(--gold) !important; }
+.add-table-card:hover > div { color: var(--gold) !important; }

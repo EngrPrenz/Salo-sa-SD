@@ -18,6 +18,8 @@ let allOrders = [];
 let tablesData = {}; // { tableNumber: { docId, status, waiterName, waiterId, ... } }
 let pendingOccupyTable = null;
 let pendingWalkinTable = null;
+let menuPage = 1;
+const ITEMS_PER_PAGE = 14;
 
 // ── Auth guard ──
 onAuthStateChanged(auth, async user => {
@@ -56,16 +58,29 @@ async function init() {
   // Listen to tables collection — single source of truth for walk-in status
   onSnapshot(collection(db, 'tables'), snap => {
     tablesData = {};
+    tablesList = [];
     snap.docs.forEach(d => {
       const data = d.data();
-      const num = data.tableNumber || parseInt(d.id.replace('table_', ''));
-      tablesData[num] = { docId: d.id, ...data };
+      const rawNum = data.tableNumber
+        ? parseInt(data.tableNumber)
+        : parseInt(d.id.replace('table_', ''));
+      const num = isNaN(rawNum) ? null : rawNum;
+      if (!num) return; // skip malformed docs
+      // Deduplicate: prefer doc with explicit tableNumber field
+      if (tablesData[num] && !data.tableNumber) return;
+      tablesData[num] = { docId: d.id, ...data, tableNumber: num };
+      const existIdx = tablesList.findIndex(t => t.tableNumber === num);
+      if (existIdx !== -1) tablesList.splice(existIdx, 1);
+      tablesList.push({ docId: d.id, tableNumber: num, ...data });
     });
+    tablesList.sort((a, b) => a.tableNumber - b.tableNumber);
     renderTables();
   });
 }
 
 // ── TABLE RENDERING ──
+let tablesList = []; // sorted list of table docs from Firestore
+
 function renderTables() {
   const orderOccupied = {};
   allOrders.filter(o => ['pending','preparing','served'].includes(o.status)).forEach(o => {
@@ -73,21 +88,39 @@ function renderTables() {
   });
 
   const grid = $('tablesGrid');
-  grid.innerHTML = Array.from({ length: 10 }, (_, i) => {
-    const n = i + 1;
-    const orderInfo     = orderOccupied[n];
-    const tableDoc      = tablesData[n];
-    const isWalkIn      = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
-    const isWalkInYours = isWalkIn && tableDoc.waiterId === waiterId;
-    const isYours       = orderInfo && orderInfo.waiterId === waiterId;
-    const isTakenOrder  = orderInfo && !isYours;
 
-    let stClass, badge, badgeLbl, meta, icon, yoursInd = '', occupyBtnHtml = '';
+  if (!tablesList.length) {
+    grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No tables configured yet.</div>';
+    return;
+  }
+
+  grid.innerHTML = tablesList.map(entry => {
+    const n = entry.tableNumber;
+    const orderInfo        = orderOccupied[n];
+    const tableDoc         = tablesData[n];
+    const isWalkIn         = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
+    const isWalkInYours    = isWalkIn && tableDoc.waiterId === waiterId;
+    const isReserved       = !orderInfo && tableDoc && tableDoc.status === 'reserved';
+    const isOccupiedNoOrder = !orderInfo && tableDoc && tableDoc.status === 'occupied';
+    const isOccupiedYours  = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
+    const isYours          = orderInfo && orderInfo.waiterId === waiterId;
+    const isTakenOrder     = orderInfo && !isYours;
+
+    // Display label: custom name if set, else "Table N"
+    const displayLabel = entry.name ? entry.name : `Table ${n}`;
+    const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
+
+    let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
       stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
       icon = '🍽️'; meta = 'Active order';
       yoursInd = `<div class="yours-indicator">YOURS</div>`;
+    } else if (isReserved) {
+      stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
+      icon = '📅';
+      const res = tableDoc.reservation || {};
+      meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
     } else if (isTakenOrder) {
       stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
       icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
@@ -96,16 +129,22 @@ function renderTables() {
       icon = '👥';
       meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
       if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
+    } else if (isOccupiedNoOrder) {
+      stClass = isOccupiedYours ? 'yours' : 'occupied';
+      badge   = isOccupiedYours ? 'yours' : 'occupied';
+      badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
+      icon = isOccupiedYours ? '🍽️' : '🚫';
+      meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
+      if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else {
       stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
-      icon = '🪑'; meta = 'Tap to start order';
-      occupyBtnHtml = `<button class="occupy-btn" onclick="event.stopPropagation();window._openOccupyModal(${n})" title="Mark as occupied">👥</button>`;
+      icon = '🪑'; meta = 'Tap to seat guests';
     }
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
-      ${occupyBtnHtml}
-      <div class="table-num">${n}</div>
+      <div class="table-num">${displayLabel}</div>
+      ${capInfo}
       <div class="table-icon">${icon}</div>
       <span class="table-status-badge ${badge}">${badgeLbl}</span>
       <div class="table-meta">${meta}</div>
@@ -155,19 +194,22 @@ $('confirmMarkOccupied').onclick = async () => {
 // ── WALK-IN OPTIONS MODAL ──
 window._selectTable = (num, stClass, isWalkIn) => {
   if (stClass === 'occupied') { showToast('⚠ This table has an active order from another waiter.'); return; }
+  if (stClass === 'reserved') { window._openReservedModal(num); return; }
 
   if (isWalkIn) {
     pendingWalkinTable = num;
     $('freeTableBadge').textContent = `Table ${num}`;
     const info = tablesData[num];
-    $('freeTableDesc').textContent = info && info.waiterName
+    $('freeTableDesc').textContent = info?.waiterName
       ? `Marked by: ${info.waiterName}`
       : 'This table is marked as occupied with walk-in guests.';
     $('freeTableModal').classList.add('show');
     return;
   }
 
-  goToOrder(num);
+  if (stClass === 'yours') { goToOrder(num); return; }
+
+  window._openOccupyModal(num);
 };
 
 $('freeTableModalClose').onclick = $('freeTableModalCancel').onclick = () => {
@@ -181,9 +223,9 @@ $('startOrderFromWalkin').onclick = async () => {
   if (tableDoc) {
     try {
       await updateDoc(doc(db, 'tables', tableDoc.docId), {
-        status: 'available',
-        waiterId: null,
-        waiterName: null,
+        status: 'occupied',   // ← was 'available'
+        waiterId,
+        waiterName,
         lastUpdated: serverTimestamp()
       });
     } catch(e) { /* non-blocking */ }
@@ -211,6 +253,47 @@ $('freeTableBtn').onclick = async () => {
       console.error(e);
       showToast('❌ Failed to update table. Please retry.');
     }
+  }
+};
+// ── RESERVED TABLE MODAL ──
+window._openReservedModal = (num) => {
+  const tableDoc = tablesData[num];
+  const res = tableDoc?.reservation || {};
+  $('reservedTableBadge').textContent = `Table ${num}`;
+  $('reservedGuestName').textContent = res.guestName || '—';
+  $('reservedTime').textContent = res.time || '—';
+  $('reservedModal').dataset.table = num;
+  $('reservedModal').classList.add('show');
+};
+
+$('reservedModalClose').onclick = $('reservedModalCancel').onclick = () => {
+  $('reservedModal').classList.remove('show');
+};
+
+$('confirmArrivalBtn').onclick = async () => {
+  const num = parseInt($('reservedModal').dataset.table); // ✅ already parseInt'd here
+  if (!num) return;
+  const btn = $('confirmArrivalBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  try {
+    const tableDoc = tablesData[num];
+    if (!tableDoc?.docId) {
+      showToast('❌ Table document not found.');
+      return;
+    }
+    await updateDoc(doc(db, 'tables', tableDoc.docId), {
+      status: 'occupied',
+      waiterId,
+      waiterName,
+      lastUpdated: serverTimestamp()
+    });
+    $('reservedModal').classList.remove('show');
+    goToOrder(num);
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Failed to confirm arrival. Please retry.');
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
   }
 };
 
@@ -282,20 +365,31 @@ function buildCategoryTabs() {
 
 window._setCat = cat => {
   activeCat = cat;
+  menuPage = 1;
   $('catScroll').querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat===cat));
   renderMenuGrid();
 };
 
-$('menuSearch').addEventListener('input', renderMenuGrid);
+$('menuSearch').addEventListener('input', () => { menuPage = 1; renderMenuGrid(); });
 
 function renderMenuGrid() {
   const q = $('menuSearch').value.toLowerCase().trim();
   let items = activeCat === 'all' ? menuItems : menuItems.filter(m => (m.category||'Other') === activeCat);
   if (q) items = items.filter(m => (m.name||'').toLowerCase().includes(q) || (m.description||'').toLowerCase().includes(q));
   const grid = $('menuGrid');
+
+  // Remove old pagination if any
+  const oldPager = document.getElementById('menuPagination');
+  if (oldPager) oldPager.remove();
+
   if (!items.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:32px;grid-column:1/-1;text-align:center;">No items found.</div>'; return; }
 
-  grid.innerHTML = items.map(m => {
+  const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+  if (menuPage > totalPages) menuPage = totalPages;
+  const start = (menuPage - 1) * ITEMS_PER_PAGE;
+  const pageItems = items.slice(start, start + ITEMS_PER_PAGE);
+
+  grid.innerHTML = pageItems.map(m => {
     const inCart  = cart[m.id];
     const unavail = m.available === false;
     const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -317,7 +411,7 @@ function renderMenuGrid() {
     </div>`;
   }).join('');
 
-  items.forEach((m, i) => {
+  pageItems.forEach((m, i) => {
     if (!m.imageUrl) return;
     setTimeout(() => {
       const slot = document.getElementById(`wimg-${m.id}`);
@@ -331,6 +425,50 @@ function renderMenuGrid() {
       img.src = m.imageUrl;
     }, i * 20);
   });
+
+  // Render pagination bar if more than one page
+  if (totalPages > 1) {
+    const menuPanel = document.querySelector('.menu-panel');
+    const pager = document.createElement('div');
+    pager.id = 'menuPagination';
+    pager.className = 'menu-pagination';
+
+    // Prev button
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'pg-btn' + (menuPage === 1 ? ' pg-disabled' : '');
+    prevBtn.textContent = '‹ Prev';
+    prevBtn.disabled = menuPage === 1;
+    prevBtn.onclick = () => { menuPage--; renderMenuGrid(); grid.scrollTop = 0; };
+    pager.appendChild(prevBtn);
+
+    // Page pills
+    const pillWrap = document.createElement('div');
+    pillWrap.className = 'pg-pills';
+    for (let p = 1; p <= totalPages; p++) {
+      const pill = document.createElement('button');
+      pill.className = 'pg-pill' + (p === menuPage ? ' pg-pill-active' : '');
+      pill.textContent = p;
+      pill.onclick = ((page) => () => { menuPage = page; renderMenuGrid(); grid.scrollTop = 0; })(p);
+      pillWrap.appendChild(pill);
+    }
+    pager.appendChild(pillWrap);
+
+    // Next button
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'pg-btn' + (menuPage === totalPages ? ' pg-disabled' : '');
+    nextBtn.textContent = 'Next ›';
+    nextBtn.disabled = menuPage === totalPages;
+    nextBtn.onclick = () => { menuPage++; renderMenuGrid(); grid.scrollTop = 0; };
+    pager.appendChild(nextBtn);
+
+    // Count label
+    const countLbl = document.createElement('div');
+    countLbl.className = 'pg-count';
+    countLbl.textContent = `${start + 1}–${Math.min(start + ITEMS_PER_PAGE, items.length)} of ${items.length} items`;
+    pager.appendChild(countLbl);
+
+    menuPanel.appendChild(pager);
+  }
 }
 
 window._addToCart = id => {

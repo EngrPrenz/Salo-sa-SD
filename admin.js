@@ -152,9 +152,13 @@ function renderOverviewTableGrid(activeOrders) {
   const grid = document.getElementById('overviewTableGrid');
   const occupied = {};
   activeOrders.forEach(o => { if (o.tableNumber) occupied[o.tableNumber] = o.status; });
-  grid.innerHTML = Array.from({length:10},(_,i)=>{
-    const n = i+1, st = occupied[n] || 'free';
-    return `<div class="mini-table ${st}"><span class="mini-table-num">${n}</span><span class="mini-table-st">${st==='free'?'Free':capitalize(st)}</span></div>`;
+  const tables = tableDocsList.length ? tableDocsList : Array.from({length:10},(_,i)=>({tableNumber:i+1}));
+  grid.innerHTML = tables.map(t => {
+    const n = t.tableNumber;
+    const st = occupied[n] || tableStatuses[n]?.status || 'free';
+    const normSt = st === 'available' ? 'free' : st;
+    const label = t.name || `${n}`;
+    return `<div class="mini-table ${normSt}"><span class="mini-table-num">${escapeHtml(label)}</span><span class="mini-table-st">${normSt==='free'?'Free':capitalize(normSt)}</span></div>`;
   }).join('');
 }
 
@@ -211,51 +215,76 @@ function renderOrders() {
 window._updateStatus = updateOrderStatus;
 
 // ── Tables view ──
-let tableStatuses = {};
+let tableStatuses = {};   // keyed by tableNumber (int)
+let tableDocsList = [];   // full list [{docId, tableNumber, name, capacity, status, ...}]
 
 // Live listener on tables collection
 onSnapshot(collection(db, 'tables'), snap => {
+  tableStatuses = {};
+  tableDocsList = [];
   snap.forEach(d => {
     const data = d.data();
-    const num = data.tableNumber || parseInt(d.id.replace('table_', ''));
-    if (num) tableStatuses[num] = { docId: d.id, ...data };
+    // Resolve tableNumber: prefer stored field, fall back to ID parsing
+    const rawNum = data.tableNumber
+      ? parseInt(data.tableNumber)
+      : parseInt(d.id.replace('table_', ''));
+    const num = isNaN(rawNum) ? null : rawNum;
+    if (!num) return; // skip malformed docs
+    // Deduplicate: keep the first doc seen for each table number
+    // (in practice prefer docs where tableNumber field is explicitly set)
+    if (tableStatuses[num]) {
+      // Already have this number — keep whichever has an explicit tableNumber field
+      if (!data.tableNumber) return;
+    }
+    tableStatuses[num] = { docId: d.id, ...data, tableNumber: num };
+    // Remove any earlier duplicate entry in the list
+    const existIdx = tableDocsList.findIndex(t => t.tableNumber === num);
+    if (existIdx !== -1) tableDocsList.splice(existIdx, 1);
+    tableDocsList.push({ docId: d.id, tableNumber: num, ...data });
   });
+  tableDocsList.sort((a, b) => a.tableNumber - b.tableNumber);
   renderTablesGrid();
+  updateTableCountStat();
 });
+
+function updateTableCountStat() {
+  const sub = document.getElementById('statTablesSub');
+  if (sub) sub.textContent = `of ${tableDocsList.length} tables`;
+  const toolbar = document.querySelector('#view-tables .panel-title--small');
+  if (toolbar) toolbar.textContent = `${tableDocsList.length} Tables · Drag to rearrange status`;
+}
+
+const STATUS_CFG = {
+  free:       { icon: '🪑', label: 'Free',       textColor: '#5e5e5e' },
+  reserved:   { icon: '📋', label: 'Reserved',   textColor: '#c9973a' },
+  'walk-in':  { icon: '🍽️', label: 'Walk-in',    textColor: '#e8c07a' },
+  pending:    { icon: '⏳', label: 'Pending',    textColor: '#f39c12' },
+  preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#3498db' },
+  served:     { icon: '✅', label: 'Served',     textColor: '#2ecc71' },
+  billed:     { icon: '💰', label: 'Billed',     textColor: '#9b59b6' },
+};
 
 function renderTablesGrid() {
   const grid = document.getElementById('tablesGrid');
   if (!grid) return;
 
-  grid.innerHTML = Array.from({length: 10}, (_, i) => {
-    const n    = i + 1;
+  const cards = tableDocsList.map(entry => {
+    const n    = entry.tableNumber;
     const data = tableStatuses[n];
     const rawSt = (data?.status || 'free').toLowerCase().trim();
     const st = rawSt === 'available' ? 'free' : rawSt;
 
-    const STATUS = {
-      free:       { icon: '🪑', label: 'Free',       textColor: '#5e5e5e' },
-      reserved:   { icon: '📋', label: 'Reserved',   textColor: '#c9973a' },
-      'walk-in':  { icon: '🍽️', label: 'Walk-in',    textColor: '#e8c07a' },
-      pending:    { icon: '⏳', label: 'Pending',    textColor: '#f39c12' },
-      preparing:  { icon: '👨‍🍳', label: 'Preparing',  textColor: '#3498db' },
-      served:     { icon: '✅', label: 'Served',     textColor: '#2ecc71' },
-      billed:     { icon: '💰', label: 'Billed',     textColor: '#9b59b6' },
-    };
-
-    const cfg       = STATUS[st] || STATUS.free;
+    const cfg       = STATUS_CFG[st] || STATUS_CFG.free;
     const waiter    = data?.waiterName || null;
     const guestName = data?.reservation?.guestName || null;
     const resTime   = data?.reservation?.time || null;
+    const label     = data?.name ? data.name : `Table ${n}`;
+    const cap       = data?.capacity ? `· ${data.capacity} seats` : '';
 
-    // Format reservation time nicely e.g. "18:30" → "6:30 PM"
-    const formatTime = t => {
-  if (!t) return '—';
-  return t; // already formatted as "7:00 PM"
-};
     return `
       <div class="table-card ${st}">
-        <div class="table-card-num" style="color:${cfg.textColor}">Table ${n}</div>
+        <div class="table-card-num" style="color:${cfg.textColor}">${escapeHtml(label)}</div>
+        ${cap ? `<div class="table-card-info muted" style="font-size:11px;margin-top:-6px;">${escapeHtml(cap)}</div>` : ''}
         <div class="table-card-icon">${cfg.icon}</div>
         <div class="table-card-status">
           <span class="status-badge ${st}" style="color:${cfg.textColor};border-color:${cfg.textColor}33;background:${cfg.textColor}18">
@@ -265,33 +294,181 @@ function renderTablesGrid() {
 
         ${st === 'reserved' ? `
           <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;">
-            👤 ${guestName || '—'}
+            👤 ${escapeHtml(guestName || '—')}
           </div>
           <div class="table-card-info" style="color:${cfg.textColor};">
-            🕐 ${formatTime(resTime)}
+            🕐 ${escapeHtml(resTime || '—')}
           </div>
           <button class="btn-sm" style="margin-top:6px;border-color:rgba(192,57,43,0.4);color:#e07070;width:100%;"
             onclick="window._removeReservation(${n})">
             ✕ Remove Reservation
           </button>
-
         ` : st === 'free' ? `
           <div class="table-card-info muted">No waiter assigned</div>
           <button class="btn-sm gold" style="margin-top:6px;width:100%;"
             onclick="window._openReserveModal(${n})">
             + Reserve
           </button>
-
         ` : `
           <div class="table-card-info" style="color:${cfg.textColor}">
-            ${waiter ? `👤 ${waiter}` : 'No waiter assigned'}
+            ${waiter ? `👤 ${escapeHtml(waiter)}` : 'No waiter assigned'}
           </div>
         `}
 
-        <button class="btn-sm" style="margin-top:4px;" onclick="window._showTableHistory(${n})">Info</button>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button class="btn-sm" style="flex:1;" onclick="window._openEditTableModal(${n})">Edit</button>
+          <button class="btn-sm danger" onclick="window._deleteTable(${n})" title="Delete table">✕</button>
+        </div>
       </div>`;
-  }).join('');
+  });
+
+  // Add-table ghost card at the end
+  cards.push(`
+    <div class="table-card free add-table-card" onclick="window._openAddTableModal()"
+         style="cursor:pointer;border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0.65;transition:opacity .2s;">
+      <div style="font-size:32px;">＋</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);">Add Table</div>
+    </div>`);
+
+  grid.innerHTML = cards.join('');
 }
+
+// expose for modal trigger from grid card
+window._openAddTableModal = () => openTableModal('add');
+
+// ════════════════════════════════════════
+// ── TABLE ADD / EDIT / DELETE MODAL ──
+// ════════════════════════════════════════
+
+let tableModalMode = 'add'; // 'add' | 'edit'
+let tableModalTarget = null; // tableNumber when editing
+
+function openTableModal(mode, tableNum = null) {
+  tableModalMode = mode;
+  tableModalTarget = tableNum;
+
+  const modal = document.getElementById('tableModal');
+  const title = document.getElementById('tableModalTitle');
+  const numInput = document.getElementById('tableModalNumber');
+  const nameInput = document.getElementById('tableModalName');
+  const capInput  = document.getElementById('tableModalCapacity');
+  const numRow    = document.getElementById('tableModalNumberRow');
+
+  if (mode === 'add') {
+    title.textContent = 'Add New Table';
+    numRow.style.display = '';
+    // Suggest next table number
+    const existing = tableDocsList.map(t => t.tableNumber);
+    let next = 1;
+    while (existing.includes(next)) next++;
+    numInput.value = next;
+    nameInput.value = '';
+    capInput.value  = '';
+  } else {
+    title.textContent = 'Edit Table';
+    numRow.style.display = 'none';
+    const data = tableStatuses[tableNum];
+    nameInput.value = data?.name || '';
+    capInput.value  = data?.capacity || '';
+  }
+
+  modal.classList.add('show');
+  nameInput.focus();
+}
+
+window._openEditTableModal = (n) => openTableModal('edit', n);
+
+document.getElementById('tableModalClose').onclick =
+document.getElementById('tableModalCancel').onclick = () => {
+  document.getElementById('tableModal').classList.remove('show');
+};
+
+document.getElementById('tableModal').onclick = e => {
+  if (e.target === document.getElementById('tableModal'))
+    document.getElementById('tableModal').classList.remove('show');
+};
+
+document.getElementById('tableModalSave').onclick = async () => {
+  const numInput  = document.getElementById('tableModalNumber');
+  const nameInput = document.getElementById('tableModalName');
+  const capInput  = document.getElementById('tableModalCapacity');
+  const btn       = document.getElementById('tableModalSave');
+
+  const name     = nameInput.value.trim();
+  const capacity = capInput.value ? parseInt(capInput.value) : null;
+
+  if (tableModalMode === 'add') {
+    const num = parseInt(numInput.value);
+    if (!num || num < 1) { showToast('⚠ Enter a valid table number.'); return; }
+    if (tableStatuses[num]) { showToast(`⚠ Table ${num} already exists.`); return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await setDoc(doc(db, 'tables', `table_${num}`), {
+        tableNumber: num,
+        name:        name || null,
+        capacity:    capacity || null,
+        status:      'free',
+        reservation: null,
+        waiterId:    null,
+        waiterName:  null,
+        lastUpdated: serverTimestamp()
+      });
+      showToast(`✓ Table ${num} added.`);
+      document.getElementById('tableModal').classList.remove('show');
+    } catch(err) {
+      showToast('❌ Failed to add table.'); console.error(err);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+
+  } else {
+    // Edit mode
+    const data = tableStatuses[tableModalTarget];
+    if (!data) { showToast('Table not found.'); return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await updateDoc(doc(db, 'tables', data.docId), {
+        name:        name || null,
+        capacity:    capacity || null,
+        lastUpdated: serverTimestamp()
+      });
+      showToast(`✓ Table ${tableModalTarget} updated.`);
+      document.getElementById('tableModal').classList.remove('show');
+    } catch(err) {
+      showToast('❌ Failed to update table.'); console.error(err);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+};
+
+window._deleteTable = async (tableNum) => {
+  const data = tableStatuses[tableNum];
+  if (!data) return;
+  const label = data.name ? `"${data.name}" (Table ${tableNum})` : `Table ${tableNum}`;
+  const rawSt = (data.status || 'free').toLowerCase();
+  const isActive = !['free','reserved'].includes(rawSt);
+  const warnMsg = isActive
+    ? `⚠ Table ${tableNum} currently has active guests/orders. Deleting it will remove the table entry but NOT cancel orders.`
+    : '';
+
+  showConfirm({
+    title: `Delete ${label}`,
+    message: `Are you sure you want to permanently delete ${label}? ${warnMsg} This cannot be undone.`,
+    okLabel: 'Delete',
+    okClass: 'danger',
+    onOk: async () => {
+      try {
+        await deleteDoc(doc(db, 'tables', data.docId));
+        showToast(`✓ ${label} deleted.`);
+      } catch(err) {
+        showToast('❌ Failed to delete table.'); console.error(err);
+      }
+    }
+  });
+};
 
 // ── Reserve Modal ──
 
@@ -376,8 +553,9 @@ window._removeReservation = async (tableNum) => {
 
 // ── Clear All Tables ──
 document.getElementById('clearAllTablesBtn').onclick = async () => {
-  if (!confirm('Reset ALL tables to free? This cannot be undone.')) return;
+  if (!confirm('Reset ALL tables to free and clear all active orders? This cannot be undone.')) return;
   try {
+    // 1. Reset all table docs to free
     const snap = await getDocs(collection(db, 'tables'));
     await Promise.all(snap.docs.map(d =>
       updateDoc(d.ref, {
@@ -388,21 +566,19 @@ document.getElementById('clearAllTablesBtn').onclick = async () => {
         lastUpdated: serverTimestamp()
       })
     ));
+
+    // 2. Mark all active orders as paid
+    const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
+    await Promise.all(active.map(o =>
+      updateDoc(doc(db, 'orders', o.id), { status: 'paid', updatedAt: serverTimestamp() })
+    ));
+
     showToast('✓ All tables cleared.');
   } catch(err) {
     showToast('❌ Failed to clear tables.');
     console.error(err);
   }
 };
-
-document.getElementById('clearAllTablesBtn').onclick = async () => {
-  if (!confirm('Mark ALL active orders as paid?')) return;
-  const active = allOrders.filter(o=>['pending','preparing','served'].includes(o.status));
-  await Promise.all(active.map(o => updateDoc(doc(db,'orders',o.id),{status:'paid',updatedAt:serverTimestamp()})));
-  showToast('All tables cleared.');
-};
-
-onSnapshot(query(ordersRef, orderBy('createdAt','desc')), () => renderTablesGrid());
 
 // ═══════════════════════════════════════════════════
 // ── MENU (with Image Upload) ──
@@ -1360,4 +1536,9 @@ document.getElementById('calPrevBtn').onclick = () => {
 document.getElementById('calNextBtn').onclick = () => {
   calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
   calSelectedDay = null; renderSalesCalendar();
+};
+
+document.getElementById('removeReserveCancel2').onclick = 
+document.getElementById('removeReserveCancel').onclick = () => {
+  document.getElementById('removeReserveModal').classList.remove('show');
 };

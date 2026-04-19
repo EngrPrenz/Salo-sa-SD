@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="image/logo.png"/>
   <title>Salo sa Antipolo — Waiter</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="waiter.css">
@@ -13,7 +14,7 @@
 <!-- TOPBAR -->
 <header class="topbar">
   <div class="brand">
-    <div class="brand-icon">🍽️</div>
+    <div class="brand-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="brand-logo"/></div>
     <div class="brand-name">Salo sa <em>Antipolo</em></div>
   </div>
   <div class="topbar-middle">
@@ -172,18 +173,66 @@
 
 <!-- SUCCESS FLASHES -->
 <div class="order-success" id="orderSuccess">
-  <div class="order-success-icon">🎉</div>
-  <div class="order-success-title">Order Sent!</div>
-  <div class="order-success-sub" id="orderSuccessSub">Kitchen has been notified.</div>
+  <div class="order-success-card">
+    <div class="order-success-strip"></div>
+    <div class="order-success-inner">
+      <div class="order-success-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="success-logo"/></div>
+      <div class="order-success-eyebrow">Success</div>
+      <div class="order-success-title">Order Sent!</div>
+      <div class="order-success-divider"></div>
+      <div class="order-success-sub" id="orderSuccessSub">Kitchen has been notified.</div>
+    </div>
+  </div>
 </div>
 
 <div class="order-success" id="occupiedSuccess" style="display:none;">
-  <div class="order-success-icon">🚶</div>
-  <div class="order-success-title" style="color:var(--orange)">Table Marked!</div>
-  <div class="order-success-sub" id="occupiedSuccessSub">Table is now marked as occupied.</div>
+  <div class="order-success-card">
+    <div class="order-success-strip"></div>
+    <div class="order-success-inner">
+      <div class="order-success-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="success-logo"/></div>
+      <div class="order-success-eyebrow">Table Updated</div>
+      <div class="order-success-title">Table Marked!</div>
+      <div class="order-success-divider"></div>
+      <div class="order-success-sub" id="occupiedSuccessSub">Table is now marked as occupied.</div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg"></span></div>
+
+<!-- RESERVED TABLE MODAL -->
+<div class="modal-overlay" id="reservedModal">
+  <div class="modal">
+    <div class="modal-strip" style="background: linear-gradient(90deg, transparent, var(--blue), #3498db, var(--blue), transparent);"></div>
+    <div class="modal-header">
+      <span class="modal-title">📅 Reserved Table</span>
+      <button class="modal-close-btn" id="reservedModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="occupied-modal-info">
+        <div class="occupied-table-badge" style="color:var(--blue);background:var(--blue-dim);border-color:rgba(41,128,185,0.3);" id="reservedTableBadge">Table —</div>
+        <div class="reserved-info-card">
+          <div class="reserved-info-row">
+            <span class="reserved-info-label">👤 Guest</span>
+            <span class="reserved-info-val" id="reservedGuestName">—</span>
+          </div>
+          <div class="reserved-info-row">
+            <span class="reserved-info-label">🕐 Time</span>
+            <span class="reserved-info-val" id="reservedTime">—</span>
+          </div>
+        </div>
+        <p class="occupied-modal-desc">If the guest has arrived, confirm their arrival to begin taking their order. You cannot change a reserved table to walk-in.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" id="reservedModalCancel">Cancel</button>
+      <button class="btn-confirm-arrival" id="confirmArrivalBtn">
+        <span class="btn-conf-text">✓ Guest Arrived — Take Order</span>
+        <div class="btn-conf-spin"></div>
+      </button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="waiter.js"></script>
 </body>
