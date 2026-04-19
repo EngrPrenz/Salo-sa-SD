@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Salo sa Antipolo — Admin Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="image/logo.png"/>
   <link rel="stylesheet" href="admin.css"/>
 </head>
 <body>
@@ -19,7 +20,7 @@
 <!-- Sidebar -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="brand-icon">🍽️</div>
+    <img src="image/logo.png" alt="Salo sa Antipolo" class="brand-logo"/>
     <div class="brand-text">
       <span class="brand-name">Salo sa</span>
       <em class="brand-italic">Antipolo</em>
@@ -108,12 +109,6 @@
         <div class="stat-card-value" id="statRevenue">—</div>
         <div class="stat-card-sub" id="statRevSub">Paid orders today</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-icon">👥</div>
-        <div class="stat-card-label">Staff On Duty</div>
-        <div class="stat-card-value" id="statStaff">—</div>
-        <div class="stat-card-sub">Waiters active</div>
-      </div>
     </div>
 
     <div class="content-row">
@@ -175,12 +170,18 @@
 
   <!-- MENU -->
   <section class="view" id="view-menu">
-    <div class="view-toolbar">
-      <div class="filter-tabs" id="menuCategoryTabs">
-        <button class="ftab active" data-cat="all">All</button>
-      </div>
-      <div class="toolbar-right">
+    <div class="menu-toolbar">
+      <div class="menu-toolbar-controls">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="menuSearch" placeholder="Search items…"/>
+        </div>
         <button class="btn-sm gold" id="addMenuItemBtn">+ Add Item</button>
+      </div>
+      <div class="menu-tabs-scroll">
+        <div class="filter-tabs" id="menuCategoryTabs">
+          <button class="ftab active" data-cat="all">All</button>
+        </div>
       </div>
     </div>
     <div class="menu-grid" id="menuGrid">
