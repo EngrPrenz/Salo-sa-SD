@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Salo sa Antipolo — Staff</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin.css"/>
+  <link rel="stylesheet" href="../admin.css"/>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
@@ -18,7 +19,7 @@
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="brand-icon">🍽️</div>
+    <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
     <div class="brand-text">
       <span class="brand-name">Salo sa</span>
       <em class="brand-italic">Antipolo</em>
@@ -28,28 +29,28 @@
   <nav class="sidebar-nav">
     <div class="nav-section-label">Main</div>
     <a href="admin-overview.html" class="nav-item" data-view="overview">
-      <span class="nav-icon">📊</span><span class="nav-label">Overview</span>
+      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
     </a>
     <a href="admin-orders.html" class="nav-item" data-view="orders">
-      <span class="nav-icon">📋</span><span class="nav-label">Live Orders</span>
+      <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
       <span class="nav-badge" id="ordersBadge">0</span>
     </a>
     <a href="admin-tables.html" class="nav-item" data-view="tables">
-      <span class="nav-icon">🪑</span><span class="nav-label">Tables</span>
+      <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
     </a>
     <a href="admin-menu.html" class="nav-item" data-view="menu">
-      <span class="nav-icon">🍴</span><span class="nav-label">Menu</span>
+      <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
     </a>
 
     <div class="nav-section-label">Management</div>
     <a href="admin-billing.html" class="nav-item" data-view="billing">
-      <span class="nav-icon">💰</span><span class="nav-label">Billing</span>
+      <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
     </a>
     <a href="admin-staff.html" class="nav-item active" data-view="staff">
-      <span class="nav-icon">👥</span><span class="nav-label">Staff</span>
+      <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
     </a>
     <a href="admin-reports.html" class="nav-item" data-view="reports">
-      <span class="nav-icon">📈</span><span class="nav-label">Reports</span>
+      <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
     </a>
   </nav>
 
@@ -59,7 +60,7 @@
       <span class="user-name" id="userNameSidebar">Admin</span>
       <span class="user-role">Administrator</span>
     </div>
-    <button class="logout-btn" id="logoutBtn" title="Logout">⏏</button>
+    <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
   </div>
 </aside>
 
@@ -96,6 +97,8 @@
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-<script type="module" src="admin.js"></script>
+<script type="module" src="../admin-js/admin-staff.js"></script>
+
+<script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
 </body>
 </html>

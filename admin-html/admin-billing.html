@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Salo sa Antipolo — Billing</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin.css"/>
+  <link rel="stylesheet" href="../admin.css"/>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -19,7 +19,7 @@
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="brand-icon"><img src="img/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+    <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
     <div class="brand-text">
       <span class="brand-name">Salo sa</span>
       <em class="brand-italic">Antipolo</em>
@@ -104,7 +104,22 @@
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-<script type="module" src="admin.js"></script>
+<div class="modal" id="receiptModal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-content" style="max-width:400px">
+    <div class="modal-head">
+      <h3>Receipt</h3>
+      <button class="modal-close" id="receiptModalClose">×</button>
+    </div>
+    <div class="modal-body" id="receiptModalBody"></div>
+    <div class="modal-foot">
+      <button class="btn-sm" id="receiptModalPrint">🖨️ Print</button>
+      <button class="btn-sm" id="receiptModalClose2">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="../admin-js/admin-billing.js"></script>
 
 <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
 </body>
