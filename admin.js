@@ -763,7 +763,7 @@ function renderBilling() {
       <td><span class="status-badge ${o.status}">${capitalize(o.status||'')}</span></td>
       <td style="white-space:nowrap;display:flex;gap:6px;align-items:center;">
         ${nextStatus?`<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>`:'<span>—</span>'}
-        ${o.status!=='paid'?`<button class="btn-sm" onclick="window._editOrder('${o.id}')">Edit</button>`:''}
+        ${o.status!=='paid'?`</button>`:''}
         <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
       </td>
     </tr>`;
