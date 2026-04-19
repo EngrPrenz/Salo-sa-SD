@@ -71,7 +71,9 @@ input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0
 /* Success state */
 .success-state { display: none; flex-direction: column; align-items: center; text-align: center; padding: 40px 40px 44px; }
 .success-state.show { display: flex; animation: cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both; }
-.success-icon { font-size: 56px; margin-bottom: 20px; }
+.success-icon { margin-bottom: 20px; display: flex; align-items: center; justify-content: center; }
+.success-logo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(201,151,58,0.35); box-shadow: 0 0 24px rgba(201,151,58,0.2); display: block; animation: successIconBounce 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+@keyframes successIconBounce { from{transform:scale(0) rotate(-15deg);opacity:0} to{transform:scale(1) rotate(0deg);opacity:1} }
 .success-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; color: var(--white); margin-bottom: 10px; }
 .success-title em { font-style: italic; color: var(--gold-light); }
 .success-desc { font-size: 14px; color: var(--text-muted); line-height: 1.7; margin-bottom: 28px; max-width: 340px; }
