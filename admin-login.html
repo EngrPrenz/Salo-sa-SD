@@ -20,7 +20,7 @@
   <!-- Left branding -->
   <div class="left-panel">
     <div class="left-eyebrow">Admin Control Center <span style="width:1px;height:1px;"></span></div>
-    <h1 class="left-title"><img src="image/logo.png" alt="Logo" style="height:60px;vertical-align:middle;margin-right:8px;">Salo sa<br><em>Antipolo</em></h1>
+    <h1 class="left-title"><img src="image/logo.png" alt="Logo" style="height:10px;vertical-align:middle;margin-right:8px;">Salo sa<br><em>Antipolo</em></h1>
     <p class="left-loc">Antipolo City, Rizal</p>
     <div class="divider"></div>
     <div class="stats">
@@ -119,7 +119,7 @@
       sessionStorage.setItem('userName', data.name||email);
       sessionStorage.setItem('userId', cred.user.uid);
       showToast('Welcome, '+(data.name||'Admin')+'! Loading dashboard…');
-      setTimeout(()=>window.location.href='admin-html/admin-overview.html',1500);
+      setTimeout(()=>window.location.href='admin.html',1500);
     } catch(err) {
       setLoad(false);
       const c=err.code;
