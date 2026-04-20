@@ -9,11 +9,9 @@ const db = getFirestore(app);
 function escapeHtml(s) { return (s + '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
 
-// Load data immediately
 let allOrders = [];
 let billingFilter = 'all';
 
-// Load orders immediately + real-time
 getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'))).then(snap => {
   allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   renderBilling();
@@ -32,7 +30,6 @@ function updateOrdersBadge() {
   if (badge) { badge.textContent = active; badge.style.display = active > 0 ? 'inline-flex' : 'none'; }
 }
 
-// Auth guard
 onAuthStateChanged(auth, async user => {
   if (!user) { window.location.href = '../admin-login.html'; return; }
   const snap = await getDoc(doc(db, 'Users', user.uid));
@@ -48,13 +45,8 @@ onAuthStateChanged(auth, async user => {
 
 if (document.getElementById('logoutBtn')) {
   document.getElementById('logoutBtn').onclick = async () => {
-    try {
-      await signOut(auth);
-      window.location.href = '../admin-login.html';
-    } catch (e) {
-      console.error('Logout error:', e);
-      window.location.href = '../admin-login.html';
-    }
+    try { await signOut(auth); window.location.href = '../admin-login.html'; }
+    catch (e) { window.location.href = '../admin-login.html'; }
   };
 }
 
@@ -70,37 +62,23 @@ if (document.getElementById('toast') && document.getElementById('toastMsg')) {
   showToast = m => { toastMsg.textContent = m; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); };
 }
 
-document.querySelectorAll('.ftab[data-bstatus]').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.ftab[data-bstatus]').forEach(x => x.classList.remove('active'));
-  b.classList.add('active'); billingFilter = b.dataset.bstatus; renderBilling();
-}));
-
-async function updateOrderStatus(id, status) {
-  const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-  await updateDoc(doc(db, 'orders', id), { status, updatedAt: serverTimestamp() });
-  showToast(`Order updated to "${status}"`);
-}
-
 function renderBilling() {
   const tbody = document.getElementById('billingTableBody');
   if (!tbody) return;
 
-  let orders = [...allOrders];
-  if (billingFilter === 'unpaid') orders = orders.filter(o => o.status !== 'paid' && o.status !== 'cancelled');
-  else if (billingFilter === 'paid') orders = orders.filter(o => o.status === 'paid');
+  // Only show paid orders
+  let orders = allOrders.filter(o => o.status === 'paid');
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todayTotal = allOrders.filter(o => o.status === 'paid' && o.createdAt?.toDate() >= today).reduce((s, o) => s + (o.total || 0), 0);
+  const todayTotal = orders.filter(o => o.createdAt?.toDate() >= today).reduce((s, o) => s + (o.total || 0), 0);
   if (document.getElementById('billingTodayTotal')) {
     document.getElementById('billingTodayTotal').textContent = `₱${todayTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   }
 
-  if (!orders.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No records.</td></tr>'; return; }
+  if (!orders.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No paid orders yet.</td></tr>'; return; }
 
   tbody.innerHTML = orders.map(o => {
     const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-    const nextStatus = { pending: 'preparing', preparing: 'served', served: 'paid' }[o.status];
-    const nextLabel = { pending: '→ Preparing', preparing: '→ Served', served: '✓ Paid' }[o.status] || '';
     return `<tr>
       <td class="mono">#${o.id.slice(-5).toUpperCase()}</td>
       <td>Table ${o.tableNumber || '—'}</td>
@@ -109,15 +87,10 @@ function renderBilling() {
       <td><strong>₱${(o.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
       <td style="white-space:nowrap">${ts}</td>
       <td><span class="status-badge ${o.status}">${capitalize(o.status || '')}</span></td>
-      <td style="white-space:nowrap;display:flex;gap:6px;align-items:center;">
-        ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : '<span>—</span>'}
-        <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
-      </td>
+      <td><button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button></td>
     </tr>`;
   }).join('');
 }
-
-window._updateStatus = updateOrderStatus;
 
 window._showReceipt = id => {
   const o = allOrders.find(x => x.id === id);
