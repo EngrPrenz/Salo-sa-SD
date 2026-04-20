@@ -6,6 +6,190 @@
   <title>Salo sa Antipolo — Staff</title>
   <link rel="stylesheet" href="../admin.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* ── Confirmation Modal ── */
+    .confirm-modal-overlay {
+      position: fixed; inset: 0; z-index: 600;
+      background: rgba(0,0,0,0.65);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .confirm-modal-overlay.show { display: flex; }
+
+    .confirm-modal {
+      background: var(--black-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 400px;
+      overflow: hidden;
+      animation: confirmModalIn 0.28s cubic-bezier(0.16,1,0.3,1);
+      position: relative;
+    }
+    @keyframes confirmModalIn {
+      from { opacity: 0; transform: scale(0.94) translateY(16px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .confirm-modal-head {
+      padding: 24px 24px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .confirm-modal-icon-wrap {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      background: var(--gold-dim);
+      border: 1px solid rgba(201,151,58,0.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .confirm-modal-close {
+      background: none; border: none;
+      color: var(--text-muted); cursor: pointer;
+      font-size: 18px; line-height: 1;
+      padding: 4px 7px; border-radius: 8px;
+      transition: all 0.15s;
+      margin-top: -4px;
+      margin-right: -4px;
+    }
+    .confirm-modal-close:hover { color: var(--red); background: var(--red-dim); }
+
+    .confirm-modal-body {
+      padding: 16px 24px 24px;
+    }
+    .confirm-modal-title {
+      font-size: 17px; font-weight: 700;
+      color: var(--white);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .confirm-modal-message {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .confirm-modal-foot {
+      padding: 0 24px 24px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .confirm-modal-foot .btn-sm {
+      padding: 9px 22px;
+      font-size: 13px;
+      border-radius: 10px;
+      min-width: 90px;
+    }
+    .confirm-modal-foot .btn-sm:not(.gold):not(.danger) {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-muted);
+    }
+    .confirm-modal-foot .btn-sm:not(.gold):not(.danger):hover {
+      border-color: rgba(255,255,255,0.15);
+      color: var(--white);
+      background: rgba(255,255,255,0.04);
+    }
+    .confirm-modal-foot .btn-sm.gold {
+      background: var(--gold-dim);
+      border-color: rgba(201,151,58,0.4);
+      color: var(--gold);
+    }
+    .confirm-modal-foot .btn-sm.gold:hover {
+      background: var(--gold);
+      color: var(--black);
+    }
+    .confirm-modal-foot .btn-sm.danger {
+      background: var(--red-dim);
+      border-color: rgba(192,57,43,0.35);
+      color: var(--red);
+    }
+    .confirm-modal-foot .btn-sm.danger:hover {
+      background: var(--red);
+      color: var(--white);
+    }
+
+    /* ── Divider between icon and body ── */
+    .confirm-modal-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0 0;
+    }
+
+    /* ── Staff grid improvements ── */
+    .staff-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Fix: allow card to grow to fit content, align items to start */
+    .staff-card {
+      align-items: center;
+      overflow: visible;
+      min-height: unset;
+      height: auto;
+    }
+
+    /* Pending card: top-align everything so two-button column doesn't clip */
+    .pending-card {
+      align-items: flex-start;
+      padding-top: 16px;
+      padding-bottom: 16px;
+    }
+
+    .pending-card .staff-avatar {
+      margin-top: 2px; /* optical alignment with name */
+    }
+
+    .pending-card .staff-actions {
+      flex-direction: column;
+      gap: 6px;
+      flex-shrink: 0;
+      align-self: center;
+    }
+
+    /* On small screens: stack actions below info */
+    @media (max-width: 560px) {
+      .staff-card {
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .staff-actions {
+        flex-direction: row !important;
+        width: 100%;
+        margin-left: calc(44px + 14px); /* avatar width + gap */
+      }
+      .staff-actions .btn-sm {
+        flex: 1;
+      }
+
+      .confirm-modal-foot {
+        flex-direction: column-reverse;
+      }
+      .confirm-modal-foot .btn-sm {
+        width: 100%;
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .staff-actions {
+        margin-left: 0 !important;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="bg"></div>
@@ -15,6 +199,7 @@
   <div class="corner corner-bl"></div>
   <div class="corner corner-br"></div>
 
+  <!-- ── Sidebar ── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
@@ -46,6 +231,7 @@
       </a>
       <a href="admin-staff.html" class="nav-item active" data-view="staff">
         <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+        <span class="nav-badge" id="staffBadge" style="display:none">0</span>
       </a>
       <a href="admin-reports.html" class="nav-item" data-view="reports">
         <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
@@ -64,6 +250,7 @@
 
   <div class="overlay" id="overlay"></div>
 
+  <!-- ── Main ── -->
   <div class="main" id="main">
     <header class="topbar">
       <button class="hamburger" id="hamburger">☰</button>
@@ -90,10 +277,30 @@
     </div>
   </div>
 
+  <!-- ── Toast ── -->
   <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-  <script type="module" src="../admin-js/admin-staff.js"></script>
+  <!-- ── Confirmation Modal ── -->
+  <div class="confirm-modal-overlay" id="confirmModal">
+    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="confirm-modal-head">
+        <div class="confirm-modal-icon-wrap" id="confirmIconWrap">
+          <span id="confirmIcon">⚠️</span>
+        </div>
+        <button class="confirm-modal-close" id="confirmModalClose" aria-label="Close">✕</button>
+      </div>
+      <div class="confirm-modal-body">
+        <div class="confirm-modal-title" id="confirmTitle">Confirm Action</div>
+        <div class="confirm-modal-message" id="confirmMessage">Are you sure?</div>
+      </div>
+      <div class="confirm-modal-foot">
+        <button class="btn-sm" id="confirmCancel">Cancel</button>
+        <button class="btn-sm gold" id="confirmOk">Confirm</button>
+      </div>
+    </div>
+  </div>
 
+  <script type="module" src="../admin-js/admin-staff.js"></script>
   <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
 </body>
 </html>
