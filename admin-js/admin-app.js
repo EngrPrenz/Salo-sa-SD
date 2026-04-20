@@ -346,7 +346,7 @@ if (document.getElementById('tableModalSave')) {
       if (!data) { showToast('Table not found.'); return; }
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        await updateDoc(doc(db, 'tables', data.docId), { name: name || null, capacity: capacity || null, lastUpdated: serverTimestamp() };
+        await updateDoc(doc(db, 'tables', data.docId), { name: name || null, capacity: capacity || null, lastUpdated: serverTimestamp() });
         showToast(`Table ${tableModalTarget} updated.`);
         document.getElementById('tableModal').classList.remove('show');
       } catch (err) { showToast('Failed to update table.'); console.error(err); }
@@ -509,7 +509,7 @@ if (document.getElementById('menuModalSave')) {
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       if (editMenuId) {
-        await updateDoc(doc(db, 'menu', editMenuId), { name, price, category, description, available, lastUpdated: serverTimestamp() };
+        await updateDoc(doc(db, 'menu', editMenuId), { name, price, category, description, available, lastUpdated: serverTimestamp() });
         showToast('Menu item updated.');
       } else {
         await addDoc(collection(db, 'menu'), { name, price, category, description, available, createdAt: serverTimestamp() });
