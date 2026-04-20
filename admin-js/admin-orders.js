@@ -78,6 +78,29 @@ function updateOrdersBadge() {
 
 async function updateOrderStatus(id, status) {
   await updateDoc(doc(db, 'orders', id), { status, updatedAt: serverTimestamp() });
+  
+  // If marking as paid or cancelled, reset the table to free
+  if (status === 'paid' || status === 'cancelled') {
+    const order = allOrders.find(o => o.id === id);
+    if (order?.tableNumber) {
+      // We need to fetch the table doc since admin-orders.js doesn't have tableStatuses
+      const tablesSnap = await getDocs(collection(db, 'tables'));
+      const tableDoc = tablesSnap.docs.find(d => {
+        const data = d.data();
+        return data.tableNumber === order.tableNumber || 
+               d.id === `table_${order.tableNumber}`;
+      });
+      if (tableDoc) {
+        await updateDoc(doc(db, 'tables', tableDoc.id), {
+          status: 'free',
+          waiterId: null,
+          waiterName: null,
+          lastUpdated: serverTimestamp()
+        });
+      }
+    }
+  }
+
   showToast(`Order updated to "${status}"`);
 }
 
