@@ -9,7 +9,6 @@ const db = getFirestore(app);
 function escapeHtml(s) { return (s + '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
 
-// Load data immediately
 let allOrders = [];
 let activeFilter = 'all';
 
@@ -76,18 +75,29 @@ function updateOrdersBadge() {
   if (badge) { badge.textContent = active; badge.style.display = active > 0 ? 'inline-flex' : 'none'; }
 }
 
+function switchTab(status) {
+  document.querySelectorAll('.ftab[data-status]').forEach(x => x.classList.remove('active'));
+  const tab = document.querySelector(`.ftab[data-status="${status}"]`);
+  if (tab) tab.classList.add('active');
+  activeFilter = status;
+}
+
 async function updateOrderStatus(id, status) {
   await updateDoc(doc(db, 'orders', id), { status, updatedAt: serverTimestamp() });
-  
-  // If marking as paid or cancelled, reset the table to free
+
+  // Auto-switch to the matching tab so the order visibly moves there
+  if (status === 'served') {
+    switchTab('served');
+  }
+
   if (status === 'paid' || status === 'cancelled') {
+    // Free up the table
     const order = allOrders.find(o => o.id === id);
     if (order?.tableNumber) {
-      // We need to fetch the table doc since admin-orders.js doesn't have tableStatuses
       const tablesSnap = await getDocs(collection(db, 'tables'));
       const tableDoc = tablesSnap.docs.find(d => {
         const data = d.data();
-        return data.tableNumber === order.tableNumber || 
+        return data.tableNumber === order.tableNumber ||
                d.id === `table_${order.tableNumber}`;
       });
       if (tableDoc) {
@@ -99,6 +109,9 @@ async function updateOrderStatus(id, status) {
         });
       }
     }
+
+    // Auto-switch to the matching tab
+    switchTab(status);
   }
 
   showToast(`Order updated to "${status}"`);
@@ -116,15 +129,32 @@ function renderOrders() {
   const grid = document.getElementById('ordersGrid');
   if (!grid) return;
   let filtered = allOrders;
-  if (activeFilter !== 'all') filtered = filtered.filter(o => o.status === activeFilter);
+
+  // "All" tab shows only actionable orders: pending + preparing
+  // served, paid, cancelled only appear under their own explicit tabs
+  if (activeFilter === 'all') {
+    filtered = filtered.filter(o => !['served', 'paid', 'cancelled'].includes(o.status));
+  } else {
+    filtered = filtered.filter(o => o.status === activeFilter);
+  }
+
   const q = orderSearch?.value?.trim().toLowerCase() || '';
   if (q) filtered = filtered.filter(o => String(o.tableNumber).includes(q) || (o.waiterName || '').toLowerCase().includes(q));
   if (!filtered.length) { grid.innerHTML = '<div class="empty-state">No orders found.</div>'; return; }
+
   grid.innerHTML = filtered.map(o => {
     const items = (o.items || []).map(it => `<li>${it.name} × ${it.qty} <span>₱${((it.price || 0) * it.qty).toLocaleString()}</span></li>`).join('');
     const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '—';
-    const nextStatus = { pending: 'preparing', preparing: 'served', served: 'paid' }[o.status];
-    const nextLabel = { pending: 'Mark Preparing', preparing: 'Mark Served', served: 'Mark Paid' }[o.status] || '';
+
+    const nextStatus = { pending: 'preparing', preparing: 'served' }[o.status];
+    const nextLabel = { pending: 'Mark Preparing', preparing: 'Mark Served' }[o.status] || '';
+
+    // Mark Paid button only visible on served orders
+    const showMarkPaid = o.status === 'served';
+
+    // Cancel button only on still-actionable orders
+    const showCancel = !['paid', 'cancelled', 'served'].includes(o.status);
+
     return `
       <div class="order-card ${o.status}">
         <div class="order-card-head">
@@ -140,9 +170,10 @@ function renderOrders() {
         <div class="order-card-actions-row">
           <div class="order-card-actions-top">
             ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
+            ${showMarkPaid ? `<button class="btn-sm green" onclick="window._updateStatus('${o.id}','paid')">Mark Paid</button>` : ''}
             <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
           </div>
-          ${o.status !== 'paid' ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
+          ${showCancel ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
         </div>
       </div>`;
   }).join('');
