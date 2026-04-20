@@ -868,7 +868,7 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
   cursor: pointer; position: relative; overflow: hidden;
 }
-.table-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 0%, rgba(201,151,58,0.05) 100%); opacity: 0; transition: opacity 0.25s; }
+.table-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 0%, rgba(201,151,58,0.05) 100%); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .table-card:hover { border-color: rgba(201,151,58,0.3); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
 .table-card:hover::before { opacity: 1; }
 .table-card.free { min-height: 0; }
@@ -991,21 +991,38 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .img-upload-bar { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-light)); border-radius: 2px; width: 0%; transition: width 0.3s ease; }
 
 /* ═══════ MODAL ═══════ */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 500;
-  background: rgba(0,0,0,0.6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-  display: none; align-items: center; justify-content: center; padding: 20px;
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
-.modal-overlay.show,
-.modal-overlay .modal.show { display: flex; }
-.modal { 
-  background: var(--black-card); 
-  border: 0.5px solid var(--border); 
-  border-radius: 18px; 
-  width: 100%; 
-  max-width: 460px; 
-  overflow: hidden; 
-  animation: modalIn 0.28s cubic-bezier(0.16,1,0.3,1); 
+
+.modal.show {
+  display: flex;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.modal-content {
+  position: relative;
+  z-index: 1;
+  background: var(--black-card);
+  border: 0.5px solid var(--border);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 460px;
+  overflow: hidden;
+  animation: modalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes modalIn { from{opacity:0;transform:scale(0.96) translateY(12px)} to{opacity:1;transform:none} }
 .modal-header { padding: 22px 26px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
