@@ -137,7 +137,7 @@ function renderTablesGrid() {
     const label = data?.name ? data.name : `Table ${n}`;
     const cap = data?.capacity ? `· ${data.capacity} seats` : '';
 
-    return `
+   return `
       <div class="table-card ${st}">
         <div class="table-card-num" style="color:${cfg.textColor}">${escapeHtml(label)}</div>
         ${cap ? `<div class="table-card-info muted" style="font-size:11px;margin-top:-6px;">${escapeHtml(cap)}</div>` : ''}
@@ -146,11 +146,30 @@ function renderTablesGrid() {
           <span class="status-badge ${st}" style="color:${cfg.textColor};border-color:${cfg.textColor}33;background:${cfg.textColor}18">${cfg.label}</span>
         </div>
         ${st === 'reserved' ? `
-          <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;"><i data-lucide="user"></i> ${escapeHtml(guestName || '—')}</div>
-          <div class="table-card-info" style="color:${cfg.textColor};"><i data-lucide="clock"></i> ${escapeHtml(resTime || '—')}</div>
-          <button class="btn-sm" style="margin-top:6px;border-color:rgba(192,57,43,0.4);color:#e07070;width:100%;" onclick="window._removeReservation(${n})"><i data-lucide="x"></i> Remove</button>
+          <div style="width:100%;margin-top:4px;">
+            ${(data?.reservations && data.reservations.length > 0) ? data.reservations.map((r, i) => `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:3px;">
+                <span style="color:${cfg.textColor};font-size:10px;"><i data-lucide="user"></i> ${escapeHtml(r.guestName)} · ${escapeHtml(r.time)}</span>
+                <button class="btn-sm" style="padding:1px 5px;font-size:9px;border-color:rgba(192,57,43,0.4);color:#e07070;" onclick="window._removeReservation(${n}, ${i})"><i data-lucide="x"></i></button>
+              </div>
+            `).join('') : `
+              <div class="table-card-info" style="color:${cfg.textColor};font-weight:500;"><i data-lucide="user"></i> ${escapeHtml(guestName || '—')}</div>
+              <div class="table-card-info" style="color:${cfg.textColor};"><i data-lucide="clock"></i> ${escapeHtml(resTime || '—')}</div>
+              <button class="btn-sm" style="margin-top:6px;border-color:rgba(192,57,43,0.4);color:#e07070;width:100%;" onclick="window._removeReservation(${n}, 0)"><i data-lucide="x"></i> Remove</button>
+            `}
+          </div>
         ` : st === 'free' ? `
           <div class="table-card-info muted">No waiter assigned</div>
+          ${(data?.reservations && data.reservations.length > 0) ? `
+            <div style="width:100%;margin-top:4px;">
+              ${data.reservations.map((r, i) => `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:3px;">
+                  <span style="color:#c9973a;font-size:10px;"><i data-lucide="calendar-clock"></i> ${escapeHtml(r.guestName)} · ${escapeHtml(r.time)}</span>
+                  <button class="btn-sm" style="padding:1px 5px;font-size:9px;border-color:rgba(192,57,43,0.4);color:#e07070;" onclick="window._removeReservation(${n}, ${i})"><i data-lucide="x"></i></button>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
           <button class="btn-sm gold" style="margin-top:6px;width:100%;" onclick="window._openReserveModal(${n})"><i data-lucide="plus"></i> Reserve</button>
         ` : `
           <div class="table-card-info" style="color:${cfg.textColor}">${waiter ? `<i data-lucide="user"></i> ${escapeHtml(waiter)}` : 'No waiter assigned'}</div>
@@ -287,24 +306,63 @@ if (document.getElementById('reserveModalCancel')) {
   document.getElementById('reserveModalCancel').onclick = () => { document.getElementById('reserveModal').classList.remove('show'); reserveTargetTable = null; };
 }
 
+if (document.getElementById('reserveModalClose')) {
+  document.getElementById('reserveModalClose').onclick = () => {
+    document.getElementById('reserveModal').classList.remove('show');
+    reserveTargetTable = null;
+  };
+}
+
 if (document.getElementById('reserveModalConfirm')) {
   document.getElementById('reserveModalConfirm').onclick = async () => {
     const guestName = document.getElementById('reserveGuestName')?.value.trim();
-    const hour = document.getElementById('reserveHour').value;
-    const minute = document.getElementById('reserveMinute').value;
+    const hour = parseInt(document.getElementById('reserveHour').value) || 12;
+    const minute = String(document.getElementById('reserveMinute').value).padStart(2, '0');
     const ampm = document.getElementById('reserveAmPm').value;
     const time = `${hour}:${minute} ${ampm}`;
 
     if (!guestName) { showToast('Please enter the guest name.'); return; }
+
+    // Past time check
+    const now = new Date();
+    let reserveHour24 = hour % 12;
+    if (ampm === 'PM') reserveHour24 += 12;
+    const reserveMinutes = reserveHour24 * 60 + parseInt(minute);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    if (reserveMinutes <= nowMinutes) {
+      showToast(`${time} has already passed. Please choose a future time.`);
+      return;
+    }
+
+    // Conflict check — must be 30+ mins away from existing reservations
     const data = tableStatuses[reserveTargetTable];
     if (!data) { showToast('Table not found.'); return; }
+
+    const existing = data.reservations || [];
+    for (const r of existing) {
+      const existingMins = getReservationMinutes(r.time);
+      if (existingMins === null) continue;
+      const diff = Math.abs(reserveMinutes - existingMins);
+      if (diff < 30) {
+        showToast(`Too close to existing reservation at ${r.time}. Must be 30+ mins apart.`);
+        return;
+      }
+    }
 
     const btn = document.getElementById('reserveModalConfirm');
     btn.disabled = true; btn.textContent = 'Saving…';
 
     try {
+      const newReservation = { guestName, time };
+      const updatedReservations = [...existing, newReservation].sort((a, b) => {
+        return (getReservationMinutes(a.time) || 0) - (getReservationMinutes(b.time) || 0);
+      });
+
       await updateDoc(doc(db, 'tables', data.docId), {
-        status: 'reserved', reservation: { guestName, time },
+        status: 'free',
+        reservation: updatedReservations[0],      // keep for legacy compat
+        reservations: updatedReservations,
         waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
       });
       showToast(`Table ${reserveTargetTable} reserved for ${guestName} at ${time}`);
@@ -315,23 +373,128 @@ if (document.getElementById('reserveModalConfirm')) {
   };
 }
 
-window._removeReservation = async (tableNum) => {
-  if (!confirm(`Remove reservation for Table ${tableNum}?`)) return;
+window._removeReservation = async (tableNum, index) => {
+  if (!confirm(`Remove this reservation for Table ${tableNum}?`)) return;
   const data = tableStatuses[tableNum];
   if (!data) return;
   try {
-    await updateDoc(doc(db, 'tables', data.docId), { status: 'free', reservation: null, lastUpdated: serverTimestamp() });
-    showToast(`Reservation for Table ${tableNum} removed.`);
+    const updated = [...(data.reservations || [])];
+    updated.splice(index, 1);
+    await updateDoc(doc(db, 'tables', data.docId), {
+      reservations: updated,
+      status: updated.length === 0 ? 'free' : data.status,
+      reservation: updated.length > 0 ? updated[0] : null,
+      lastUpdated: serverTimestamp()
+    });
+    showToast(`Reservation removed from Table ${tableNum}.`);
   } catch (err) { showToast('Failed to remove reservation.'); console.error(err); }
 };
 
 if (document.getElementById('clearAllTablesBtn')) {
-  document.getElementById('clearAllTablesBtn').onclick = async () => {
-    if (!confirm('Reset ALL tables to free? This cannot be undone.')) return;
-    try {
-      const snap = await getDocs(collection(db, 'tables'));
-      await Promise.all(snap.docs.map(d => updateDoc(d.ref, { status: 'free', reservation: null, waiterId: null, waiterName: null, lastUpdated: serverTimestamp() })));
-      showToast('All tables cleared.');
-    } catch (err) { showToast('Failed to clear tables.'); console.error(err); }
+  document.getElementById('clearAllTablesBtn').onclick = () => {
+    document.getElementById('clearAllModal').classList.add('show');
+    if (window.lucide) lucide.createIcons();
   };
 }
+
+if (document.getElementById('clearAllModalClose')) {
+  document.getElementById('clearAllModalClose').onclick = () => {
+    document.getElementById('clearAllModal').classList.remove('show');
+  };
+}
+
+if (document.getElementById('clearAllModalCancel')) {
+  document.getElementById('clearAllModalCancel').onclick = () => {
+    document.getElementById('clearAllModal').classList.remove('show');
+  };
+}
+
+if (document.getElementById('clearAllModalConfirm')) {
+  document.getElementById('clearAllModalConfirm').onclick = async () => {
+    const btn = document.getElementById('clearAllModalConfirm');
+    btn.disabled = true; btn.textContent = 'Clearing…';
+    try {
+      const snap = await getDocs(collection(db, 'tables'));
+      await Promise.all(snap.docs.map(d => updateDoc(d.ref, {
+        status: 'free', reservation: null, reservations: [],
+        waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
+      })));
+      showToast('All tables cleared.');
+      document.getElementById('clearAllModal').classList.remove('show');
+    } catch (err) { showToast('Failed to clear tables.'); console.error(err); }
+    finally { btn.disabled = false; btn.textContent = 'Yes, Clear All'; }
+  };
+}
+
+function getReservationMinutes(timeStr) {
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return null;
+  let hour = parseInt(match[1]) % 12;
+  if (match[3].toUpperCase() === 'PM') hour += 12;
+  return hour * 60 + parseInt(match[2]);
+}
+
+function checkReservationTimes() {
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  tableDocsList.forEach(async entry => {
+    const data = tableStatuses[entry.tableNumber];
+    const reservations = data?.reservations;
+    if (!reservations || reservations.length === 0) return;
+
+    const upcoming = reservations
+      .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
+      .filter(r => r.mins !== null)
+      .sort((a, b) => a.mins - b.mins);
+
+    // Remove expired ones (30+ mins past reservation time = no show)
+    const stillValid = upcoming.filter(r => r.mins > nowMinutes - 30);
+    if (stillValid.length !== upcoming.length) {
+      try {
+        const cleaned = stillValid.map(({ mins, ...r }) => r);
+        await updateDoc(doc(db, 'tables', data.docId), {
+          reservations: cleaned,
+          reservation: cleaned[0] || null,
+          status: cleaned.length === 0 ? 'free' : data.status,
+          lastUpdated: serverTimestamp()
+        });
+        showToast(`Expired reservation(s) cleared from Table ${entry.tableNumber}.`);
+      } catch (err) { console.error(err); }
+      return;
+    }
+
+    const next = stillValid[0];
+    const minutesUntil = next.mins - nowMinutes;
+    const minutesLate = nowMinutes - next.mins; // positive = past reservation time
+
+    // Within 30 mins → lock as reserved
+    if (minutesUntil <= 30 && minutesUntil > 0 && data.status === 'free') {
+      try {
+        await updateDoc(doc(db, 'tables', data.docId), {
+          status: 'reserved', lastUpdated: serverTimestamp()
+        });
+        showToast(`Table ${entry.tableNumber} is now reserved for ${next.guestName} at ${next.time}`);
+      } catch (err) { console.error(err); }
+    }
+
+    // Guest is 15 mins late → free the table, remove that reservation
+    if (data.status === 'reserved' && minutesLate >= 15) {
+      try {
+        const remaining = stillValid
+          .filter(r => r.mins !== next.mins)
+          .map(({ mins, ...r }) => r);
+
+        await updateDoc(doc(db, 'tables', data.docId), {
+          reservations: remaining,
+          reservation: remaining[0] || null,
+          status: 'free',
+          lastUpdated: serverTimestamp()
+        });
+        showToast(`Table ${entry.tableNumber}: ${next.guestName} was 15 mins late — table is now free.`);
+      } catch (err) { console.error(err); }
+    }
+  });
+}
+checkReservationTimes();
+setInterval(checkReservationTimes, 60 * 1000);
