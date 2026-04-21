@@ -88,10 +88,10 @@ function renderStaff(staff) {
 
   if (pending.length > 0) {
     html += `<div class="pending-banner">
-      <div class="pending-banner-icon">🔔</div>
+      <div class="pending-banner-icon"><i data-lucide="bell" style="width:20px;height:20px;"></i></div>
       <div class="pending-banner-text"><strong>${pending.length} pending registration${pending.length > 1 ? 's' : ''}</strong> awaiting your approval</div>
     </div>`;
-    html += `<div class="staff-section-label">⏳ Pending Approval</div>`;
+    html += `<div class="staff-section-label">Pending Approval</div>`;
     html += pending.map(s => `
       <div class="staff-card pending-card">
         <div class="staff-avatar pending-avatar">${(s.name || s.email || '?')[0].toUpperCase()}</div>
@@ -102,14 +102,14 @@ function renderStaff(staff) {
           <span class="status-badge pending-badge">Pending Review</span>
         </div>
         <div class="staff-actions">
-          <button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name || '')}')">✓ Approve</button>
-          <button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name || '')}')">✕ Reject</button>
+          <button class="btn-sm gold" onclick="window._approveStaff('${s.id}','${escapeHtml(s.name || '')}')">Approve</button>
+          <button class="btn-sm danger" onclick="window._rejectStaff('${s.id}','${escapeHtml(s.name || '')}')">Reject</button>
         </div>
       </div>`).join('');
   }
 
   if (approved.length > 0) {
-    html += `<div class="staff-section-label">✅ Active Staff</div>`;
+    html += `<div class="staff-section-label">Active Staff</div>`;
     html += approved.map(s => `
       <div class="staff-card">
         <div class="staff-avatar">${(s.name || s.email || '?')[0].toUpperCase()}</div>
@@ -123,7 +123,7 @@ function renderStaff(staff) {
   }
 
   if (rejected.length > 0) {
-    html += `<div class="staff-section-label" style="color:var(--red)">❌ Rejected / Suspended</div>`;
+    html += `<div class="staff-section-label" style="color:var(--red)">Rejected / Suspended</div>`;
     html += rejected.map(s => `
       <div class="staff-card" style="opacity:0.55">
         <div class="staff-avatar" style="background:var(--red-dim);border-color:rgba(192,57,43,0.3);color:var(--red)">${(s.name || s.email || '?')[0].toUpperCase()}</div>
@@ -144,18 +144,77 @@ function renderStaff(staff) {
   if (staffBadge) { staffBadge.textContent = pending.length; staffBadge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
 }
 
+// ── Confirmation modal helpers ──
+const confirmModal       = document.getElementById('confirmModal');
+const confirmTitle       = document.getElementById('confirmTitle');
+const confirmMessage     = document.getElementById('confirmMessage');
+const confirmOkBtn       = document.getElementById('confirmOk');
+const confirmCancelBtn   = document.getElementById('confirmCancel');
+const confirmModalClose  = document.getElementById('confirmModalClose');
+const confirmIconWrap    = document.getElementById('confirmIconWrap');
+
+function closeConfirmModal() { if (confirmModal) confirmModal.classList.remove('show'); }
+if (confirmCancelBtn)   confirmCancelBtn.onclick   = closeConfirmModal;
+if (confirmModalClose)  confirmModalClose.onclick  = closeConfirmModal;
+
+function showConfirmModal({ title, message, okLabel = 'Confirm', okClass = 'gold', onConfirm }) {
+  if (!confirmModal) { if (onConfirm) onConfirm(); return; }
+  confirmTitle.textContent   = title;
+  confirmMessage.textContent = message;
+  confirmOkBtn.textContent   = okLabel;
+  confirmOkBtn.className     = `btn-sm ${okClass}`;
+
+  // Style the icon wrap to match action severity
+  if (confirmIconWrap) {
+    if (okClass === 'danger') {
+      confirmIconWrap.style.background    = 'var(--red-dim)';
+      confirmIconWrap.style.borderColor   = 'rgba(192,57,43,0.25)';
+      const ico = document.getElementById('confirmIcon');
+      if (ico) ico.style.color = 'var(--red)';
+    } else {
+      confirmIconWrap.style.background    = 'var(--gold-dim)';
+      confirmIconWrap.style.borderColor   = 'rgba(201,151,58,0.25)';
+      const ico = document.getElementById('confirmIcon');
+      if (ico) ico.style.color = 'var(--gold)';
+    }
+  }
+
+  confirmModal.classList.add('show');
+  if (window.lucide) lucide.createIcons();
+  const handler = () => {
+    closeConfirmModal();
+    confirmOkBtn.removeEventListener('click', handler);
+    if (onConfirm) onConfirm();
+  };
+  confirmOkBtn.addEventListener('click', handler);
+}
+
 window._approveStaff = (uid, name) => {
-  if (!confirm(`Approve ${name || 'this waiter'} and grant them access to the system?`)) return;
-  updateDoc(doc(db, 'Users', uid), { status: 'approved', approvedAt: serverTimestamp() })
-  .then(() => { showToast(`${name || 'Waiter'} has been approved.`); loadStaff(); })
-  .catch(e => { console.error(e); showToast('Failed to approve.'); });
+  showConfirmModal({
+    title:    'Approve Staff Member',
+    message:  `Grant ${name || 'this waiter'} access to the system? They will be able to log in immediately.`,
+    okLabel:  'Approve',
+    okClass:  'gold',
+    onConfirm: () => {
+      updateDoc(doc(db, 'Users', uid), { status: 'approved', approvedAt: serverTimestamp() })
+        .then(() => { showToast(`${name || 'Waiter'} has been approved.`); loadStaff(); })
+        .catch(e => { console.error(e); showToast('Failed to approve.'); });
+    }
+  });
 };
 
 window._rejectStaff = (uid, name) => {
-  if (!confirm(`Reject or suspend ${name || 'this waiter'}? They will not be able to log in.`)) return;
-  updateDoc(doc(db, 'Users', uid), { status: 'rejected', rejectedAt: serverTimestamp() })
-  .then(() => { showToast(`${name || 'Waiter'} has been rejected.`); loadStaff(); })
-  .catch(e => { console.error(e); showToast('Failed to reject.'); });
+  showConfirmModal({
+    title:    'Suspend Staff Member',
+    message:  `Suspend ${name || 'this waiter'}? They will no longer be able to log in until re-approved.`,
+    okLabel:  'Suspend',
+    okClass:  'danger',
+    onConfirm: () => {
+      updateDoc(doc(db, 'Users', uid), { status: 'rejected', rejectedAt: serverTimestamp() })
+        .then(() => { showToast(`${name || 'Waiter'} has been suspended.`); loadStaff(); })
+        .catch(e => { console.error(e); showToast('Failed to suspend.'); });
+    }
+  });
 };
 
 onAuthStateChanged(auth, async user => {

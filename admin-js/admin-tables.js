@@ -274,15 +274,67 @@ if (document.getElementById('tableModalSave')) {
   };
 }
 
+// ── Inline confirm modal helper ──
+(function setupTableConfirmModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'tableConfirmModal';
+  overlay.className = 'confirm-modal-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="tConfirmTitle">
+      <div class="confirm-modal-head">
+        <div class="confirm-modal-icon-wrap" id="tConfirmIconWrap" style="background:var(--red-dim);border-color:rgba(192,57,43,0.25);">
+          <i data-lucide="alert-triangle" style="width:22px;height:22px;color:var(--red);"></i>
+        </div>
+        <button class="confirm-modal-close" id="tConfirmClose" aria-label="Close">✕</button>
+      </div>
+      <div class="confirm-modal-body">
+        <div class="confirm-modal-title" id="tConfirmTitle">Confirm Action</div>
+        <div class="confirm-modal-message" id="tConfirmMessage">Are you sure?</div>
+      </div>
+      <div class="confirm-modal-foot">
+        <button class="btn-sm" id="tConfirmCancel">Cancel</button>
+        <button class="btn-sm danger" id="tConfirmOk">Delete</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('tConfirmClose').onclick  = () => overlay.classList.remove('show');
+  document.getElementById('tConfirmCancel').onclick = () => overlay.classList.remove('show');
+  setTimeout(() => { if (window.lucide) lucide.createIcons(); }, 50);
+})();
+
+function showTableConfirm({ title, message, okLabel = 'Delete', okClass = 'danger', onConfirm }) {
+  const overlay = document.getElementById('tableConfirmModal');
+  if (!overlay) { if (onConfirm) onConfirm(); return; }
+  document.getElementById('tConfirmTitle').textContent   = title;
+  document.getElementById('tConfirmMessage').textContent = message;
+  const okBtn = document.getElementById('tConfirmOk');
+  okBtn.textContent  = okLabel;
+  okBtn.className    = `btn-sm ${okClass}`;
+  overlay.classList.add('show');
+  const handler = () => {
+    overlay.classList.remove('show');
+    okBtn.removeEventListener('click', handler);
+    if (onConfirm) onConfirm();
+  };
+  okBtn.addEventListener('click', handler);
+}
+
 window._deleteTable = async (tableNum) => {
   const data = tableStatuses[tableNum];
   if (!data) return;
   const label = data.name ? `"${data.name}" (Table ${tableNum})` : `Table ${tableNum}`;
-  if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
-  try {
-    await deleteDoc(doc(db, 'tables', data.docId));
-    showToast(`${label} deleted.`);
-  } catch (err) { showToast('Failed to delete table.'); console.error(err); }
+  showTableConfirm({
+    title:    'Delete Table',
+    message:  `Delete ${label}? This action cannot be undone.`,
+    okLabel:  'Delete',
+    okClass:  'danger',
+    onConfirm: async () => {
+      try {
+        await deleteDoc(doc(db, 'tables', data.docId));
+        showToast(`${label} deleted.`);
+      } catch (err) { showToast('Failed to delete table.'); console.error(err); }
+    }
+  });
 };
 
 window._openAddTableModal = () => openTableModal('add');
@@ -374,20 +426,27 @@ if (document.getElementById('reserveModalConfirm')) {
 }
 
 window._removeReservation = async (tableNum, index) => {
-  if (!confirm(`Remove this reservation for Table ${tableNum}?`)) return;
-  const data = tableStatuses[tableNum];
-  if (!data) return;
-  try {
-    const updated = [...(data.reservations || [])];
-    updated.splice(index, 1);
-    await updateDoc(doc(db, 'tables', data.docId), {
-      reservations: updated,
-      status: updated.length === 0 ? 'free' : data.status,
-      reservation: updated.length > 0 ? updated[0] : null,
-      lastUpdated: serverTimestamp()
-    });
-    showToast(`Reservation removed from Table ${tableNum}.`);
-  } catch (err) { showToast('Failed to remove reservation.'); console.error(err); }
+  showTableConfirm({
+    title:    'Remove Reservation',
+    message:  `Remove this reservation from Table ${tableNum}? This cannot be undone.`,
+    okLabel:  'Remove',
+    okClass:  'danger',
+    onConfirm: async () => {
+      const data = tableStatuses[tableNum];
+      if (!data) return;
+      try {
+        const updated = [...(data.reservations || [])];
+        updated.splice(index, 1);
+        await updateDoc(doc(db, 'tables', data.docId), {
+          reservations: updated,
+          status: updated.length === 0 ? 'free' : data.status,
+          reservation: updated.length > 0 ? updated[0] : null,
+          lastUpdated: serverTimestamp()
+        });
+        showToast(`Reservation removed from Table ${tableNum}.`);
+      } catch (err) { showToast('Failed to remove reservation.'); console.error(err); }
+    }
+  });
 };
 
 if (document.getElementById('clearAllTablesBtn')) {
