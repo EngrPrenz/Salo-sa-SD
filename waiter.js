@@ -85,6 +85,14 @@ async function init() {
   });
 }
 
+function getReservationMinutes(timeStr) {
+  const match = timeStr?.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return null;
+  let hour = parseInt(match[1]) % 12;
+  if (match[3].toUpperCase() === 'PM') hour += 12;
+  return hour * 60 + parseInt(match[2]);
+}
+
 // ── TABLE RENDERING ──
 let tablesList = [];
 
@@ -114,38 +122,60 @@ function renderTables() {
     const isTakenOrder      = orderInfo && !isYours;
 
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
+    const now = new Date();
+const nowMins = now.getHours() * 60 + now.getMinutes();
+const pendingReservations = tableDoc?.reservations || [];
+const nextReservation = pendingReservations
+  .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
+  .filter(r => r.mins !== null)
+  .sort((a, b) => a.mins - b.mins)[0];
+const minsUntilNext = nextReservation ? nextReservation.mins - nowMins : null;
+const hasSoonReservation = minsUntilNext !== null && minsUntilNext <= 31 && minsUntilNext > 0;
     const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
 
     let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
-      stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
-      icon = '🍽️'; meta = 'Active order';
-      yoursInd = `<div class="yours-indicator">YOURS</div>`;
-    } else if (isReserved) {
-      stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
-      icon = '📅';
-      const res = tableDoc.reservation || {};
-      meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
-    } else if (isTakenOrder) {
-      stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
-      icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
-    } else if (isWalkIn) {
-      stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = '🚶 Walk-in';
-      icon = '👥';
-      meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
-      if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
-    } else if (isOccupiedNoOrder) {
-      stClass = isOccupiedYours ? 'yours' : 'occupied';
-      badge   = isOccupiedYours ? 'yours' : 'occupied';
-      badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
-      icon = isOccupiedYours ? '🍽️' : '🚫';
-      meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
-      if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
-    } else {
-      stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
-      icon = '🪑'; meta = 'Tap to seat guests';
-    }
+  stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
+  icon = '🍽️'; meta = 'Active order';
+  yoursInd = `<div class="yours-indicator">YOURS</div>`;
+} else if (isReserved) {
+  stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
+  icon = '📅';
+  // Use reservations array first, fall back to legacy reservation field
+  const res = (tableDoc?.reservations?.[0]) || tableDoc?.reservation || {};
+  meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
+} else if (isTakenOrder) {
+  stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
+  icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
+} else if (isWalkIn) {
+  stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = '🚶 Walk-in';
+  icon = '👥';
+  meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
+  if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
+} else if (isOccupiedNoOrder) {
+  stClass = isOccupiedYours ? 'yours' : 'occupied';
+  badge   = isOccupiedYours ? 'yours' : 'occupied';
+  badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
+  icon = isOccupiedYours ? '🍽️' : '🚫';
+  meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
+  if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
+} else {
+  // Free table — check for upcoming reservations
+  stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
+  icon = '🪑';
+
+  if (hasSoonReservation) {
+    // Under 60 mins — warn waiter
+    const urgency = minsUntilNext <= 30 ? '⚠️' : '🕐';
+    meta = `${urgency} Reserved in ${minsUntilNext}m for ${nextReservation.guestName}`;
+  } else if (nextReservation) {
+    // Has a future reservation but plenty of time
+    meta = `🗓️ Reserved at ${nextReservation.time} · Tap to seat`;
+  } else {
+    meta = 'Tap to seat guests';
+  }
+}
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
@@ -211,6 +241,28 @@ window._selectTable = (num, stClass, isWalkIn) => {
   }
 
   if (stClass === 'yours') { goToOrder(num); return; }
+
+  // Free table — check if there's a reservation within 30 mins
+  const tableDoc = tablesData[num];
+  const reservations = tableDoc?.reservations || [];
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const next = reservations
+    .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
+    .filter(r => r.mins !== null)
+    .sort((a, b) => a.mins - b.mins)[0];
+
+  if (next) {
+    const minsUntil = next.mins - nowMins;
+    if (minsUntil <= 30 && minsUntil > 0) {
+      showToast(`⚠️ Table ${num} is reserved for ${next.guestName} in ${minsUntil} mins. Cannot seat now.`);
+      return;
+    }
+    if (minsUntil <= 60 && minsUntil > 31) {
+      // Allow but warn
+      showToast(`🕐 Heads up: Table ${num} has a reservation in ${minsUntil} mins for ${next.guestName}.`);
+    }
+  }
 
   window._openOccupyModal(num);
 };
