@@ -440,7 +440,7 @@ function renderMenuGrid() {
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
       ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
       ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
-      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;">🍽️</div>
+      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;"></div>
       <div class="mic-body">
         <div class="mic-cat">${safeCat}</div>
         <div class="mic-name">${safeName}</div>
