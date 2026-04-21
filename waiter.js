@@ -40,12 +40,12 @@ onAuthStateChanged(auth, async user => {
   if (data.role !== 'waiter') { await signOut(auth); window.location.href = 'waiter-login.html'; return; }
   if (data.status === 'pending') {
     await signOut(auth);
-    alert('⏳ Your account is pending admin approval.');
+    sessionStorage.setItem('waiterAuthMsg', 'Your account is pending admin approval. Please check back later.');
     window.location.href = 'waiter-login.html'; return;
   }
   if (data.status === 'rejected') {
     await signOut(auth);
-    alert('❌ Your registration was declined. Please contact the manager.');
+    sessionStorage.setItem('waiterAuthMsg', 'Your registration was declined. Please contact the restaurant manager.');
     window.location.href = 'waiter-login.html'; return;
   }
   waiterName = data.name || user.email;
@@ -119,39 +119,38 @@ function renderTables() {
     let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
-      stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
-      icon = '🍽️'; meta = 'Active order';
+      stClass = 'yours'; badge = 'yours'; badgeLbl = 'Your Table';
+      icon = ''; meta = 'Active order';
       yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else if (isReserved) {
-      stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
-      icon = '📅';
+      stClass = 'reserved'; badge = 'reserved'; badgeLbl = 'Reserved';
+      icon = '';
       const res = tableDoc.reservation || {};
       meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
     } else if (isTakenOrder) {
       stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
-      icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
+      icon = ''; meta = orderInfo.waiterName || 'Another waiter';
     } else if (isWalkIn) {
-      stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = '🚶 Walk-in';
-      icon = '👥';
+      stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = 'Walk-in';
+      icon = '';
       meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
       if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
     } else if (isOccupiedNoOrder) {
       stClass = isOccupiedYours ? 'yours' : 'occupied';
       badge   = isOccupiedYours ? 'yours' : 'occupied';
-      badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
-      icon = isOccupiedYours ? '🍽️' : '🚫';
+      badgeLbl = isOccupiedYours ? 'Your Table' : 'Occupied';
+      icon = '';
       meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
       if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else {
       stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
-      icon = '🪑'; meta = 'Tap to seat guests';
+      icon = ''; meta = 'Tap to seat guests';
     }
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
       <div class="table-num">${displayLabel}</div>
       ${capInfo}
-      <div class="table-icon">${icon}</div>
       <span class="table-status-badge ${badge}">${badgeLbl}</span>
       <div class="table-meta">${meta}</div>
     </div>`;
@@ -188,7 +187,7 @@ $('confirmMarkOccupied').onclick = async () => {
     pendingOccupyTable = null;
   } catch(e) {
     console.error(e);
-    showToast('❌ Failed to mark table. Please retry.');
+    showToast('Failed to mark table. Please retry.');
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
@@ -196,7 +195,7 @@ $('confirmMarkOccupied').onclick = async () => {
 
 // ── WALK-IN OPTIONS MODAL ──
 window._selectTable = (num, stClass, isWalkIn) => {
-  if (stClass === 'occupied') { showToast('⚠ This table has an active order from another waiter.'); return; }
+  if (stClass === 'occupied') { showToast('This table has an active order from another waiter.'); return; }
   if (stClass === 'reserved') { window._openReservedModal(num); return; }
 
   if (isWalkIn) {
@@ -244,11 +243,11 @@ $('freeTableBtn').onclick = async () => {
         status: 'available', waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
       });
       $('freeTableModal').classList.remove('show');
-      showToast(`✅ Table ${pendingWalkinTable} marked as free.`);
+      showToast(`Table ${pendingWalkinTable} marked as free.`);
       pendingWalkinTable = null;
     } catch(e) {
       console.error(e);
-      showToast('❌ Failed to update table. Please retry.');
+      showToast('Failed to update table. Please retry.');
     }
   }
 };
@@ -275,7 +274,7 @@ $('confirmArrivalBtn').onclick = async () => {
   btn.disabled = true; btn.classList.add('loading');
   try {
     const tableDoc = tablesData[num];
-    if (!tableDoc?.docId) { showToast('❌ Table document not found.'); return; }
+    if (!tableDoc?.docId) { showToast('Table document not found.'); return; }
     await updateDoc(doc(db, 'tables', tableDoc.docId), {
       status: 'occupied', waiterId, waiterName, lastUpdated: serverTimestamp()
     });
@@ -283,7 +282,7 @@ $('confirmArrivalBtn').onclick = async () => {
     goToOrder(num);
   } catch(e) {
     console.error(e);
-    showToast('❌ Failed to confirm arrival. Please retry.');
+    showToast('Failed to confirm arrival. Please retry.');
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
@@ -331,7 +330,7 @@ $('pill1').addEventListener('click', () => {
 $('pill3').addEventListener('click', () => {
   if ($('pill2').classList.contains('active') || $('pill2').classList.contains('done')) {
     const items = Object.values(cart);
-    if (!items.length) { showToast('⚠ Add items to the cart first.'); return; }
+    if (!items.length) { showToast('Add items to the cart first.'); return; }
     $('submitOrderBtn').click();
   }
 });
@@ -388,7 +387,7 @@ function renderMenuGrid() {
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
       ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
       ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
-      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;">🍽️</div>
+      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;"><img src="image/logo.png" alt="Salo sa Antipolo" class="mic-logo-placeholder"/></div>
       <div class="mic-body">
         <div class="mic-cat">${safeCat}</div>
         <div class="mic-name">${safeName}</div>
@@ -409,7 +408,7 @@ function renderMenuGrid() {
       const img = document.createElement('img');
       img.className = 'mic-img';
       img.alt = m.name || '';
-      img.onerror = () => { img.remove(); slot.style.display = 'flex'; };
+      img.onerror = () => { img.remove(); slot.innerHTML = '<img src="image/logo.png" alt="Salo sa Antipolo" class="mic-logo-placeholder"/>'; slot.style.display = 'flex'; };
       img.onload  = () => { slot.style.display = 'none'; };
       slot.parentNode.insertBefore(img, slot);
       img.src = m.imageUrl;
@@ -486,7 +485,7 @@ window._addToCart = id => {
   if (!item || item.available === false) return;
   if (cart[id]) {
     if (cart[id].qty >= 20) {
-      showToast('⚠ Maximum 20 servings per item allowed.');
+      showToast('Maximum 20 servings per item allowed.');
       return;
     }
     cart[id].qty++;
@@ -515,7 +514,7 @@ function updateCart() {
   $('submitOrderBtn').disabled = items.length === 0;
   const ci = $('cartItems');
   if (!items.length) {
-    ci.innerHTML = '<div class="cart-empty"><div class="cart-empty-icon">🛒</div>No items yet.<br><span style="font-size:12px">Tap menu items to add.</span></div>';
+    ci.innerHTML = '<div class="cart-empty"><div class="cart-empty-icon"><i class="fa-solid fa-cart-shopping"></i></div>No items yet.<br><span style="font-size:12px">Tap menu items to add.</span></div>';
     return;
   }
   ci.innerHTML = items.map(i => {
@@ -567,7 +566,7 @@ $('confirmOrderBtn').onclick = async () => {
   // Frontend + backend qty guard
   const overLimit = newItems.filter(i => i.qty > 20 || i.qty < 1);
   if (overLimit.length) {
-    showToast('⚠ Item quantities must be between 1 and 20.');
+    showToast('Item quantities must be between 1 and 20.');
     btn.disabled = false; btn.classList.remove('loading');
     return;
   }
@@ -631,7 +630,7 @@ $('confirmOrderBtn').onclick = async () => {
     }, 2200);
   } catch(e) {
     console.error(e);
-    showToast('❌ Failed to submit order. Please retry.');
+    showToast('Failed to submit order. Please retry.');
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }

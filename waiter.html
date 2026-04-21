@@ -105,7 +105,7 @@
   <div class="modal">
     <div class="modal-strip" style="background: linear-gradient(90deg, transparent, var(--orange), #f39c12, var(--orange), transparent);"></div>
     <div class="modal-header">
-      <span class="modal-title"><i class="fa-solid fa-person-walking"></i> Mark Table Occupied</span>
+      <span class="modal-title">Mark Table Occupied</span>
       <button class="modal-close-btn" id="occupiedModalClose">✕</button>
     </div>
     <div class="modal-body">
@@ -209,7 +209,7 @@
   <div class="modal">
     <div class="modal-strip" style="background: linear-gradient(90deg, transparent, var(--blue), #3498db, var(--blue), transparent);"></div>
     <div class="modal-header">
-      <span class="modal-title"><i class="fa-solid fa-calendar-days"></i> Reserved Table</span>
+      <span class="modal-title">Reserved Table</span>
       <button class="modal-close-btn" id="reservedModalClose">✕</button>
     </div>
     <div class="modal-body">
@@ -237,6 +237,37 @@
     </div>
   </div>
 </div>
+
+<!-- AUTH STATUS NOTICE MODAL -->
+<div class="modal-overlay" id="authNoticeModal" style="display:none;align-items:center;justify-content:center;">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-strip" style="background: linear-gradient(90deg, transparent, #c9973a, #e8c07a, #c9973a, transparent);"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="authNoticeTitle">Account Status</span>
+    </div>
+    <div class="modal-body" style="padding:20px 24px;">
+      <p id="authNoticeMsg" style="color:var(--text);font-size:14px;line-height:1.6;margin:0;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-confirm-order" id="authNoticeOk" style="width:100%;">
+        <span class="btn-conf-text">OK</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const msg = sessionStorage.getItem('waiterAuthMsg');
+  if (msg) {
+    sessionStorage.removeItem('waiterAuthMsg');
+    const overlay = document.getElementById('authNoticeModal');
+    document.getElementById('authNoticeMsg').textContent = msg;
+    overlay.style.display = 'flex';
+    document.getElementById('authNoticeOk').onclick = () => { overlay.style.display = 'none'; };
+  }
+})();
+</script>
 
 <script type="module" src="waiter.js"></script>
 </body>

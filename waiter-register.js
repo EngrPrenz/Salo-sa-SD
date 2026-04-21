@@ -12,8 +12,8 @@ const showError = m => { $('errorText').textContent=m; $('errorMsg').classList.r
 const setLoad   = v => { $('registerBtn').disabled=v; $('registerBtn').classList.toggle('loading',v); };
 
 // Toggle password visibility
-$('togglePw1').onclick = () => { const t=$('password').type==='text'; $('password').type=t?'password':'text'; $('togglePw1').textContent=t?'👁':'🙈'; };
-$('togglePw2').onclick = () => { const t=$('confirmPw').type==='text'; $('confirmPw').type=t?'password':'text'; $('togglePw2').textContent=t?'👁':'🙈'; };
+$('togglePw1').onclick = () => { const t=$('password').type==='text'; $('password').type=t?'password':'text'; $('togglePw1').textContent=t?'👁':'⌣'; };
+$('togglePw2').onclick = () => { const t=$('confirmPw').type==='text'; $('confirmPw').type=t?'password':'text'; $('togglePw2').textContent=t?'👁':'⌣'; };
 
 // Password strength meter
 $('password').addEventListener('input', () => {
