@@ -1612,3 +1612,385 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .u-text-xs { font-size: 10px; }
 .u-uppercase { text-transform: uppercase; letter-spacing: 0.1em; }
 .u-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ═══════ OVERVIEW — RESPONSIVE ADDITIONS ═══════ */
+
+/* Sidebar hidden off-canvas on mobile; hamburger shows */
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .main {
+    margin-left: 0;
+  }
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 150;
+    backdrop-filter: blur(2px);
+  }
+  .overlay.show { display: block; }
+}
+
+/* Stats grid: always even — 3-col → 3-col (equal) → 1-col stacked */
+/* Force all 3 cards equal width at all times using auto-fit with a floor */
+.stats-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Medium: sidebar hidden so viewport is full — still 3-col but tighter padding */
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .stat-card {
+    padding: 16px 14px;
+  }
+  .stat-card-value {
+    font-size: 30px;
+  }
+}
+
+/* Tablet-ish: drop to 1-col stack so cards are never cramped */
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .stat-card {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+  .stat-card-icon {
+    margin-bottom: 0;
+    flex-shrink: 0;
+    font-size: 28px;
+  }
+  .stat-card-content {
+    flex: 1;
+  }
+  .stat-card-value {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    gap: 8px;
+  }
+  .stat-card-value {
+    font-size: 24px;
+  }
+}
+
+/* Content row: side-by-side → stacked */
+@media (max-width: 900px) {
+  .content-row {
+    grid-template-columns: 1fr;
+  }
+  .panel.wide {
+    min-height: 260px;
+  }
+}
+
+/* Recent orders table: hide less-important columns on small screens */
+@media (max-width: 700px) {
+  #recentOrdersBody tr td:nth-child(3),
+  .data-table thead tr th:nth-child(3) {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  #recentOrdersBody tr td:nth-child(4),
+  .data-table thead tr th:nth-child(4) {
+    display: none;
+  }
+  .view {
+    padding: 12px;
+    gap: 12px;
+  }
+  .data-table td,
+  .data-table th {
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+}
+
+/* Table grid in overview panel — responsive */
+@media (max-width: 900px) {
+  .table-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .table-grid {
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    gap: 6px;
+    padding: 12px;
+  }
+}
+
+/* Ensure overview panels don't clip their content */
+@media (max-width: 900px) {
+  #view-overview {
+    overflow-y: auto;
+  }
+  .panel {
+    max-height: none;
+    overflow: visible;
+  }
+  .panel .table-wrap {
+    overflow-x: auto;
+    max-height: 340px;
+  }
+}
+
+/* Topbar: tighten on very small screens */
+@media (max-width: 360px) {
+  .topbar {
+    padding: 0 12px;
+    gap: 6px;
+  }
+  .page-title {
+    font-size: 15px;
+  }
+  .live-indicator span:last-child {
+    display: none;
+  }
+}
+
+/* ═══════ OVERVIEW PANEL HEADER & TABLE GRID FIX ═══════ */
+
+/* Keep "Recent Orders" title and "View All →" always on one line */
+.panel-header {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.panel-title {
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+.panel-link {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Table grid: contain within panel, never overflow horizontally */
+.panel .table-grid {
+  overflow: hidden;
+}
+.table-grid {
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  overflow: hidden;
+}
+
+/* Tighter table grid on narrow panels */
+@media (max-width: 700px) {
+  .table-grid {
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    gap: 6px;
+    padding: 12px;
+  }
+  .mini-table {
+    padding: 8px 4px;
+  }
+  .mini-table-num {
+    font-size: 14px;
+  }
+  .mini-table-st {
+    font-size: 7px;
+  }
+}
+
+/* ═══════ PANEL HEADER — always inline, never wraps ═══════ */
+.panel-header {
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-height: 52px;
+}
+.panel-title {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.panel-link {
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ═══════ RECENT ORDERS PANEL ═══════ */
+/* Make table horizontally scrollable on all viewports */
+#view-overview .panel.wide .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#view-overview .panel.wide .data-table {
+  min-width: 360px;
+}
+
+/* ═══════ TABLE STATUS PANEL — fully contained ═══════ */
+/* Panel itself: let it grow naturally, never clip */
+#view-overview .panel:not(.wide) {
+  overflow: visible;
+}
+#view-overview .panel:not(.wide) .table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 8px;
+  padding: 14px;
+  overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* On narrow screens the panel.wide collapses to full width
+   and the table-status panel sits below — both get full width */
+@media (max-width: 900px) {
+  #view-overview .panel:not(.wide) .table-grid {
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  }
+}
+
+/* Very small: tighten cells so all 13 fit without overflow */
+@media (max-width: 480px) {
+  #view-overview .panel:not(.wide) .table-grid {
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+    gap: 6px;
+    padding: 10px;
+  }
+  .mini-table {
+    padding: 7px 4px;
+  }
+  .mini-table-num {
+    font-size: 13px;
+  }
+  .mini-table-st {
+    font-size: 6.5px;
+    letter-spacing: 0.04em;
+  }
+  .panel-header {
+    padding: 12px 14px;
+    min-height: 46px;
+  }
+  .panel-title {
+    font-size: 11px;
+  }
+  .panel-link {
+    font-size: 11px;
+  }
+}
+
+/* ═══════ PANEL HEADER FORCE SINGLE ROW ═══════ */
+.panel-header {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+.panel-header .panel-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.panel-header .panel-link {
+  flex: 0 0 auto;
+  margin-left: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MODAL BASE — FORCE CSS VARIABLES (no hardcoded white)
+═══════════════════════════════════════════════════════ */
+
+.modal-content,
+.confirm-modal,
+[class*="modal-content"],
+[class*="-modal"] {
+  background: var(--black-card) !important;
+  border-color: var(--border) !important;
+  color: var(--white) !important;
+}
+
+.modal-head,
+.modal-header,
+.modal-body,
+.modal-foot,
+.modal-footer,
+.confirm-modal-head,
+.confirm-modal-body,
+.confirm-modal-foot {
+  background: var(--black-card) !important;
+  color: var(--white) !important;
+  border-color: var(--border) !important;
+}
+
+.modal-head h3,
+.modal-head h2,
+.modal-header h3,
+.modal-header h2,
+.modal-title,
+.confirm-modal-title {
+  color: var(--white) !important;
+}
+
+.modal-body p,
+.modal-body span,
+.modal-body small,
+.modal-body label,
+.modal-body td,
+.modal-body th,
+.modal-body strong,
+.confirm-modal-message {
+  color: var(--white) !important;
+}
+.modal-body small,
+.modal-body .muted,
+.modal-body [class*="muted"],
+.modal-body [class*="sub"],
+.confirm-modal-message {
+  color: var(--text-muted) !important;
+}
+
+.modal-body input,
+.modal-body select,
+.modal-body textarea,
+.modal-content input,
+.modal-content select,
+.modal-content textarea {
+  background: var(--black-mid) !important;
+  border-color: var(--border) !important;
+  color: var(--white) !important;
+}
+.modal-body input::placeholder,
+.modal-content input::placeholder {
+  color: var(--text-muted) !important;
+}
+.modal-body select option,
+.modal-content select option {
+  background: var(--black-mid) !important;
+  color: var(--white) !important;
+}
+
+.modal-close,
+.confirm-modal-close {
+  color: var(--text-muted) !important;
+  background: none !important;
+}
+
+.modal-body hr {
+  border-color: var(--border) !important;
+}
