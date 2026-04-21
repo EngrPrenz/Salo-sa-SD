@@ -86,7 +86,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const app  = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
@@ -98,6 +98,25 @@
         errTxt=document.getElementById('errorText'), togglePw=document.getElementById('togglePw'),
         toast=document.getElementById('toast'), toastMsg=document.getElementById('toastMsg');
 
+  // ✅ Auto-redirect if already logged in as admin
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      try {
+        const snap = await getDoc(doc(db, 'Users', user.uid));
+        if (snap.exists() && snap.data().role === 'admin') {
+          const data = snap.data();
+          sessionStorage.setItem('userRole', 'admin');
+          sessionStorage.setItem('userName', data.name || user.email);
+          sessionStorage.setItem('userId', user.uid);
+          window.location.href = 'admin-html/admin-overview.html';
+        }
+      } catch (e) {
+        // Not logged in or not admin — stay on login page
+      }
+    }
+  });
+
+  togglePw.onclick = () => { const t=pwEl.type==='text'; pwEl.type=t?'password':'text'; togglePw.textContent=t?'👁':'🙈'; };
   togglePw.onclick = () => { const t=pwEl.type==='text'; pwEl.type=t?'password':'text'; togglePw.textContent=t?'👁':'⌣'; };
 
   const showToast = m => { toastMsg.textContent=m; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),3000); };
@@ -110,8 +129,11 @@
     if(!email||!pw){ showError('Please enter your email and password.'); return; }
     setLoad(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth,email,pw);
-      const snap = await getDoc(doc(db,'Users',cred.user.uid));
+      // ✅ Set local persistence before signing in
+      await setPersistence(auth, browserLocalPersistence);
+
+      const cred = await signInWithEmailAndPassword(auth, email, pw);
+      const snap = await getDoc(doc(db, 'Users', cred.user.uid));
       if(!snap.exists()){ showError('Account not found. Please contact system admin.'); await auth.signOut(); setLoad(false); return; }
       const data = snap.data();
       if(data.role!=='admin'){ showError('This portal is for admins only. Use Waiter Login.'); await auth.signOut(); setLoad(false); return; }
@@ -131,7 +153,7 @@
   };
   [emailEl,pwEl].forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter')loginBtn.click();}));
 
-document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });
+  document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });
 </script>
 </body>
 </html>
