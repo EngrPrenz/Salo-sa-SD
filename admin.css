@@ -941,10 +941,15 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
   width: 100%; aspect-ratio: 16 / 9;
   background: var(--black-mid); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 28px; opacity: 0.3; flex-shrink: 0;
+  font-size: 28px; opacity: 0.45; flex-shrink: 0;
   transition: opacity 0.3s;
 }
-.menu-card:hover .menu-card-img-placeholder { opacity: 0.5; }
+.menu-card:hover .menu-card-img-placeholder { opacity: 0.65; }
+.menu-card-logo-placeholder {
+  width: 72px; height: 72px;
+  object-fit: contain; border-radius: 50%;
+  filter: grayscale(20%);
+}
 
 .menu-avail-banner {
   display: flex; align-items: center; gap: 6px;

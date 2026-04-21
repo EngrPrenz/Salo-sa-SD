@@ -197,8 +197,8 @@ function renderMenuGrid() {
     const bannerClass = effectivelyUnavailable ? 'off' : 'on';
     const bannerText = m.available === false ? 'Unavailable' : (isBento && !bentoWindowOpen ? 'Outside Hours' : 'Available');
     const imgHtml = m.imageUrl
-      ? `<img src="${escapeHtml(m.imageUrl)}" alt="${escapeHtml(m.name || '')}" class="menu-card-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="menu-card-img-placeholder" style="display:none;"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6h3.5a1.5 1.5 0 0 1 0 3H16v4"/></svg></div>`
-      : `<div class="menu-card-img-placeholder"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6h3.5a1.5 1.5 0 0 1 0 3H16v4"/></svg></div>`;
+      ? `<img src="${escapeHtml(m.imageUrl)}" alt="${escapeHtml(m.name || '')}" class="menu-card-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="menu-card-img-placeholder" style="display:none;"><img src="../image/logo.png" alt="Salo sa Antipolo" class="menu-card-logo-placeholder" /></div>`
+      : `<div class="menu-card-img-placeholder"><img src="../image/logo.png" alt="Salo sa Antipolo" class="menu-card-logo-placeholder" /></div>`;
     const itemName = m.name || '';
     const orderCount = menuOrderCounts[itemName]?.served || 0;
     const atLimit = orderCount >= ORDER_LIMIT;
