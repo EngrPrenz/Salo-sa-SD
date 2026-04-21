@@ -388,7 +388,7 @@ function renderMenuGrid() {
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
       ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
       ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
-      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;">🍽️</div>
+      <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;"><img src="image/logo.png" alt="Salo sa Antipolo" class="mic-logo-placeholder"/></div>
       <div class="mic-body">
         <div class="mic-cat">${safeCat}</div>
         <div class="mic-name">${safeName}</div>
@@ -409,7 +409,7 @@ function renderMenuGrid() {
       const img = document.createElement('img');
       img.className = 'mic-img';
       img.alt = m.name || '';
-      img.onerror = () => { img.remove(); slot.style.display = 'flex'; };
+      img.onerror = () => { img.remove(); slot.innerHTML = '<img src="image/logo.png" alt="Salo sa Antipolo" class="mic-logo-placeholder"/>'; slot.style.display = 'flex'; };
       img.onload  = () => { slot.style.display = 'none'; };
       slot.parentNode.insertBefore(img, slot);
       img.src = m.imageUrl;

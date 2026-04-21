@@ -11,7 +11,7 @@ const loginBtn=document.getElementById('loginBtn'), emailEl=document.getElementB
       errTxt=document.getElementById('errorText'), togglePw=document.getElementById('togglePw'),
       toast=document.getElementById('toast'), toastMsg=document.getElementById('toastMsg');
 
-togglePw.onclick = () => { const t=pwEl.type==='text'; pwEl.type=t?'password':'text'; togglePw.textContent=t?'👁':'🙈'; };
+togglePw.onclick = () => { const t=pwEl.type==='text'; pwEl.type=t?'password':'text'; togglePw.textContent=t?'👁':'⌣'; };
 
 const showToast = m => { toastMsg.textContent=m; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),3000); };
 const showError = m => { errTxt.textContent=m; errMsg.classList.remove('show'); requestAnimationFrame(()=>errMsg.classList.add('show')); };

@@ -166,7 +166,8 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .menu-item-card.unavailable { opacity: 0.45; cursor: not-allowed; }
 .menu-item-card.in-cart { border-color: rgba(201,151,58,0.5); background: rgba(201,151,58,0.04); }
 .mic-img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--black-mid); flex-shrink: 0; }
-.mic-img-placeholder { width: 100%; aspect-ratio: 16 / 9; background: var(--black-mid); display: flex; align-items: center; justify-content: center; font-size: 28px; opacity: 0.2; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.mic-img-placeholder { width: 100%; aspect-ratio: 16 / 9; background: var(--black-mid); display: flex; align-items: center; justify-content: center; font-size: 28px; opacity: 0.45; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.mic-logo-placeholder { width: 60px; height: 60px; object-fit: contain; border-radius: 50%; filter: grayscale(20%); }
 .mic-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .mic-cat { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); }
 .mic-name { font-family: 'Cormorant Garamond', serif; font-size: 17px; color: var(--white); line-height: 1.1; }
