@@ -82,6 +82,14 @@ const STATUS_CFG = {
   billed: { icon: 'banknote', label: 'Billed', textColor: '#9b59b6' },
 };
 
+function getReservationMinutes(timeStr) {
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return null;
+  let hour = parseInt(match[1]) % 12;
+  if (match[3].toUpperCase() === 'PM') hour += 12;
+  return hour * 60 + parseInt(match[2]);
+}
+
 // Load tables immediately + real-time
 getDocs(collection(db, 'tables')).then(snap => {
   snap.forEach(d => {
@@ -114,6 +122,7 @@ onSnapshot(collection(db, 'tables'), snap => {
   tableDocsList.sort((a, b) => a.tableNumber - b.tableNumber);
   renderTablesGrid();
   updateTableCountStat();
+  checkReservationTimes();
 });
 
 function updateTableCountStat() {
@@ -159,19 +168,30 @@ function renderTablesGrid() {
             `}
           </div>
         ` : st === 'free' ? `
-          <div class="table-card-info muted">No waiter assigned</div>
-          ${(data?.reservations && data.reservations.length > 0) ? `
-            <div style="width:100%;margin-top:4px;">
-              ${data.reservations.map((r, i) => `
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:3px;">
-                  <span style="color:#c9973a;font-size:10px;"><i data-lucide="calendar-clock"></i> ${escapeHtml(r.guestName)} · ${escapeHtml(r.time)}</span>
-                  <button class="btn-sm" style="padding:1px 5px;font-size:9px;border-color:rgba(192,57,43,0.4);color:#e07070;" onclick="window._removeReservation(${n}, ${i})"><i data-lucide="x"></i></button>
-                </div>
-              `).join('')}
-            </div>
-          ` : ''}
-          <button class="btn-sm gold" style="margin-top:6px;width:100%;" onclick="window._openReserveModal(${n})"><i data-lucide="plus"></i> Reserve</button>
-        ` : `
+  <div class="table-card-info muted">No waiter assigned</div>
+  ${(data?.reservations && data.reservations.length > 0) ? `
+    <div style="width:100%;margin-top:4px;">
+      ${data.reservations.map((r, i) => {
+        const rMins = getReservationMinutes(r.time);
+        const now = new Date();
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const minsUntil = rMins - nowMins;
+        const urgentColor = minsUntil <= 60 ? '#e07070' : '#c9973a';
+        const urgentLabel = minsUntil <= 60 ? `⚠️ in ${minsUntil}m` : '';
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:3px;">
+            <span style="color:${urgentColor};font-size:10px;">
+              <i data-lucide="calendar-clock"></i> ${escapeHtml(r.guestName)} · ${escapeHtml(r.time)}
+              ${urgentLabel ? `<span style="color:#e07070;font-weight:700;"> ${urgentLabel}</span>` : ''}
+            </span>
+            <button class="btn-sm" style="padding:1px 5px;font-size:9px;border-color:rgba(192,57,43,0.4);color:#e07070;" onclick="window._removeReservation(${n}, ${i})"><i data-lucide="x"></i></button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : ''}
+  <button class="btn-sm gold" style="margin-top:6px;width:100%;" onclick="window._openReserveModal(${n})"><i data-lucide="plus"></i> Reserve</button>
+` : `
           <div class="table-card-info" style="color:${cfg.textColor}">${waiter ? `<i data-lucide="user"></i> ${escapeHtml(waiter)}` : 'No waiter assigned'}</div>
         `}
         <div style="display:flex;gap:6px;margin-top:4px;">
@@ -426,13 +446,7 @@ if (document.getElementById('clearAllModalConfirm')) {
   };
 }
 
-function getReservationMinutes(timeStr) {
-  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!match) return null;
-  let hour = parseInt(match[1]) % 12;
-  if (match[3].toUpperCase() === 'PM') hour += 12;
-  return hour * 60 + parseInt(match[2]);
-}
+
 
 function checkReservationTimes() {
   const now = new Date();
@@ -443,58 +457,64 @@ function checkReservationTimes() {
     const reservations = data?.reservations;
     if (!reservations || reservations.length === 0) return;
 
-    const upcoming = reservations
+    const mapped = reservations
       .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
       .filter(r => r.mins !== null)
       .sort((a, b) => a.mins - b.mins);
 
-    // Remove expired ones (30+ mins past reservation time = no show)
-    const stillValid = upcoming.filter(r => r.mins > nowMinutes - 30);
-    if (stillValid.length !== upcoming.length) {
+    if (mapped.length === 0) return;
+
+    // Anything 15+ mins past is expired
+    const expired = mapped.filter(r => (nowMinutes - r.mins) >= 15);
+    const valid = mapped.filter(r => (nowMinutes - r.mins) < 15);
+
+    if (expired.length > 0) {
       try {
-        const cleaned = stillValid.map(({ mins, ...r }) => r);
+        const cleaned = valid.map(({ mins, ...r }) => r);
+
+        // Check if the next valid reservation should immediately lock the table
+        const nextValid = valid[0];
+        const nextMinsUntil = nextValid ? nextValid.mins - nowMinutes : null;
+        const shouldLock = nextMinsUntil !== null && nextMinsUntil <= 30 && nextMinsUntil > 0;
+
         await updateDoc(doc(db, 'tables', data.docId), {
           reservations: cleaned,
           reservation: cleaned[0] || null,
-          status: cleaned.length === 0 ? 'free' : data.status,
+          status: cleaned.length === 0 ? 'free' : (shouldLock ? 'reserved' : 'free'),
           lastUpdated: serverTimestamp()
         });
-        showToast(`Expired reservation(s) cleared from Table ${entry.tableNumber}.`);
+
+        expired.forEach(r => {
+          showToast(`Table ${entry.tableNumber}: ${r.guestName} was 15 mins late — reservation cleared.`);
+        });
       } catch (err) { console.error(err); }
       return;
     }
 
-    const next = stillValid[0];
-    const minutesUntil = next.mins - nowMinutes;
-    const minutesLate = nowMinutes - next.mins; // positive = past reservation time
+    // No expired — check next upcoming
+    const next = valid[0];
+    if (!next) return;
 
-    // Within 30 mins → lock as reserved
-    if (minutesUntil <= 30 && minutesUntil > 0 && data.status === 'free') {
+    const minutesUntil = next.mins - nowMinutes;
+
+    // Within 30 mins and table is free → lock as reserved
+    if (minutesUntil <= 31 && minutesUntil > 0 && data.status === 'free') {
       try {
         await updateDoc(doc(db, 'tables', data.docId), {
           status: 'reserved', lastUpdated: serverTimestamp()
         });
-        showToast(`Table ${entry.tableNumber} is now reserved for ${next.guestName} at ${next.time}`);
+        showToast(`Table ${entry.tableNumber} locked — reserved for ${next.guestName} at ${next.time}`);
       } catch (err) { console.error(err); }
+      return;
     }
 
-    // Guest is 15 mins late → free the table, remove that reservation
-    if (data.status === 'reserved' && minutesLate >= 15) {
-      try {
-        const remaining = stillValid
-          .filter(r => r.mins !== next.mins)
-          .map(({ mins, ...r }) => r);
-
-        await updateDoc(doc(db, 'tables', data.docId), {
-          reservations: remaining,
-          reservation: remaining[0] || null,
-          status: 'free',
-          lastUpdated: serverTimestamp()
-        });
-        showToast(`Table ${entry.tableNumber}: ${next.guestName} was 15 mins late — table is now free.`);
-      } catch (err) { console.error(err); }
+    // Table occupied when reservation hits → warn only
+    const occupiedStatuses = ['walk-in', 'pending', 'preparing', 'served', 'billed'];
+    if (minutesUntil <= 30 && minutesUntil > 0 && occupiedStatuses.includes(data.status)) {
+      showToast(`⚠️ Table ${entry.tableNumber} is occupied but ${next.guestName} has a reservation at ${next.time}!`);
     }
   });
 }
+
 checkReservationTimes();
 setInterval(checkReservationTimes, 60 * 1000);
