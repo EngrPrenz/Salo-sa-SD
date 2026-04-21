@@ -46,6 +46,34 @@ if (document.getElementById('toast') && document.getElementById('toastMsg')) {
   showToast = m => { toastMsg.textContent = m; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); };
 }
 
+// ── Custom confirm modal helper ──────────────────────────────────────────────
+function showConfirm({ icon = '⚠️', title = 'Confirm Action', message = 'Are you sure?', okLabel = 'Confirm', onOk }) {
+  const modal = document.getElementById('confirmModal');
+  if (!modal) { if (onOk && window.confirm(message)) onOk(); return; }
+  document.getElementById('confirmIcon').textContent = icon;
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMessage').textContent = message;
+  const okBtn = document.getElementById('confirmOk');
+  okBtn.textContent = okLabel;
+  modal.classList.add('show');
+  if (window.lucide) lucide.createIcons();
+
+  const close = () => modal.classList.remove('show');
+  const cleanup = () => { okBtn.replaceWith(okBtn.cloneNode(true)); document.getElementById('confirmCancel').replaceWith(document.getElementById('confirmCancel').cloneNode(true)); document.getElementById('confirmModalClose').replaceWith(document.getElementById('confirmModalClose').cloneNode(true)); };
+
+  const freshOk = document.getElementById('confirmOk');
+  const freshCancel = document.getElementById('confirmCancel');
+  const freshClose = document.getElementById('confirmModalClose');
+
+  const handler = () => { close(); cleanup(); if (onOk) onOk(); };
+  const cancelHandler = () => { close(); cleanup(); };
+
+  freshOk.addEventListener('click', handler, { once: true });
+  freshCancel.addEventListener('click', cancelHandler, { once: true });
+  freshClose.addEventListener('click', cancelHandler, { once: true });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const sidebar = document.getElementById('sidebar');
 const overlay = document.getElementById('overlay');
 const hamburger = document.getElementById('hamburger');
@@ -294,15 +322,22 @@ if (document.getElementById('tableModalSave')) {
   };
 }
 
-window._deleteTable = async (tableNum) => {
+window._deleteTable = (tableNum) => {
   const data = tableStatuses[tableNum];
   if (!data) return;
   const label = data.name ? `"${data.name}" (Table ${tableNum})` : `Table ${tableNum}`;
-  if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
-  try {
-    await deleteDoc(doc(db, 'tables', data.docId));
-    showToast(`${label} deleted.`);
-  } catch (err) { showToast('Failed to delete table.'); console.error(err); }
+  showConfirm({
+    icon: '🗑️',
+    title: 'Delete Table',
+    message: `Delete ${label}? This cannot be undone.`,
+    okLabel: 'Delete',
+    onOk: async () => {
+      try {
+        await deleteDoc(doc(db, 'tables', data.docId));
+        showToast(`${label} deleted.`);
+      } catch (err) { showToast('Failed to delete table.'); console.error(err); }
+    }
+  });
 };
 
 window._openAddTableModal = () => openTableModal('add');
@@ -393,21 +428,30 @@ if (document.getElementById('reserveModalConfirm')) {
   };
 }
 
-window._removeReservation = async (tableNum, index) => {
-  if (!confirm(`Remove this reservation for Table ${tableNum}?`)) return;
+window._removeReservation = (tableNum, index) => {
   const data = tableStatuses[tableNum];
   if (!data) return;
-  try {
-    const updated = [...(data.reservations || [])];
-    updated.splice(index, 1);
-    await updateDoc(doc(db, 'tables', data.docId), {
-      reservations: updated,
-      status: updated.length === 0 ? 'free' : data.status,
-      reservation: updated.length > 0 ? updated[0] : null,
-      lastUpdated: serverTimestamp()
-    });
-    showToast(`Reservation removed from Table ${tableNum}.`);
-  } catch (err) { showToast('Failed to remove reservation.'); console.error(err); }
+  const res = (data.reservations || [])[index];
+  const guestLabel = res?.guestName ? `"${res.guestName}"` : 'this reservation';
+  showConfirm({
+    icon: '🗓️',
+    title: 'Remove Reservation',
+    message: `Remove ${guestLabel} from Table ${tableNum}?`,
+    okLabel: 'Remove',
+    onOk: async () => {
+      try {
+        const updated = [...(data.reservations || [])];
+        updated.splice(index, 1);
+        await updateDoc(doc(db, 'tables', data.docId), {
+          reservations: updated,
+          status: updated.length === 0 ? 'free' : data.status,
+          reservation: updated.length > 0 ? updated[0] : null,
+          lastUpdated: serverTimestamp()
+        });
+        showToast(`Reservation removed from Table ${tableNum}.`);
+      } catch (err) { showToast('Failed to remove reservation.'); console.error(err); }
+    }
+  });
 };
 
 if (document.getElementById('clearAllTablesBtn')) {

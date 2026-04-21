@@ -144,18 +144,74 @@ function renderStaff(staff) {
   if (staffBadge) { staffBadge.textContent = pending.length; staffBadge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
 }
 
+// ── Confirmation Modal Helper ──────────────────────────────────────────────
+function showConfirmModal({ icon, title, message, okLabel, okClass, onConfirm }) {
+  const overlay   = document.getElementById('confirmModal');
+  const iconWrap  = document.getElementById('confirmIcon');
+  const titleEl   = document.getElementById('confirmTitle');
+  const msgEl     = document.getElementById('confirmMessage');
+  const okBtn     = document.getElementById('confirmOk');
+  const cancelBtn = document.getElementById('confirmCancel');
+  const closeBtn  = document.getElementById('confirmModalClose');
+
+  if (!overlay) { if (confirm(message)) onConfirm(); return; }
+
+  iconWrap.textContent  = icon  || '⚠️';
+  titleEl.textContent   = title || 'Confirm Action';
+  msgEl.textContent     = message || 'Are you sure?';
+  okBtn.textContent     = okLabel || 'Confirm';
+  okBtn.className       = `btn-sm ${okClass || 'gold'}`;
+
+  overlay.classList.add('show');
+
+  const close = () => overlay.classList.remove('show');
+
+  const onOk = () => { close(); onConfirm(); cleanup(); };
+  const onCancel = () => { close(); cleanup(); };
+
+  function cleanup() {
+    okBtn.removeEventListener('click', onOk);
+    cancelBtn.removeEventListener('click', onCancel);
+    closeBtn.removeEventListener('click', onCancel);
+    overlay.removeEventListener('click', onOverlayClick);
+  }
+
+  function onOverlayClick(e) { if (e.target === overlay) onCancel(); }
+
+  okBtn.addEventListener('click', onOk);
+  cancelBtn.addEventListener('click', onCancel);
+  closeBtn.addEventListener('click', onCancel);
+  overlay.addEventListener('click', onOverlayClick);
+}
+
 window._approveStaff = (uid, name) => {
-  if (!confirm(`Approve ${name || 'this waiter'} and grant them access to the system?`)) return;
-  updateDoc(doc(db, 'Users', uid), { status: 'approved', approvedAt: serverTimestamp() })
-  .then(() => { showToast(`${name || 'Waiter'} has been approved.`); loadStaff(); })
-  .catch(e => { console.error(e); showToast('Failed to approve.'); });
+  showConfirmModal({
+    icon: '✅',
+    title: `Approve ${name || 'this waiter'}?`,
+    message: `${name || 'This waiter'} will be granted access to the system and can log in immediately.`,
+    okLabel: '✓ Approve',
+    okClass: 'gold',
+    onConfirm: () => {
+      updateDoc(doc(db, 'Users', uid), { status: 'approved', approvedAt: serverTimestamp() })
+      .then(() => { showToast(`${name || 'Waiter'} has been approved.`); loadStaff(); })
+      .catch(e => { console.error(e); showToast('Failed to approve.'); });
+    }
+  });
 };
 
 window._rejectStaff = (uid, name) => {
-  if (!confirm(`Reject or suspend ${name || 'this waiter'}? They will not be able to log in.`)) return;
-  updateDoc(doc(db, 'Users', uid), { status: 'rejected', rejectedAt: serverTimestamp() })
-  .then(() => { showToast(`${name || 'Waiter'} has been rejected.`); loadStaff(); })
-  .catch(e => { console.error(e); showToast('Failed to reject.'); });
+  showConfirmModal({
+    icon: '🚫',
+    title: `Reject or suspend ${name || 'this waiter'}?`,
+    message: `${name || 'This waiter'} will lose access and will not be able to log in. You can re-approve them later.`,
+    okLabel: '✕ Reject',
+    okClass: 'danger',
+    onConfirm: () => {
+      updateDoc(doc(db, 'Users', uid), { status: 'rejected', rejectedAt: serverTimestamp() })
+      .then(() => { showToast(`${name || 'Waiter'} has been rejected.`); loadStaff(); })
+      .catch(e => { console.error(e); showToast('Failed to reject.'); });
+    }
+  });
 };
 
 onAuthStateChanged(auth, async user => {

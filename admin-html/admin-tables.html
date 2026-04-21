@@ -173,6 +173,24 @@
   </div>
 </div>
 
+  <!-- ── Confirmation Modal ── -->
+  <div class="confirm-modal-overlay" id="confirmModal">
+    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="confirm-modal-head">
+        <div class="confirm-modal-icon-wrap"><span id="confirmIcon">⚠️</span></div>
+        <button class="confirm-modal-close" id="confirmModalClose" aria-label="Close">✕</button>
+      </div>
+      <div class="confirm-modal-body">
+        <div class="confirm-modal-title" id="confirmTitle">Confirm Action</div>
+        <div class="confirm-modal-message" id="confirmMessage">Are you sure?</div>
+      </div>
+      <div class="confirm-modal-foot">
+        <button class="btn-sm" id="confirmCancel">Cancel</button>
+        <button class="btn-sm danger" id="confirmOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="../admin-js/admin-tables.js"></script>
 
   <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
