@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="../image/logo.png"/>
+  <title>Salo sa Antipolo — Reports</title>
+  <link rel="stylesheet" href="../admin.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* ═══════════════════════════════════════
+       REPORTS PAGE — LAYOUT OVERRIDES
+       (all scoped so they don't break other pages)
+    ═══════════════════════════════════════ */
+
+    /* ── The view itself must scroll, not clip ── */
+    .view.active {
+      overflow-y: auto !important;
+      height: calc(100vh - var(--topbar-h));
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 24px;
+      min-height: unset !important;
+    }
+
+    /* ── content-row: stack panels side by side, let height be natural ── */
+    .content-row {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 16px;
+      min-height: unset !important;  /* remove the old flex min-height:0 */
+    }
+
+    /* ── panels must NOT clip their calendar content ── */
+    .panel {
+      overflow: visible !important;
+      min-height: unset !important;
+    }
+    /* but panel-body / table-wrap still scroll internally */
+    .panel .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 320px; }
+
+    /* ── Toolbar ── */
+    .rpt-toolbar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0;
+    }
+    .month-year-select {
+      background: var(--black-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--white);
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 36px 9px 14px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235e5e5e' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    .month-year-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0.12); }
+    .month-year-select option { background: #1c1c1c; }
+
+    .toolbar-subtitle {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 17px;
+      font-style: italic;
+      color: var(--gold-light);
+      opacity: 0.7;
+    }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .kpi-card {
+      background: var(--black-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 20px 16px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s;
+      animation: kpiIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+      min-width: 0; /* allow shrinking */
+    }
+    @keyframes kpiIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+    .kpi-card:nth-child(2) { animation-delay: 0.1s; }
+    .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+    .kpi-card:hover { transform: translateY(-3px); border-color: rgba(201,151,58,0.25); box-shadow: 0 12px 28px rgba(0,0,0,0.35); }
+    .kpi-card.gold {
+      background: linear-gradient(135deg, rgba(201,151,58,0.1) 0%, rgba(201,151,58,0.03) 100%);
+      border-color: rgba(201,151,58,0.3);
+    }
+    .kpi-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    .kpi-card.gold::after { opacity: 1; }
+    .kpi-card:not(.gold):hover::after { opacity: 0.5; }
+    .kpi-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .kpi-label i { color: var(--gold); opacity: 0.7; flex-shrink: 0; }
+    .kpi-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(20px, 2.4vw, 34px); /* responsive — shrinks on narrow panels */
+      line-height: 1;
+      color: var(--gold-light);
+      text-shadow: 0 0 24px rgba(201,151,58,0.2);
+      transition: transform 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .kpi-card:hover .kpi-value { transform: scale(1.02); }
+    .kpi-sub {
+      margin-top: 6px;
+      font-size: 11px; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .kpi-sparkline {
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 80px; height: 40px;
+      opacity: 0.15;
+    }
+
+    /* ── Calendar panel — let it grow naturally ── */
+    #calendarPanel {
+      overflow: hidden !important; /* clip corners only, not content */
+    }
+    .cal-wrap { display: flex; flex-direction: column; }
+    .cal-header {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .cal-dow-cell {
+      padding: 10px 4px;
+      text-align: center;
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .cal-dow-cell:first-child { color: rgba(201,151,58,0.5); }
+    .cal-dow-cell:last-child  { color: rgba(201,151,58,0.5); }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      background: var(--border);
+    }
+    .cal-day-cell {
+      background: var(--black-card);
+      min-height: 76px;
+      padding: 8px 6px;
+      position: relative;
+      transition: background 0.15s;
+      overflow: hidden;
+    }
+    .cal-day-cell.empty { background: rgba(10,10,10,0.4); }
+    .cal-day-cell.today { background: rgba(201,151,58,0.06); }
+    .cal-day-cell.today .cal-day-num { color: var(--gold); font-weight: 700; }
+    .cal-day-cell.has-sales { cursor: pointer; background: var(--black-mid); }
+    .cal-day-cell.has-sales:hover { background: rgba(201,151,58,0.09); }
+    .cal-day-cell.selected {
+      background: rgba(201,151,58,0.13) !important;
+      box-shadow: inset 0 0 0 1.5px rgba(201,151,58,0.5);
+    }
+    .cal-day-num {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-muted);
+      line-height: 1; margin-bottom: 5px;
+    }
+    .cal-day-rev {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 12px; font-weight: 600;
+      color: var(--gold-light);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .cal-day-cnt { font-size: 9px; color: var(--text-muted); margin-top: 3px; }
+    .cal-day-heat {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      transition: height 0.2s;
+    }
+    .cal-day-cell:hover .cal-day-heat { height: 5px; }
+    .cal-day-cell.no-sale .cal-day-num { color: #2e2e2e; }
+
+    /* ── Day detail panel ── */
+    #dayDetailPanel { overflow: hidden !important; }
+    .day-kpis {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      padding: 14px;
+      flex-shrink: 0;
+    }
+    .day-kpi {
+      background: var(--black-mid);
+      border-radius: 12px; padding: 12px;
+      display: flex; flex-direction: column; gap: 4px;
+      min-width: 0;
+    }
+    .day-kpi.gold { background: rgba(201,151,58,0.07); border: 1px solid rgba(201,151,58,0.18); }
+    .day-kpi-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--text-muted);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .day-kpi-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(18px, 1.8vw, 24px);
+      line-height: 1; color: var(--gold-light);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .panel-header-sub {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--text-muted);
+      padding: 0 16px 8px;
+    }
+
+    /* ── Top items ── */
+    #topItemsBody { overflow-y: auto; max-height: 340px; }
+    .top-items-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--black-mid);
+      font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .ti-h-rank  { width: 22px; flex-shrink: 0; }
+    .ti-h-name  { flex: 1; }
+    .ti-h-cat   { width: 90px; flex-shrink: 0; }
+    .ti-h-sold  { width: 44px; text-align: right; flex-shrink: 0; }
+    .ti-h-rev   { width: 96px; text-align: right; flex-shrink: 0; }
+
+    .top-item-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(42,42,42,0.5);
+      transition: background 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .top-item-row::before {
+      content: '';
+      position: absolute; top: 0; left: 0; bottom: 0;
+      background: rgba(201,151,58,0.03);
+      width: var(--bar-w, 0%);
+      transition: width 0.8s cubic-bezier(0.16,1,0.3,1);
+    }
+    .top-item-row:hover { background: rgba(201,151,58,0.04); }
+    .top-item-row:last-child { border-bottom: none; }
+    .top-item-rank {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--black-light);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .top-item-rank.r1 { background: var(--gold); color: var(--black); }
+    .top-item-rank.r2 { background: rgba(232,192,122,0.3); color: var(--gold-light); }
+    .top-item-rank.r3 { background: rgba(201,151,58,0.15); color: var(--gold); }
+    .top-item-name {
+      flex: 1; font-size: 13px; font-weight: 500; color: var(--white);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .top-item-cat {
+      font-size: 10px; color: var(--text-muted);
+      background: var(--black-light); border-radius: 100px;
+      padding: 2px 7px; white-space: nowrap; flex-shrink: 0;
+      width: 90px; overflow: hidden; text-overflow: ellipsis;
+      text-align: center;
+    }
+    .top-item-sold {
+      font-size: 12px; font-weight: 700; color: var(--gold);
+      width: 44px; text-align: right; flex-shrink: 0;
+    }
+    .top-item-rev {
+      font-size: 12px; font-weight: 600; color: var(--off-white);
+      width: 96px; text-align: right; flex-shrink: 0;
+    }
+
+    /* ── Status chart ── */
+    .chart-container { padding: 16px; flex: 1; }
+    .bar-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 12px;
+    }
+    .bar-row:last-child { margin-bottom: 0; }
+    .bar-label {
+      font-size: 11px; color: var(--text-muted); font-weight: 500;
+      width: 72px; flex-shrink: 0;
+    }
+    .bar-track {
+      flex: 1; height: 8px; background: var(--black-mid);
+      border-radius: 100px; overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%; border-radius: 100px;
+      transition: width 0.8s cubic-bezier(0.16,1,0.3,1);
+    }
+    .bar-fill.pending  { background: var(--orange); }
+    .bar-fill.preparing{ background: var(--blue); }
+    .bar-fill.served   { background: var(--green); }
+    .bar-fill.paid     { background: var(--gold); }
+    .bar-fill.cancelled{ background: var(--red); }
+    .bar-count {
+      font-size: 12px; font-weight: 700; color: var(--white);
+      width: 28px; text-align: right; flex-shrink: 0;
+    }
+    .bar-pct {
+      font-size: 10px; color: var(--text-muted);
+      width: 32px; text-align: right; flex-shrink: 0;
+    }
+
+    /* ── Empty states ── */
+    .empty-detail {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px; padding: 36px 20px; text-align: center;
+    }
+    .empty-detail-icon { font-size: 28px; opacity: 0.2; }
+    .empty-detail-text { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .top-item-rev { width: 90px; }
+    }
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .kpi-grid > :last-child { grid-column: 1 / -1; }
+      .content-row { grid-template-columns: 1fr !important; }
+      #dayDetailPanel { order: -1; } /* show day detail above calendar on mobile */
+    }
+    @media (max-width: 600px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .cal-day-cell { min-height: 52px; }
+      .cal-day-rev { font-size: 10px; }
+      .cal-day-cnt { display: none; }
+      .top-item-cat, .ti-h-cat { display: none; }
+      .top-item-rev, .ti-h-rev { width: 72px; font-size: 11px; }
+      .bar-label { width: 60px; }
+      .bar-pct { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="bg-dots"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+      <div class="brand-text">
+        <span class="brand-name">Salo sa</span>
+        <em class="brand-italic">Antipolo</em>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="admin-overview.html" class="nav-item" data-view="overview">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
+      </a>
+      <a href="admin-orders.html" class="nav-item" data-view="orders">
+        <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
+        <span class="nav-badge" id="ordersBadge">0</span>
+      </a>
+      <a href="admin-tables.html" class="nav-item" data-view="tables">
+        <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
+      </a>
+      <a href="admin-menu.html" class="nav-item" data-view="menu">
+        <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
+      </a>
+
+      <div class="nav-section-label">Management</div>
+      <a href="admin-billing.html" class="nav-item" data-view="billing">
+        <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
+      </a>
+      <a href="admin-staff.html" class="nav-item" data-view="staff">
+        <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+      </a>
+      <a href="admin-reports.html" class="nav-item active" data-view="reports">
+        <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatarSidebar">A</div>
+      <div class="user-info">
+        <span class="user-name" id="userNameSidebar">Admin</span>
+        <span class="user-role">Administrator</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
+    </div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-left">
+        <h1 class="page-title" id="pageTitle">Reports</h1>
+        <span class="page-date" id="pageDate"></span>
+      </div>
+      <div class="topbar-right">
+        <div class="live-indicator"><span class="live-dot"></span>Live</div>
+        <div class="topbar-user">
+          <span id="topbarName">Admin</span>
+          <div class="user-avatar sm" id="userAvatarTop">A</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="view active">
+
+      <!-- Toolbar -->
+      <div class="rpt-toolbar">
+        <select class="month-year-select" id="rptMonthSelect">
+          <option value="">Select Month</option>
+        </select>
+        <span class="toolbar-subtitle" id="calTitle"></span>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card gold">
+          <div class="kpi-label"><i data-lucide="banknote" style="width:12px;height:12px;"></i>Monthly Revenue</div>
+          <div class="kpi-value" id="rptMonthRev">—</div>
+          <div class="kpi-sub" id="rptMonthRevSub">Select a month</div>
+          <svg class="kpi-sparkline" viewBox="0 0 80 40" preserveAspectRatio="none" id="sparkRev">
+            <polyline fill="none" stroke="#c9973a" stroke-width="2" points="0,35 20,28 35,22 45,15 60,18 80,8"/>
+          </svg>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><i data-lucide="shopping-bag" style="width:12px;height:12px;"></i>Total Orders</div>
+          <div class="kpi-value" id="rptMonthOrders">—</div>
+          <div class="kpi-sub" id="rptMonthOrdersSub">Paid orders this month</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><i data-lucide="receipt" style="width:12px;height:12px;"></i>Avg. Per Order</div>
+          <div class="kpi-value" id="rptMonthAvg">—</div>
+          <div class="kpi-sub">Average order value</div>
+        </div>
+      </div>
+
+      <!-- Calendar + Day Detail -->
+      <div class="content-row panel-anim">
+        <div class="panel wide" id="calendarPanel">
+          <div class="panel-header">
+            <span class="panel-title">Sales Calendar</span>
+            <span class="panel-subtitle">Click any day to view details</span>
+          </div>
+          <div class="cal-wrap">
+            <div class="cal-header">
+              <div class="cal-dow-cell">Sun</div>
+              <div class="cal-dow-cell">Mon</div>
+              <div class="cal-dow-cell">Tue</div>
+              <div class="cal-dow-cell">Wed</div>
+              <div class="cal-dow-cell">Thu</div>
+              <div class="cal-dow-cell">Fri</div>
+              <div class="cal-dow-cell">Sat</div>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+        </div>
+
+        <div class="panel" id="dayDetailPanel">
+          <div class="panel-header">
+            <span class="panel-title" id="dayDetailTitle">Daily Summary</span>
+          </div>
+
+          <div class="day-kpis">
+            <div class="day-kpi gold">
+              <div class="day-kpi-label"><i data-lucide="banknote" style="width:10px;height:10px;"></i>Revenue</div>
+              <div class="day-kpi-value" id="dayDetailRev">₱0</div>
+            </div>
+            <div class="day-kpi">
+              <div class="day-kpi-label"><i data-lucide="shopping-bag" style="width:10px;height:10px;"></i>Orders</div>
+              <div class="day-kpi-value" id="dayDetailOrders">0</div>
+            </div>
+          </div>
+
+          <div class="panel-header-sub">Items Sold</div>
+          <div class="table-wrap" style="flex:1;">
+            <table class="data-table compact">
+              <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+              <tbody id="dayDetailItems">
+                <tr><td colspan="3">
+                  <div class="empty-detail">
+                    <div class="empty-detail-icon">📅</div>
+                    <div class="empty-detail-text">Select a day from<br>the calendar</div>
+                  </div>
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Items + Status Chart -->
+      <div class="content-row panel-anim" style="animation-delay:0.32s;">
+        <div class="panel wide">
+          <div class="panel-header">
+            <span class="panel-title">Top Selling Items</span>
+            <span class="panel-subtitle">This month · ranked by quantity</span>
+          </div>
+          <div class="top-items-header">
+            <span class="ti-h-rank"></span>
+            <span class="ti-h-name">Item</span>
+            <span class="ti-h-cat">Category</span>
+            <span class="ti-h-sold">Sold</span>
+            <span class="ti-h-rev">Revenue</span>
+          </div>
+          <div id="topItemsBody" style="overflow-y:auto; flex:1; min-height:120px;">
+            <div class="empty-detail"><div class="empty-detail-icon">🍽️</div><div class="empty-detail-text">Loading…</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Order Status</span></div>
+          <div class="chart-container">
+            <div class="chart-bars" id="statusChart"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end .view -->
+  </div><!-- end .main -->
+
+  <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
+
+  <script type="module" src="../admin-js/admin-reports.js"></script>
+
+  <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
+</body>
+</html>

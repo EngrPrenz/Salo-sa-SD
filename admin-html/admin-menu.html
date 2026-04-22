@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="../image/logo.png"/>
+  <title>Salo sa Antipolo — Menu</title>
+  <link rel="stylesheet" href="../admin.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    .loading-spin { animation: spin 0.9s linear infinite; color: var(--gold); opacity: 0.7; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Category dropdown ── */
+    .cat-dropdown { position: relative; }
+    .cat-dropdown-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--black-card); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text-muted);
+      font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+      padding: 8px 14px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+      white-space: nowrap; min-width: 180px;
+    }
+    .cat-dropdown-btn:hover { border-color: rgba(201,151,58,0.4); color: var(--gold); }
+    .cat-dropdown-btn.open { border-color: rgba(201,151,58,0.5); color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0.1); }
+    .cat-dropdown-icon { color: var(--gold); opacity: 0.8; flex-shrink: 0; display: flex; }
+    .cat-dropdown-label { flex: 1; text-align: left; }
+    .cat-dropdown-count {
+      background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.25);
+      color: var(--gold); font-size: 10px; font-weight: 700;
+      padding: 1px 7px; border-radius: 100px; min-width: 22px; text-align: center;
+    }
+    .cat-dropdown-caret { flex-shrink: 0; transition: transform 0.2s; }
+    .cat-dropdown-btn.open .cat-dropdown-caret { transform: rotate(180deg); }
+    .cat-dropdown-menu {
+      position: absolute; top: calc(100% + 6px); left: 0;
+      min-width: 220px; z-index: 300;
+      background: var(--black-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 6px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
+      display: none; flex-direction: column; gap: 2px;
+      animation: dropIn 0.18s cubic-bezier(0.16,1,0.3,1);
+    }
+    .cat-dropdown-menu.show { display: flex; }
+    @keyframes dropIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+    .cat-dropdown-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      width: 100%; background: none; border: none;
+      border-radius: 8px; padding: 9px 12px;
+      font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+      color: var(--text-muted); cursor: pointer; transition: background 0.12s, color 0.12s;
+      text-align: left;
+    }
+    .cat-dropdown-item:hover { background: rgba(255,255,255,0.05); color: var(--white); }
+    .cat-dropdown-item.active { background: var(--gold-dim); color: var(--gold); }
+    .cat-dropdown-item-name { flex: 1; }
+    .cat-dropdown-item-count {
+      font-size: 10px; font-weight: 700; color: var(--text-muted);
+      background: var(--black-mid); border-radius: 100px;
+      padding: 1px 8px; flex-shrink: 0;
+    }
+    .cat-dropdown-item.active .cat-dropdown-item-count { background: rgba(201,151,58,0.15); color: var(--gold); }
+
+    /* ── Bento time-window tag ── */
+    .menu-card-time-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 500; padding: 3px 9px;
+      border-radius: 20px; margin-top: 4px;
+    }
+    .time-tag-open { background: rgba(201,151,58,0.12); border: 1px solid rgba(201,151,58,0.35); color: var(--gold); }
+    .time-tag-closed { background: rgba(192,57,43,0.12); border: 1px solid rgba(192,57,43,0.3); color: #e07070; }
+
+    /* ── Custom modal overlay for this page ── */
+    .page-modal-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .page-modal-overlay.show { display: flex; }
+    .page-modal-box {
+      background: var(--black-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      width: 100%; max-width: 500px;
+      max-height: 90vh; overflow-y: auto;
+      animation: modalIn 0.28s cubic-bezier(0.16,1,0.3,1);
+      position: relative; z-index: 1;
+    }
+    .page-modal-box.sm { max-width: 380px; }
+    @keyframes modalIn { from{opacity:0;transform:scale(0.96) translateY(10px)} to{opacity:1;transform:none} }
+    .page-modal-head {
+      padding: 20px 24px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .page-modal-title {
+      font-size: 16px; font-weight: 600; color: var(--white);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .page-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    .page-modal-foot {
+      padding: 14px 24px 20px;
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+    .page-modal-foot .btn-sm { padding: 9px 20px; font-size: 13px; border-radius: 9px; }
+    .page-modal-foot .btn-sm:not(.gold):not(.danger) { background: transparent; border-color: var(--border); color: var(--text-muted); }
+    .page-modal-foot .btn-sm:not(.gold):not(.danger):hover { border-color: rgba(255,255,255,0.15); color: var(--white); background: rgba(255,255,255,0.04); }
+    .page-modal-foot .btn-sm.gold { background: var(--gold-dim); border-color: rgba(201,151,58,0.4); color: var(--gold); }
+    .page-modal-foot .btn-sm.gold:hover { background: var(--gold); color: var(--black); }
+    .delete-icon-wrap {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--red-dim); border: 1px solid rgba(192,57,43,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="bg-dots"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+      <div class="brand-text">
+        <span class="brand-name">Salo sa</span>
+        <em class="brand-italic">Antipolo</em>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="admin-overview.html" class="nav-item" data-view="overview">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
+      </a>
+      <a href="admin-orders.html" class="nav-item" data-view="orders">
+        <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
+        <span class="nav-badge" id="ordersBadge">0</span>
+      </a>
+      <a href="admin-tables.html" class="nav-item" data-view="tables">
+        <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
+      </a>
+      <a href="admin-menu.html" class="nav-item active" data-view="menu">
+        <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
+      </a>
+
+      <div class="nav-section-label">Management</div>
+      <a href="admin-billing.html" class="nav-item" data-view="billing">
+        <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
+      </a>
+      <a href="admin-staff.html" class="nav-item" data-view="staff">
+        <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+      </a>
+      <a href="admin-reports.html" class="nav-item" data-view="reports">
+        <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatarSidebar">A</div>
+      <div class="user-info">
+        <span class="user-name" id="userNameSidebar">Admin</span>
+        <span class="user-role">Administrator</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
+    </div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-left">
+        <h1 class="page-title" id="pageTitle">Menu</h1>
+        <span class="page-date" id="pageDate"></span>
+      </div>
+      <div class="topbar-right">
+        <div class="live-indicator"><span class="live-dot"></span>Live</div>
+        <div class="topbar-user">
+          <span id="topbarName">Admin</span>
+          <div class="user-avatar sm" id="userAvatarTop">A</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="view active">
+      <div class="view-toolbar">
+        <div class="search-wrap">
+          <span class="search-icon"><i class="material-icons">&#xe8b6;</i></span>
+          <input type="text" class="search-input" id="menuSearch" placeholder="Search menu items..."/>
+        </div>
+        <div id="menuCategoryTabs"></div>
+        <div class="toolbar-right">
+          <button class="btn-sm gold" id="addMenuItemBtn">+ Add Item</button>
+        </div>
+      </div>
+      <div class="menu-grid" id="menuGrid">
+        <div class="empty-state">
+          <svg class="loading-spin" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          Loading menu…
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
+
+  <!-- ── Menu Item Modal ── -->
+  <div class="page-modal-overlay" id="menuModal">
+    <div class="page-modal-box">
+      <div class="page-modal-head">
+        <span class="page-modal-title" id="menuModalTitle">Add Menu Item</span>
+        <button class="modal-close" id="menuModalClose">✕</button>
+      </div>
+      <div class="page-modal-body">
+        <div class="form-group">
+          <label>Item Photo</label>
+          <div class="img-upload-zone" id="imgUploadZone">
+            <img id="imgPreview" class="img-preview" src="" alt=""/>
+            <div class="img-upload-overlay">
+              <button class="img-remove-btn" id="imgRemoveBtn" title="Remove image">✕</button>
+            </div>
+            <div class="img-upload-strip">
+              <span class="img-strip-name" id="imgStripName"></span>
+              <span class="img-strip-change">Click to change</span>
+            </div>
+            <div class="img-upload-icon-wrap" id="imgIconWrap">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <span class="img-upload-hint" id="imgHint">Click or drag photo here</span>
+            <span class="img-upload-sub" id="imgSub">JPG · PNG · WEBP · max 2 MB</span>
+            <input type="file" id="menuItemImage" accept="image/*" style="display:none;"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Item Name</label>
+          <input type="text" id="menuItemName" placeholder="e.g. Crispy Pata"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Price (₱)</label>
+            <input type="number" id="menuItemPrice" placeholder="0.00"/>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <input type="text" id="menuItemCategory" placeholder="e.g. Main Course"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="menuItemDesc" placeholder="Short description…"/>
+        </div>
+        <div class="form-group">
+          <label>Availability</label>
+          <select id="menuItemAvail" aria-label="Availability">
+            <option value="true">Available</option>
+            <option value="false">Unavailable</option>
+          </select>
+        </div>
+      </div>
+      <div class="page-modal-foot">
+        <button class="btn-sm" id="menuModalCancel">Cancel</button>
+        <button class="btn-sm gold" id="menuModalSave">Save Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Custom Delete Confirm Modal ── -->
+  <div class="page-modal-overlay" id="confirmModal">
+    <div class="page-modal-box sm">
+      <div class="page-modal-head">
+        <span class="page-modal-title">
+          <span class="delete-icon-wrap">🗑️</span>
+          Delete Item
+        </span>
+        <button class="modal-close" id="confirmModalClose">✕</button>
+      </div>
+      <div class="page-modal-body" style="padding:18px 24px 4px;">
+        <p style="font-size:14px;color:var(--text-muted);line-height:1.65;margin:0;">
+          Are you sure you want to delete
+          <strong id="confirmItemName" style="color:var(--white);font-weight:600;"></strong>?
+          <br/>This action cannot be undone.
+        </p>
+      </div>
+      <div class="page-modal-foot">
+        <button class="btn-sm" id="confirmCancelBtn">Cancel</button>
+        <button class="btn-sm danger" id="confirmDeleteBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../admin-js/admin-menu.js"></script>
+  <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
+</body>
+</html>

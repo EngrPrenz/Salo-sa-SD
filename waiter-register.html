@@ -3,104 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="image/logo.png"/>
   <title>Salo sa Antipolo — Waiter Registration</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --black: #0a0a0a; --black-card: #141414; --black-mid: #1c1c1c; --black-light: #242424;
-      --border: #2a2a2a; --gold: #c9973a; --gold-light: #e8c07a; --gold-dim: rgba(201,151,58,0.12);
-      --white: #ffffff; --text-muted: #5e5e5e;
-    }
-    html, body { height: 100%; font-family: 'Outfit', sans-serif; }
-    body { min-height: 100vh; background: var(--black); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    .bg { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at 20% 50%, rgba(201,151,58,0.07) 0%, transparent 55%), radial-gradient(ellipse at 80% 30%, rgba(201,151,58,0.04) 0%, transparent 45%), var(--black); }
-    .bg-dots { position: fixed; inset: 0; z-index: 0; opacity: 0.05; background-image: radial-gradient(circle, var(--gold) 1px, transparent 1px); background-size: 32px 32px; }
-    .corner { position: fixed; z-index: 0; width: 160px; height: 160px; }
-    .corner-tl { top:0;left:0; border-top:1px solid rgba(201,151,58,0.18); border-left:1px solid rgba(201,151,58,0.18); }
-    .corner-tr { top:0;right:0; border-top:1px solid rgba(201,151,58,0.18); border-right:1px solid rgba(201,151,58,0.18); }
-    .corner-bl { bottom:0;left:0; border-bottom:1px solid rgba(201,151,58,0.18); border-left:1px solid rgba(201,151,58,0.18); }
-    .corner-br { bottom:0;right:0; border-bottom:1px solid rgba(201,151,58,0.18); border-right:1px solid rgba(201,151,58,0.18); }
-
-    .page { position: relative; z-index: 1; width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
-
-    .card { width: 100%; max-width: 480px; background: var(--black-card); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; box-shadow: 0 0 0 1px rgba(201,151,58,0.06), 0 40px 80px rgba(0,0,0,0.7); animation: cardIn 0.65s cubic-bezier(0.16,1,0.3,1) both; }
-    @keyframes cardIn { from{opacity:0;transform:translateY(32px) scale(0.97)} to{opacity:1;transform:none} }
-    .card-strip { height: 3px; background: linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-light) 60%, var(--gold) 80%, transparent); }
-    .card-header { padding: 30px 40px 24px; border-bottom: 1px solid var(--border); }
-    .role-badge { display: inline-flex; align-items: center; gap: 7px; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.28); color: var(--gold); font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; padding: 5px 12px; border-radius: 100px; margin-bottom: 14px; }
-    .role-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: blink 2s ease-in-out infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .card-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; color: var(--white); line-height: 1.1; margin-bottom: 6px; }
-    .card-title em { font-style: italic; color: var(--gold-light); }
-    .card-subtitle { font-size: 13px; color: var(--text-muted); font-weight: 300; }
-    .card-body { padding: 26px 40px 32px; }
-
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
-    input { width: 100%; padding: 12px 15px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 15px; color: var(--white); background: var(--black-mid); transition: all 0.2s; outline: none; }
-    input::placeholder { color: #3a3a3a; }
-    input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0.1); background: var(--black-light); }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .input-wrap { position: relative; }
-    .input-wrap input { padding-right: 46px; }
-    .toggle-pw { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 15px; padding: 4px; transition: color 0.2s; }
-    .toggle-pw:hover { color: var(--gold); }
-
-    .pw-strength { display: flex; gap: 4px; margin-top: 8px; }
-    .pw-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.3s; }
-    .pw-bar.weak { background: #e74c3c; }
-    .pw-bar.fair { background: var(--gold); }
-    .pw-bar.strong { background: #27ae60; }
-
-    .error-msg { display: none; align-items: center; gap: 8px; padding: 11px 14px; background: rgba(192,57,43,0.1); border: 1px solid rgba(192,57,43,0.28); border-radius: 8px; font-size: 13px; color: #e07070; margin-bottom: 16px; }
-    .error-msg.show { display: flex; animation: shake 0.3s ease; }
-    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
-
-    .info-box { display: flex; gap: 10px; padding: 12px 14px; background: rgba(201,151,58,0.08); border: 1px solid rgba(201,151,58,0.2); border-radius: 10px; font-size: 12px; color: var(--gold-light); margin-bottom: 18px; line-height: 1.5; }
-    .info-box-icon { font-size: 16px; flex-shrink: 0; }
-
-    .btn-register { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--gold), #a87820); color: var(--black); border: none; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; margin-top: 4px; }
-    .btn-register::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, var(--gold-light), var(--gold)); opacity: 0; transition: opacity 0.3s; }
-    .btn-register:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(201,151,58,0.3); }
-    .btn-register:hover::before { opacity: 1; }
-    .btn-register:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
-    .btn-text { position: relative; z-index: 1; }
-    .btn-spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.2); border-top-color: var(--black); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto; position: relative; z-index: 1; }
-    @keyframes spin { to{transform:rotate(360deg)} }
-    .btn-register.loading .btn-text { display: none; }
-    .btn-register.loading .btn-spinner { display: block; }
-
-    .card-footer { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-    .footer-text { font-size: 11px; color: #3a3a3a; }
-    .switch-link { font-size: 12px; font-weight: 600; color: var(--gold); text-decoration: none; transition: color 0.2s; }
-    .switch-link:hover { color: var(--gold-light); }
-
-    /* Success state */
-    .success-state { display: none; flex-direction: column; align-items: center; text-align: center; padding: 40px 40px 44px; }
-    .success-state.show { display: flex; animation: cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both; }
-    .success-icon { font-size: 56px; margin-bottom: 20px; }
-    .success-title { font-family: 'Cormorant Garamond', serif; font-size: 32px; color: var(--white); margin-bottom: 10px; }
-    .success-title em { font-style: italic; color: var(--gold-light); }
-    .success-desc { font-size: 14px; color: var(--text-muted); line-height: 1.7; margin-bottom: 28px; max-width: 340px; }
-    .success-steps { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
-    .step { display: flex; align-items: center; gap: 14px; padding: 13px 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; text-align: left; }
-    .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .step-text { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
-    .step-text strong { color: var(--white); }
-    .btn-back { padding: 12px 28px; background: none; border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-    .btn-back:hover { border-color: var(--gold); color: var(--gold); }
-
-    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); padding: 12px 22px; background: var(--black-card); border: 1px solid var(--gold); color: var(--gold-light); border-radius: 100px; font-size: 14px; font-weight: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 10px; opacity: 0; transition: all 0.4s cubic-bezier(0.16,1,0.3,1); z-index: 999; white-space: nowrap; }
-    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-    .toast-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
-
-    @media (max-width: 520px) {
-      .card-header, .card-body { padding-left: 24px; padding-right: 24px; }
-      .form-row { grid-template-columns: 1fr; }
-      .success-state { padding: 32px 24px 36px; }
-    }
-  </style>
+  <link rel="stylesheet" href="waiter-register.css"/>
 </head>
 <body>
 <div class="bg"></div>
@@ -182,7 +88,7 @@
 
     <!-- SUCCESS STATE -->
     <div class="success-state" id="successState">
-      <div class="success-icon">🎉</div>
+      <div class="success-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="success-logo"/></div>
       <div class="success-title">Registration<br><em>Submitted!</em></div>
       <p class="success-desc">Your account has been created and is now awaiting admin approval. Here's what happens next:</p>
       <div class="success-steps">
@@ -206,84 +112,6 @@
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-<script type="module">
-  import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  const app  = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
-  const auth = getAuth(app);
-  const db   = getFirestore(app);
-
-  const $ = id => document.getElementById(id);
-  const showToast = m => { $('toastMsg').textContent=m; $('toast').classList.add('show'); setTimeout(()=>$('toast').classList.remove('show'),3000); };
-  const showError = m => { $('errorText').textContent=m; $('errorMsg').classList.remove('show'); requestAnimationFrame(()=>$('errorMsg').classList.add('show')); };
-  const setLoad   = v => { $('registerBtn').disabled=v; $('registerBtn').classList.toggle('loading',v); };
-
-  // Toggle password visibility
-  $('togglePw1').onclick = () => { const t=$('password').type==='text'; $('password').type=t?'password':'text'; $('togglePw1').textContent=t?'👁':'🙈'; };
-  $('togglePw2').onclick = () => { const t=$('confirmPw').type==='text'; $('confirmPw').type=t?'password':'text'; $('togglePw2').textContent=t?'👁':'🙈'; };
-
-  // Password strength meter
-  $('password').addEventListener('input', () => {
-    const pw = $('password').value;
-    let score = 0;
-    if (pw.length >= 8) score++;
-    if (/[A-Z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    const bars = ['pwBar1','pwBar2','pwBar3','pwBar4'];
-    bars.forEach((id, i) => {
-      const el = $(id);
-      el.className = 'pw-bar';
-      if (i < score) el.classList.add(score <= 1 ? 'weak' : score <= 2 ? 'fair' : 'strong');
-    });
-  });
-
-  $('registerBtn').onclick = async () => {
-    const firstName = $('firstName').value.trim();
-    const lastName  = $('lastName').value.trim();
-    const phone     = $('phone').value.trim();
-    const email     = $('email').value.trim();
-    const pw        = $('password').value;
-    const cpw       = $('confirmPw').value;
-
-    $('errorMsg').classList.remove('show');
-
-    if (!firstName || !lastName)     { showError('Please enter your full name.'); return; }
-    if (!phone)                       { showError('Please enter your phone number.'); return; }
-    if (!email)                       { showError('Please enter your email address.'); return; }
-    if (pw.length < 8)                { showError('Password must be at least 8 characters.'); return; }
-    if (pw !== cpw)                   { showError('Passwords do not match.'); return; }
-
-    setLoad(true);
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email, pw);
-      await setDoc(doc(db, 'Users', cred.user.uid), {
-        name: `${firstName} ${lastName}`,
-        firstName,
-        lastName,
-        phone,
-        email,
-        role: 'waiter',
-        status: 'pending',       // 🔑 admin must set to 'approved' before they can log in
-        createdAt: serverTimestamp(),
-        approvedAt: null,
-        approvedBy: null
-      });
-      // Sign out immediately — they can't use the app until approved
-      await signOut(auth);
-      $('formState').style.display = 'none';
-      $('successState').classList.add('show');
-    } catch(err) {
-      setLoad(false);
-      const c = err.code;
-      if (c === 'auth/email-already-in-use') showError('This email is already registered. Try logging in instead.');
-      else if (c === 'auth/invalid-email')   showError('Please enter a valid email address.');
-      else if (c === 'auth/weak-password')   showError('Password is too weak. Use at least 8 characters.');
-      else showError('Registration failed. Please try again.');
-    }
-  };
-</script>
+<script type="module" src="waiter-register.js"></script>
 </body>
 </html>
