@@ -349,7 +349,7 @@ window._editMenu = id => {
 if (document.getElementById('menuModalSave')) {
   document.getElementById('menuModalSave').onclick = async () => {
     const name = document.getElementById('menuItemName')?.value.trim();
-    const price = parseFloat(document.getElementById('menuItemPrice')?.value) || 0;
+const price = Math.min(parseFloat(document.getElementById('menuItemPrice')?.value) || 0, 9999999.99);
     const category = document.getElementById('menuItemCategory')?.value.trim();
     const description = document.getElementById('menuItemDesc')?.value.trim();
     const available = document.getElementById('menuItemAvail')?.value === 'true';

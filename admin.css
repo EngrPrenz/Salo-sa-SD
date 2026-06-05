@@ -968,10 +968,34 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .menu-card:hover .menu-card-name { color: var(--gold-light); }
 .menu-card-desc { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; flex: 1; margin-top: 2px; }
 .menu-card-sold { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
-.menu-card-footer { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 14px; border-top: 1px solid var(--border); flex-shrink: 0; background: var(--black-mid); }
-.menu-card-price { font-size: 16px; font-weight: 700; color: var(--gold-light); transition: transform 0.2s; }
+.menu-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--black-mid);
+  gap: 8px;       /* ← add */
+  min-width: 0;   /* ← add */
+}
+.menu-card-price {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-light);
+  transition: transform 0.2s;
+  min-width: 0;           /* ← add */
+  flex: 1;                /* ← add (takes available space) */
+  white-space: nowrap;    /* ← add */
+  overflow: hidden;       /* ← add */
+  text-overflow: ellipsis;/* ← add (truncates with …) */
+}
 .menu-card:hover .menu-card-price { transform: scale(1.05); }
-.menu-card-actions { display: flex; gap: 6px; }
+.menu-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0; /* ← add (buttons never shrink) */
+}
 .menu-avail { display: none; }
 .menu-card-edit-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; gap: 10px; opacity: 0; transition: opacity 0.25s; }
 .menu-card:hover .menu-card-edit-overlay { opacity: 1; }
