@@ -31,6 +31,15 @@ const getItemsPerPage = () => {
 
 window.addEventListener('resize', () => { menuPage = 1; renderMenuGrid(); });
 
+// ── Bento time-window helpers ──
+const BENTO_WINDOW = { start: 11, end: 15 }; // 11:00 AM – 3:00 PM
+function isBentoItem(name = '') { return name.toLowerCase().includes('bento'); }
+function isBentoWindowOpen() {
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes() / 60;
+  return h >= BENTO_WINDOW.start && h < BENTO_WINDOW.end;
+}
+
 // ── Auth guard ──
 onAuthStateChanged(auth, async user => {
   if (!user) { window.location.href = 'waiter-login.html'; return; }
@@ -123,59 +132,54 @@ function renderTables() {
 
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
     const now = new Date();
-const nowMins = now.getHours() * 60 + now.getMinutes();
-const pendingReservations = tableDoc?.reservations || [];
-const nextReservation = pendingReservations
-  .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
-  .filter(r => r.mins !== null)
-  .sort((a, b) => a.mins - b.mins)[0];
-const minsUntilNext = nextReservation ? nextReservation.mins - nowMins : null;
-const hasSoonReservation = minsUntilNext !== null && minsUntilNext <= 31 && minsUntilNext > 0;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const pendingReservations = tableDoc?.reservations || [];
+    const nextReservation = pendingReservations
+      .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
+      .filter(r => r.mins !== null)
+      .sort((a, b) => a.mins - b.mins)[0];
+    const minsUntilNext = nextReservation ? nextReservation.mins - nowMins : null;
+    const hasSoonReservation = minsUntilNext !== null && minsUntilNext <= 31 && minsUntilNext > 0;
     const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
 
     let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
-  stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
-  icon = '🍽️'; meta = 'Active order';
-  yoursInd = `<div class="yours-indicator">YOURS</div>`;
-} else if (isReserved) {
-  stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
-  icon = '📅';
-  // Use reservations array first, fall back to legacy reservation field
-  const res = (tableDoc?.reservations?.[0]) || tableDoc?.reservation || {};
-  meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
-} else if (isTakenOrder) {
-  stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
-  icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
-} else if (isWalkIn) {
-  stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = '🚶 Walk-in';
-  icon = '👥';
-  meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
-  if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
-} else if (isOccupiedNoOrder) {
-  stClass = isOccupiedYours ? 'yours' : 'occupied';
-  badge   = isOccupiedYours ? 'yours' : 'occupied';
-  badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
-  icon = isOccupiedYours ? '🍽️' : '🚫';
-  meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
-  if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
-} else {
-  // Free table — check for upcoming reservations
-  stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
-  icon = '🪑';
-
-  if (hasSoonReservation) {
-    // Under 60 mins — warn waiter
-    const urgency = minsUntilNext <= 30 ? '⚠️' : '🕐';
-    meta = `${urgency} Reserved in ${minsUntilNext}m for ${nextReservation.guestName}`;
-  } else if (nextReservation) {
-    // Has a future reservation but plenty of time
-    meta = `🗓️ Reserved at ${nextReservation.time} · Tap to seat`;
-  } else {
-    meta = 'Tap to seat guests';
-  }
-}
+      stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
+      icon = '🍽️'; meta = 'Active order';
+      yoursInd = `<div class="yours-indicator">YOURS</div>`;
+    } else if (isReserved) {
+      stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
+      icon = '📅';
+      const res = (tableDoc?.reservations?.[0]) || tableDoc?.reservation || {};
+      meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
+    } else if (isTakenOrder) {
+      stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
+      icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
+    } else if (isWalkIn) {
+      stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = '🚶 Walk-in';
+      icon = '👥';
+      meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
+      if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
+    } else if (isOccupiedNoOrder) {
+      stClass = isOccupiedYours ? 'yours' : 'occupied';
+      badge   = isOccupiedYours ? 'yours' : 'occupied';
+      badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
+      icon = isOccupiedYours ? '🍽️' : '🚫';
+      meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
+      if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
+    } else {
+      stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
+      icon = '🪑';
+      if (hasSoonReservation) {
+        const urgency = minsUntilNext <= 30 ? '⚠️' : '🕐';
+        meta = `${urgency} Reserved in ${minsUntilNext}m for ${nextReservation.guestName}`;
+      } else if (nextReservation) {
+        meta = `🗓️ Reserved at ${nextReservation.time} · Tap to seat`;
+      } else {
+        meta = 'Tap to seat guests';
+      }
+    }
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
       ${yoursInd}
@@ -259,7 +263,6 @@ window._selectTable = (num, stClass, isWalkIn) => {
       return;
     }
     if (minsUntil <= 60 && minsUntil > 31) {
-      // Allow but warn
       showToast(`🕐 Heads up: Table ${num} has a reservation in ${minsUntil} mins for ${next.guestName}.`);
     }
   }
@@ -430,21 +433,30 @@ function renderMenuGrid() {
   const pageItems = items.slice(start, start + ITEMS_PER_PAGE);
 
   grid.innerHTML = pageItems.map(m => {
-    const inCart  = cart[m.id];
-    const unavail = m.available === false;
+    const inCart       = cart[m.id];
+    const isBento      = isBentoItem(m.name || '');
+    const bentoOpen    = isBentoWindowOpen();
+    const bentoBlocked = isBento && !bentoOpen;
+    const unavail      = m.available === false || bentoBlocked;
     const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeDesc = (m.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeCat  = (m.category||'Other').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    // Show qty limit warning badge when at max
     const atMax = inCart && inCart.qty >= 20;
+
+    // Tag shown on card — bento-blocked gets its own blue time tag
+    const tagHtml = bentoBlocked
+      ? `<div class="unavail-tag bento-time-tag">⏰ 11AM–3PM</div>`
+      : (m.available === false ? `<div class="unavail-tag">Unavail.</div>` : '');
+
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
       ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
-      ${unavail ? `<div class="unavail-tag">Unavail.</div>` : ''}
+      ${tagHtml}
       <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;"></div>
       <div class="mic-body">
         <div class="mic-cat">${safeCat}</div>
         <div class="mic-name">${safeName}</div>
         <div class="mic-desc">${safeDesc}</div>
+        ${bentoBlocked ? `<div class="bento-window-hint">Available 11:00 AM – 3:00 PM only</div>` : ''}
         <div class="mic-footer">
           <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
           ${!unavail ? `<button class="mic-add${atMax?' mic-add-disabled':''}" onclick="event.stopPropagation();window._addToCart('${m.id}')" ${atMax?'title="Maximum 20 reached"':''}>+</button>` : ''}
@@ -530,12 +542,17 @@ function renderMenuGrid() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// IMPROVEMENT #4 — _addToCart: enforce max qty 20 per item
-// ═══════════════════════════════════════════════════════════════════
+// ── ADD TO CART — enforces bento time-window + max qty 20 ──
 window._addToCart = id => {
   const item = menuItems.find(m => m.id === id);
   if (!item || item.available === false) return;
+
+  // Bento time-window gate
+  if (isBentoItem(item.name || '') && !isBentoWindowOpen()) {
+    showToast('⏰ Bento items are only available 11:00 AM – 3:00 PM.');
+    return;
+  }
+
   if (cart[id]) {
     if (cart[id].qty >= 20) {
       showToast('⚠ Maximum 20 servings per item allowed.');
@@ -607,19 +624,25 @@ $('confirmModalClose').onclick = $('confirmModalCancel').onclick = () => {
   pill2Active(); pill3Reset();
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// IMPROVEMENT #4 — confirmOrderBtn: validate qty 1–20 before saving
-// ═══════════════════════════════════════════════════════════════════
 $('confirmOrderBtn').onclick = async () => {
   const btn = $('confirmOrderBtn');
   btn.disabled = true; btn.classList.add('loading');
   const newItems = Object.values(cart);
   const note     = $('orderNote').value.trim();
 
-  // Frontend + backend qty guard
+  // Frontend qty guard
   const overLimit = newItems.filter(i => i.qty > 20 || i.qty < 1);
   if (overLimit.length) {
     showToast('⚠ Item quantities must be between 1 and 20.');
+    btn.disabled = false; btn.classList.remove('loading');
+    return;
+  }
+
+  // Final bento time-window guard before submit
+  const bentoOutOfWindow = newItems.filter(i => isBentoItem(i.name || '') && !isBentoWindowOpen());
+  if (bentoOutOfWindow.length) {
+    const names = bentoOutOfWindow.map(i => i.name).join(', ');
+    showToast(`⏰ Cannot submit: ${names} outside 11AM–3PM window.`);
     btn.disabled = false; btn.classList.remove('loading');
     return;
   }
@@ -635,7 +658,6 @@ $('confirmOrderBtn').onclick = async () => {
       newItems.forEach(newItem => {
         const idx = merged.findIndex(i => i.id === newItem.id);
         if (idx >= 0) {
-          // Cap merged quantity at 20
           merged[idx] = { ...merged[idx], qty: Math.min(merged[idx].qty + newItem.qty, 20) };
         } else {
           merged.push({

@@ -99,7 +99,7 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .cat-scroll { display: flex; gap: 0; overflow-x: auto; flex: 1; min-width: 0; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; position: relative; z-index: 0; }
 .cat-scroll::-webkit-scrollbar { height: 0; width: 0; }
 .cat-btn {
-  flex: 0 0 25%; /* exactly 4 visible at a time */
+  flex: 0 0 25%;
   padding: 8px 10px;
   border-radius: 0;
   border: none;
@@ -180,6 +180,33 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .mic-add:hover { background: var(--gold); color: var(--black); }
 .cart-badge-pill { position: absolute; top: 8px; right: 8px; background: var(--gold); color: var(--black); font-size: 10px; font-weight: 700; border-radius: 100px; padding: 2px 7px; z-index: 2; }
 .unavail-tag { position: absolute; top: 8px; right: 8px; font-size: 9px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; background: rgba(0,0,0,0.7); padding: 2px 7px; border-radius: 100px; z-index: 2; }
+
+/* ── Bento time-window tag — overrides unavail-tag red with blue ── */
+.bento-time-tag {
+  color: #5dade2 !important;
+  background: rgba(41,128,185,0.25) !important;
+  border: 1px solid rgba(41,128,185,0.4) !important;
+  font-size: 9px !important;
+  letter-spacing: 0.07em;
+  text-transform: none !important;
+  font-weight: 700;
+}
+
+/* ── Bento hint line inside card body ── */
+.bento-window-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #5dade2;
+  background: rgba(41,128,185,0.12);
+  border: 1px solid rgba(41,128,185,0.25);
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin-top: 2px;
+  letter-spacing: 0.03em;
+}
 
 /* Cart panel */
 .cart-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--black-card); }
@@ -344,7 +371,6 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   to   { opacity: 1; transform: none; }
 }
 
-/* Gold strip for order success, orange for occupied */
 .order-success-strip {
   height: 3px;
   background: linear-gradient(90deg, transparent, var(--gold), var(--gold-light), var(--gold), transparent);
