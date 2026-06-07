@@ -7,19 +7,24 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
-// Full precision for tables
 function fmtCurrency(n) { return `\u20B1${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
-// Compact for KPI cards
 function fmtCompact(n) {
   if (n >= 1000000) return `\u20B1${(n/1000000).toFixed(2)}M`;
   if (n >= 1000)    return `\u20B1${(n/1000).toFixed(2)}K`;
   return fmtCurrency(n);
 }
-// Tiny for calendar cells
 function fmtTiny(n) {
   if (n >= 1000000) return `\u20B1${(n/1000000).toFixed(1)}M`;
   if (n >= 1000)    return `\u20B1${(n/1000).toFixed(1)}k`;
   return `\u20B1${Math.round(n)}`;
+}
+function toDateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function startOfWeek(d) {
+  const day = d.getDay();
+  const diff = d.getDate() - day;
+  return new Date(d.getFullYear(), d.getMonth(), diff);
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -68,15 +73,37 @@ if (overlay) overlay.onclick = () => { sidebar.classList.remove('open'); overlay
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let allOrders = [];
+let selectedPeriod = 'monthly';
 let selectedMonth = new Date().toISOString().slice(0, 7);
+let selectedDay = toDateKey(new Date());
+let selectedWeekStart = startOfWeek(new Date());
 let reportsReady = false;
+
+// ── Period Tab Switching ──────────────────────────────────────────────────────
+document.querySelectorAll('.rpt-period-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    selectedPeriod = tab.dataset.period;
+    // Sync active state across all tab instances
+    document.querySelectorAll('.rpt-period-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.period === selectedPeriod)
+    );
+    document.querySelectorAll('.rpt-panel-view').forEach(v => v.classList.remove('active'));
+    const view = document.getElementById(`view-${selectedPeriod}`);
+    if (view) view.classList.add('active');
+    if (reportsReady) renderCurrentPeriod();
+    if (window.lucide) lucide.createIcons();
+  });
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 function initReports() {
   populateMonthSelect();
+  initDailyControls();
+  initWeeklyControls();
   loadOrders().then(() => { reportsReady = true; });
 }
 
+// ── Monthly: populate select ──────────────────────────────────────────────────
 function populateMonthSelect() {
   const select = document.getElementById('rptMonthSelect');
   if (!select) return;
@@ -93,20 +120,71 @@ function populateMonthSelect() {
   }).join('');
   select.addEventListener('change', () => {
     selectedMonth = select.value;
-    if (reportsReady) renderReports();
+    if (reportsReady) renderMonthly();
   });
 }
 
+// ── Daily: controls ───────────────────────────────────────────────────────────
+function initDailyControls() {
+  const input = document.getElementById('dayDateInput');
+  const prevBtn = document.getElementById('dayPrevBtn');
+  const nextBtn = document.getElementById('dayNextBtn');
+  if (!input) return;
+  input.value = selectedDay;
+  input.max = toDateKey(new Date());
+  input.addEventListener('change', () => {
+    selectedDay = input.value;
+    if (reportsReady) renderDaily();
+  });
+  prevBtn && prevBtn.addEventListener('click', () => {
+    const d = new Date(selectedDay + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    selectedDay = toDateKey(d);
+    input.value = selectedDay;
+    if (reportsReady) renderDaily();
+  });
+  nextBtn && nextBtn.addEventListener('click', () => {
+    const d = new Date(selectedDay + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    const today = toDateKey(new Date());
+    if (toDateKey(d) <= today) {
+      selectedDay = toDateKey(d);
+      input.value = selectedDay;
+      if (reportsReady) renderDaily();
+    }
+  });
+}
+
+// ── Weekly: controls ──────────────────────────────────────────────────────────
+function initWeeklyControls() {
+  const prevBtn = document.getElementById('weekPrevBtn');
+  const nextBtn = document.getElementById('weekNextBtn');
+  prevBtn && prevBtn.addEventListener('click', () => {
+    selectedWeekStart = new Date(selectedWeekStart);
+    selectedWeekStart.setDate(selectedWeekStart.getDate() - 7);
+    if (reportsReady) renderWeekly();
+  });
+  nextBtn && nextBtn.addEventListener('click', () => {
+    const next = new Date(selectedWeekStart);
+    next.setDate(next.getDate() + 7);
+    if (next <= new Date()) {
+      selectedWeekStart = next;
+      if (reportsReady) renderWeekly();
+    }
+  });
+}
+
+// ── Load Orders ───────────────────────────────────────────────────────────────
 async function loadOrders() {
   const snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')));
   allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderReports();
+  renderCurrentPeriod();
   updateOrdersBadge();
 }
 
 onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
   allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderReports();
+  renderCurrentPeriod();
   updateOrdersBadge();
 });
 
@@ -116,8 +194,219 @@ function updateOrdersBadge() {
   if (badge) { badge.textContent = active; badge.style.display = active > 0 ? 'inline-flex' : 'none'; }
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderReports() {
+function renderCurrentPeriod() {
+  if (selectedPeriod === 'daily') renderDaily();
+  else if (selectedPeriod === 'weekly') renderWeekly();
+  else renderMonthly();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DAILY
+// ══════════════════════════════════════════════════════════════════════════════
+function renderDaily() {
+  const [y, m, d] = selectedDay.split('-').map(Number);
+  const startDate = new Date(y, m - 1, d, 0, 0, 0);
+  const endDate   = new Date(y, m - 1, d, 23, 59, 59);
+
+  const dayOrders = allOrders.filter(o => {
+    const dt = o.createdAt?.toDate();
+    return dt && dt >= startDate && dt <= endDate && o.status === 'paid';
+  });
+
+  const dayRev = dayOrders.reduce((s, o) => s + (o.total || 0), 0);
+  const avg = dayOrders.length ? dayRev / dayOrders.length : 0;
+
+  const date = new Date(y, m - 1, d);
+  const dateLabel = date.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  setEl('dayTitle', dateLabel);
+  setEl('dayKpiRev', dayOrders.length ? fmtCompact(dayRev) : '₱0');
+  setEl('dayKpiOrders', dayOrders.length.toString());
+  setEl('dayKpiAvg', dayOrders.length ? fmtCompact(avg) : '—');
+  setEl('dayKpiRevSub', dayOrders.length ? `from ${dayOrders.length} paid orders` : 'No sales this day');
+
+  renderHourlyChart(dayOrders);
+  renderTopItems(dayOrders, 'dayTopItemsBody');
+  renderStatusChartForOrders(allOrders.filter(o => {
+    const dt = o.createdAt?.toDate();
+    return dt && dt >= startDate && dt <= endDate;
+  }), 'dayStatusChart');
+}
+
+function renderHourlyChart(orders) {
+  const el = document.getElementById('dailyHourlyChart');
+  if (!el) return;
+
+  // Build hourly buckets (operating hours 6am–11pm)
+  const hours = {};
+  for (let h = 6; h <= 23; h++) hours[h] = 0;
+  orders.forEach(o => {
+    const d = o.createdAt?.toDate();
+    if (d) {
+      const h = d.getHours();
+      if (h >= 6 && h <= 23) hours[h] = (hours[h] || 0) + (o.total || 0);
+    }
+  });
+
+  const maxVal = Math.max(...Object.values(hours), 1);
+  const hasAny = Object.values(hours).some(v => v > 0);
+
+  if (!hasAny) {
+    el.innerHTML = '<div class="empty-detail"><div class="empty-detail-icon">🕐</div><div class="empty-detail-text">No sales recorded<br>for this day</div></div>';
+    return;
+  }
+
+  const fmt12 = h => {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}${period}`;
+  };
+
+  el.innerHTML = Object.entries(hours).map(([h, val]) => `
+    <div class="hourly-bar-row">
+      <span class="hourly-label">${fmt12(Number(h))}</span>
+      <div class="hourly-track">
+        <div class="hourly-fill" style="width:0%" data-target="${(val/maxVal)*100}%"></div>
+      </div>
+      <span class="hourly-val">${val > 0 ? fmtTiny(val) : ''}</span>
+    </div>`).join('');
+
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.hourly-fill').forEach(bar => {
+      bar.style.width = bar.dataset.target;
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WEEKLY
+// ══════════════════════════════════════════════════════════════════════════════
+function renderWeekly() {
+  const weekEnd = new Date(selectedWeekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(23, 59, 59);
+
+  const weekStartFull = new Date(selectedWeekStart);
+  weekStartFull.setHours(0, 0, 0, 0);
+
+  const weekOrders = allOrders.filter(o => {
+    const dt = o.createdAt?.toDate();
+    return dt && dt >= weekStartFull && dt <= weekEnd && o.status === 'paid';
+  });
+
+  const weekRev = weekOrders.reduce((s, o) => s + (o.total || 0), 0);
+  const avg = weekOrders.length ? weekRev / weekOrders.length : 0;
+
+  // Week range label
+  const rangeLabel = document.getElementById('weekRangeLabel');
+  if (rangeLabel) {
+    const opts = { month: 'short', day: 'numeric' };
+    rangeLabel.textContent = `${weekStartFull.toLocaleDateString('en-PH', opts)} – ${weekEnd.toLocaleDateString('en-PH', { ...opts, year: 'numeric' })}`;
+  }
+
+  // Build daily breakdown
+  const days = [];
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const todayKey = toDateKey(new Date());
+  let bestDay = null, bestRev = -1;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStartFull);
+    d.setDate(d.getDate() + i);
+    const key = toDateKey(d);
+    const dayOrd = weekOrders.filter(o => {
+      const dt = o.createdAt?.toDate();
+      return dt && toDateKey(dt) === key;
+    });
+    const rev = dayOrd.reduce((s, o) => s + (o.total || 0), 0);
+    if (rev > bestRev) { bestRev = rev; bestDay = { name: dayNames[d.getDay()], rev }; }
+    days.push({ key, name: dayNames[d.getDay()], date: d, rev, orders: dayOrd.length, isToday: key === todayKey });
+  }
+
+  setEl('weekKpiRev', weekOrders.length ? fmtCompact(weekRev) : '₱0');
+  setEl('weekKpiOrders', weekOrders.length.toString());
+  setEl('weekKpiRevSub', `${weekOrders.length} paid orders`);
+  setEl('weekKpiBestDay', bestDay && bestDay.rev > 0 ? bestDay.name : '—');
+  setEl('weekKpiBestDaySub', bestDay && bestDay.rev > 0 ? fmtCompact(bestDay.rev) : 'No sales yet');
+
+  renderWeeklyBars(days, weekOrders);
+  renderTopItems(weekOrders, 'weekTopItemsBody');
+  renderStatusChartForOrders(allOrders.filter(o => {
+    const dt = o.createdAt?.toDate();
+    return dt && dt >= weekStartFull && dt <= weekEnd;
+  }), 'weekStatusChart');
+}
+
+function renderWeeklyBars(days, weekOrders) {
+  const el = document.getElementById('weeklyBarsChart');
+  if (!el) return;
+  const maxRev = Math.max(...days.map(d => d.rev), 1);
+
+  el.innerHTML = days.map((d, i) => `
+    <div class="weekly-bar-col" data-idx="${i}">
+      <div class="weekly-bar-val">${d.rev > 0 ? fmtTiny(d.rev) : ''}</div>
+      <div class="weekly-bar-track" data-date="${d.key}" style="cursor:${d.rev>0?'pointer':'default'};">
+        <div class="weekly-bar-fill ${d.isToday ? 'today' : ''}" style="height:0%" data-target="${(d.rev/maxRev)*100}%"></div>
+      </div>
+      <div class="weekly-bar-label ${d.isToday ? 'today' : ''}">${d.name}</div>
+    </div>`).join('');
+
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.weekly-bar-fill').forEach(bar => {
+      bar.style.height = bar.dataset.target;
+    });
+  });
+
+  // Click handlers
+  el.querySelectorAll('.weekly-bar-track').forEach(track => {
+    const dateKey = track.dataset.date;
+    const dayData = days.find(d => d.key === dateKey);
+    if (!dayData || dayData.rev === 0) return;
+    track.addEventListener('click', () => {
+      el.querySelectorAll('.weekly-bar-fill').forEach(b => b.classList.remove('selected'));
+      track.querySelector('.weekly-bar-fill').classList.add('selected');
+      showWeeklyDayDetail(dayData, weekOrders);
+    });
+  });
+}
+
+function showWeeklyDayDetail(dayData, weekOrders) {
+  const detailEl = document.getElementById('weeklyDayDetail');
+  const titleEl  = document.getElementById('weeklyDayDetailTitle');
+  const kpisEl   = document.getElementById('weeklyDayKpis');
+  if (!detailEl || !kpisEl) return;
+
+  const dayLabel = dayData.date.toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' });
+  titleEl.textContent = dayLabel;
+
+  const dayOrd = weekOrders.filter(o => {
+    const dt = o.createdAt?.toDate();
+    return dt && toDateKey(dt) === dayData.key;
+  });
+  const rev = dayOrd.reduce((s, o) => s + (o.total || 0), 0);
+  const avg = dayOrd.length ? rev / dayOrd.length : 0;
+
+  kpisEl.innerHTML = `
+    <div class="day-kpi gold">
+      <div class="day-kpi-label">Revenue</div>
+      <div class="day-kpi-value">${fmtCurrency(rev)}</div>
+    </div>
+    <div class="day-kpi">
+      <div class="day-kpi-label">Orders</div>
+      <div class="day-kpi-value">${dayOrd.length}</div>
+    </div>
+    <div class="day-kpi">
+      <div class="day-kpi-label">Avg. Order</div>
+      <div class="day-kpi-value">${dayOrd.length ? fmtCompact(avg) : '—'}</div>
+    </div>`;
+
+  detailEl.style.display = 'block';
+  if (window.lucide) lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MONTHLY
+// ══════════════════════════════════════════════════════════════════════════════
+function renderMonthly() {
   if (!selectedMonth) return;
   const [year, monthStr] = selectedMonth.split('-');
   const month = parseInt(monthStr) - 1;
@@ -142,9 +431,17 @@ function renderReports() {
   setEl('calTitle', label);
 
   renderCalendar(startDate, monthOrders);
-  renderTopItems(monthOrders);
-  renderStatusChart();
+  renderTopItems(monthOrders, 'topItemsBody');
+  renderStatusChartForOrders(allOrders.filter(o => {
+    const d = o.createdAt?.toDate();
+    return d && d >= startDate && d <= endDate;
+  }), 'statusChart');
 }
+
+// ── Reports shared helpers ────────────────────────────────────────────────────
+
+// now calls renderMonthly internally (kept for legacy)
+function renderReports() { renderMonthly(); }
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
 function renderCalendar(startDate, monthOrders) {
@@ -157,19 +454,17 @@ function renderCalendar(startDate, monthOrders) {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Build daily sales map
   const dailySales = {};
   monthOrders.forEach(o => {
     const d = o.createdAt?.toDate();
     if (d) {
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const key = toDateKey(d);
       if (!dailySales[key]) dailySales[key] = { revenue: 0, count: 0 };
       dailySales[key].revenue += o.total || 0;
       dailySales[key].count++;
     }
   });
 
-  // Find max revenue for heat scale
   const maxRev = Math.max(...Object.values(dailySales).map(s => s.revenue), 1);
 
   let html = '';
@@ -181,8 +476,6 @@ function renderCalendar(startDate, monthOrders) {
     const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
     const hasSale = sales.count > 0;
     const heatPct = hasSale ? (sales.revenue / maxRev) : 0;
-
-    // Heat color: low = gold-dim, high = gold
     const heatOpacity = 0.15 + heatPct * 0.85;
     const heatColor = hasSale ? `rgba(201,151,58,${heatOpacity})` : 'transparent';
 
@@ -198,7 +491,6 @@ function renderCalendar(startDate, monthOrders) {
 
   grid.innerHTML = html;
 
-  // Click handlers
   grid.querySelectorAll('.cal-day-cell.has-sales').forEach(cell => {
     cell.addEventListener('click', () => {
       grid.querySelectorAll('.cal-day-cell').forEach(c => c.classList.remove('selected'));
@@ -207,8 +499,7 @@ function renderCalendar(startDate, monthOrders) {
     });
   });
 
-  // Auto-select today if it has sales
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayKey = toDateKey(today);
   const todayCell = grid.querySelector(`[data-date="${todayKey}"]`);
   if (todayCell && todayCell.classList.contains('has-sales')) {
     todayCell.classList.add('selected');
@@ -216,13 +507,11 @@ function renderCalendar(startDate, monthOrders) {
   }
 }
 
-// ── Day Details ───────────────────────────────────────────────────────────────
+// ── Day Details (monthly calendar panel) ─────────────────────────────────────
 function showDayDetails(dateStr, monthOrders) {
   const dayOrders = monthOrders.filter(o => {
     const d = o.createdAt?.toDate();
-    if (!d) return false;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return key === dateStr;
+    return d && toDateKey(d) === dateStr;
   });
 
   const dayRev = dayOrders.reduce((s, o) => s + (o.total || 0), 0);
@@ -233,7 +522,6 @@ function showDayDetails(dateStr, monthOrders) {
   setEl('dayDetailRev', fmtCurrency(dayRev));
   setEl('dayDetailOrders', dayOrders.length.toString());
 
-  // Build items list
   const itemCount = {};
   dayOrders.forEach(o => (o.items || []).forEach(it => {
     const k = it.name || '?';
@@ -257,8 +545,8 @@ function showDayDetails(dateStr, monthOrders) {
     </tr>`).join('');
 }
 
-// ── Top Items ─────────────────────────────────────────────────────────────────
-function renderTopItems(orders) {
+// ── Top Items (shared) ────────────────────────────────────────────────────────
+function renderTopItems(orders, containerId) {
   const itemCount = {};
   orders.forEach(o => (o.items || []).forEach(it => {
     const k = it.name || '?';
@@ -269,11 +557,11 @@ function renderTopItems(orders) {
   const sorted = Object.values(itemCount).sort((a, b) => b.orders - a.orders).slice(0, 10);
   const maxOrders = sorted.length ? sorted[0].orders : 1;
 
-  const container = document.getElementById('topItemsBody');
+  const container = document.getElementById(containerId);
   if (!container) return;
 
   if (!sorted.length) {
-    container.innerHTML = '<div class="empty-detail"><div class="empty-detail-icon">🍽️</div><div class="empty-detail-text">No data for this month</div></div>';
+    container.innerHTML = '<div class="empty-detail"><div class="empty-detail-icon">🍽️</div><div class="empty-detail-text">No data for this period</div></div>';
     return;
   }
 
@@ -289,7 +577,6 @@ function renderTopItems(orders) {
     </div>`;
   }).join('');
 
-  // Stagger the bar widths for a nice entrance
   requestAnimationFrame(() => {
     container.querySelectorAll('.top-item-row').forEach((row, i) => {
       row.style.opacity = '0';
@@ -300,16 +587,16 @@ function renderTopItems(orders) {
   });
 }
 
-// ── Status Chart ──────────────────────────────────────────────────────────────
-function renderStatusChart() {
+// ── Status Chart (shared) ─────────────────────────────────────────────────────
+function renderStatusChartForOrders(orders, chartId) {
   const statuses = ['pending', 'preparing', 'served', 'paid', 'cancelled'];
   const counts = {};
   statuses.forEach(s => counts[s] = 0);
-  allOrders.forEach(o => { if (counts[o.status] !== undefined) counts[o.status]++; });
-  const total = allOrders.length || 1;
+  orders.forEach(o => { if (counts[o.status] !== undefined) counts[o.status]++; });
+  const total = orders.length || 1;
   const max = Math.max(...Object.values(counts), 1);
 
-  const chartEl = document.getElementById('statusChart');
+  const chartEl = document.getElementById(chartId);
   if (!chartEl) return;
 
   chartEl.innerHTML = statuses.map(s => {
@@ -325,10 +612,22 @@ function renderStatusChart() {
     </div>`;
   }).join('');
 
-  // Animate bars after render
   requestAnimationFrame(() => {
     chartEl.querySelectorAll('.bar-fill').forEach(bar => {
       bar.style.width = bar.dataset.target;
     });
   });
+}
+
+// Legacy wrapper for monthly status chart
+function renderStatusChart() {
+  if (!selectedMonth) return;
+  const [year, monthStr] = selectedMonth.split('-');
+  const month = parseInt(monthStr) - 1;
+  const startDate = new Date(year, month, 1);
+  const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+  renderStatusChartForOrders(allOrders.filter(o => {
+    const d = o.createdAt?.toDate();
+    return d && d >= startDate && d <= endDate;
+  }), 'statusChart');
 }
