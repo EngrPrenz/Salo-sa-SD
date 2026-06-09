@@ -139,9 +139,7 @@ function renderOrders() {
   if (!grid) return;
 
   let filtered = allOrders;
-  if (activeFilter === 'all') {
-    filtered = filtered.filter(o => !['served', 'paid', 'cancelled'].includes(o.status));
-  } else {
+  if (activeFilter !== 'all') {
     filtered = filtered.filter(o => o.status === activeFilter);
   }
 
@@ -158,6 +156,7 @@ function renderOrders() {
   grid.innerHTML = filtered.map(o => {
     const subtotal = o.total || 0;
     const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(subtotal);
+    const itemCount = (o.items || []).length;
     const items = (o.items || []).map(it =>
       `<li>${it.name} × ${it.qty} <span>₱${((it.price || 0) * it.qty).toLocaleString()}</span></li>`
     ).join('');
@@ -169,6 +168,7 @@ function renderOrders() {
     const nextLabel  = { pending: 'Mark Preparing', preparing: 'Mark Served' }[o.status] || '';
     const showMarkPaid = o.status === 'served';
     const showCancel   = !['paid', 'cancelled', 'served'].includes(o.status);
+    const showReceipt  = o.status !== 'cancelled';
 
     return `
       <div class="order-card ${o.status}">
@@ -180,7 +180,10 @@ function renderOrders() {
           <span class="order-time">${ts}</span>
         </div>
         <div class="order-meta">Table <strong>${o.tableNumber || '?'}</strong> · ${o.waiterName || 'Unknown'}</div>
-        <ul class="order-items">${items}</ul>
+        <div class="order-items-wrap" onclick="window._toggleItems(this)">
+          <ul class="order-items">${items}</ul>
+        </div>
+        ${o.status !== 'cancelled' ? `
         <div class="order-total" style="flex-direction:column;align-items:stretch;gap:4px;">
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);">
             <span>VAT-excl. Amount</span>
@@ -198,12 +201,12 @@ function renderOrders() {
             <span style="font-size:13px;color:var(--text-muted);">Grand Total</span>
             <strong>₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</strong>
           </div>
-        </div>
+        </div>` : ''}
         <div class="order-card-actions-row">
           <div class="order-card-actions-top">
             ${nextStatus ? `<button class="btn-sm gold" onclick="window._updateStatus('${o.id}','${nextStatus}')">${nextLabel}</button>` : ''}
             ${showMarkPaid ? `<button class="btn-sm green" onclick="window._updateStatus('${o.id}','paid')">Mark Paid</button>` : ''}
-            <button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>
+            ${showReceipt ? `<button class="btn-sm" onclick="window._showReceipt('${o.id}')">Receipt</button>` : ''}
           </div>
           ${showCancel ? `<button class="btn-sm danger" onclick="window._updateStatus('${o.id}','cancelled')">Cancel</button>` : ''}
         </div>
@@ -238,7 +241,9 @@ window._showReceipt = id => {
       <div style="color:var(--text-muted);font-size:12px;">Table ${o.tableNumber||'?'} · ${escapeHtml(o.waiterName||'Unknown')}</div>
     </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-    ${items}
+    <div style="overflow-y:auto;max-height:240px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+      ${items}
+    </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
       <span>VAT-excl. Amount</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
