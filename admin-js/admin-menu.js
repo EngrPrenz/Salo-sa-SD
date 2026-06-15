@@ -34,7 +34,6 @@ let pendingImageFile = null;
 let currentImageUrl  = null;
 let allOrders       = [];
 let menuOrderCounts = {};
-const ORDER_LIMIT   = 20;
 
 const BENTO_WINDOW = { start: 11, end: 15 };
 function isBentoItem(name = '') { return name.toLowerCase().includes('bento'); }
@@ -48,31 +47,78 @@ bootstrapAdmin(auth, db, { doc, getDoc, signOut }, 'admin-menu.html')
   .then(() => startListeners());
 
 function startListeners() {
-  // Orders (for badge + served counts)
   onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     calculateMenuOrderCounts();
     updateOrdersBadge();
+    autoDisableLimitReached(); // ← add this
     renderMenuGrid();
   });
 
-  // Menu items
-  onSnapshot(collection(db, 'menu'), snap => {
-    menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    buildMenuCategoryTabs();
-    renderMenuGrid();
-  });
+onSnapshot(collection(db, 'menu'), snap => {
+  menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  calculateMenuOrderCounts();
+  autoDisableLimitReached();
+  checkDailyReset(); // ← add this
+  buildMenuCategoryTabs();
+  renderMenuGrid();
+});
 }
 
 function calculateMenuOrderCounts() {
   menuOrderCounts = {};
-  allOrders.filter(o => o.status === 'served').forEach(o => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  allOrders.filter(o => {
+    if (!['pending', 'preparing', 'served', 'paid'].includes(o.status)) return false;
+    const orderDate = o.createdAt?.toDate
+      ? o.createdAt.toDate().toISOString().slice(0, 10)
+      : null;
+    return orderDate === todayStr;
+  }).forEach(o => {
     (o.items || []).forEach(item => {
       const key = item.name || item.id;
       if (!menuOrderCounts[key]) menuOrderCounts[key] = { served: 0 };
-      menuOrderCounts[key].served += item.qty || 1;
+      menuOrderCounts[key].served += Number(item.qty) || 0;
     });
   });
+}
+
+async function autoDisableLimitReached() {
+  if (!menuItems.length) return;
+  for (const m of menuItems) {
+    const limit = m.serveLimit ?? null;
+    if (limit === null) continue; // no limit set, skip
+    const count = menuOrderCounts[m.name || '']?.served || 0;
+    if (count >= limit && m.available !== false) {
+      try {
+        await updateDoc(doc(db, 'menu', m.id), { available: false });
+        showToast(`"${m.name}" auto-disabled (limit reached).`, 'error');
+      } catch (e) { console.error(e); }
+    }
+  }
+}
+
+async function checkDailyReset() {
+  const resetRef = doc(db, 'settings', 'dailyReset');
+  const resetSnap = await getDoc(resetRef);
+  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+  if (!resetSnap.exists() || resetSnap.data().lastReset !== today) {
+    // Re-enable all menu items that were auto-disabled
+    for (const m of menuItems) {
+      if (m.available === false) {
+        try {
+          await updateDoc(doc(db, 'menu', m.id), { available: true });
+        } catch (e) { console.error(e); }
+      }
+    }
+    // Save today's date
+    await updateDoc(resetRef, { lastReset: today }).catch(() =>
+      addDoc(collection(db, 'settings'), { lastReset: today })
+    );
+
+    showToast('Daily restock done. All items restocked.', 'success');
+  }
 }
 
 function updateOrdersBadge() {
@@ -179,11 +225,13 @@ function renderMenuGrid() {
          </div>`;
 
     const orderCount  = menuOrderCounts[m.name || '']?.served || 0;
-    const atLimit     = orderCount >= ORDER_LIMIT;
-    const warningHtml = orderCount > 0
-      ? `<div class="menu-card-orders ${atLimit ? 'at-limit' : ''}">${orderCount}/${ORDER_LIMIT} served${atLimit ? ' ⚠️' : ''}</div>` : '';
+const itemLimit   = m.serveLimit ?? null;
+const atLimit     = itemLimit !== null && orderCount >= itemLimit;
+const warningHtml = itemLimit !== null
+  ? `<div class="menu-card-orders ${atLimit ? 'at-limit' : ''}" style="text-align:center;">${orderCount}/${itemLimit} served${atLimit ? ' ⚠️' : ''}</div>`
+  : (orderCount > 0 ? `<div class="menu-card-orders" style="text-align:center;">${orderCount} served</div>` : '');
     const bentoTagHtml = isBento
-      ? `<div class="menu-card-time-tag ${bentoWindowOpen ? 'time-tag-open' : 'time-tag-closed'}">🕐 Available 11:00 AM – 3:00 PM only</div>` : '';
+      ? `<div class="menu-card-time-tag ${bentoWindowOpen ? 'time-tag-open' : 'time-tag-closed'}">Available 11:00 AM – 3:00 PM only</div>` : '';
 
     return `
       <div class="menu-card ${effectivelyUnavail ? 'unavailable' : ''}">
@@ -265,7 +313,7 @@ function closeMenuModal() {
 document.getElementById('addMenuItemBtn')?.addEventListener('click', () => {
   editMenuId = null;
   document.getElementById('menuModalTitle').textContent = 'Add Menu Item';
-  ['menuItemName', 'menuItemPrice', 'menuItemCategory', 'menuItemDesc'].forEach(id => {
+  ['menuItemName', 'menuItemPrice', 'menuItemCategory', 'menuItemDesc', 'menuItemLimit'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const avail = document.getElementById('menuItemAvail'); if (avail) avail.value = 'true';
@@ -288,6 +336,7 @@ window._editMenu = id => {
   document.getElementById('menuItemPrice').value        = item.price || '';
   document.getElementById('menuItemCategory').value     = item.category || '';
   document.getElementById('menuItemDesc').value         = item.description || '';
+  document.getElementById('menuItemLimit').value = item.serveLimit ?? '';
   const avail = document.getElementById('menuItemAvail');
   if (avail) avail.value = item.available === false ? 'false' : 'true';
 
@@ -317,15 +366,15 @@ document.getElementById('menuModalSave')?.addEventListener('click', async () => 
   const name        = document.getElementById('menuItemName')?.value.trim();
   const price       = Math.min(parseFloat(document.getElementById('menuItemPrice')?.value) || 0, 9999999.99);
   const category    = document.getElementById('menuItemCategory')?.value.trim();
-  const description = document.getElementById('menuItemDesc')?.value.trim();
-  const available   = document.getElementById('menuItemAvail')?.value === 'true';
+const description = document.getElementById('menuItemDesc')?.value.trim();
+const serveLimit  = document.getElementById('menuItemLimit')?.value !== '' ? parseInt(document.getElementById('menuItemLimit')?.value) : null;
+const available   = document.getElementById('menuItemAvail')?.value === 'true';
   if (!name) { showToast('Please enter an item name.', 'error'); return; }
 
   const btn = document.getElementById('menuModalSave');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const data = { name, price, category, description, available, imageUrl: currentImageUrl || null };
-    if (editMenuId) {
+const data = { name, price, category, description, available, imageUrl: currentImageUrl || null, serveLimit };    if (editMenuId) {
       await updateDoc(doc(db, 'menu', editMenuId), data);
       showToast('Item updated.', 'success');
     } else {
