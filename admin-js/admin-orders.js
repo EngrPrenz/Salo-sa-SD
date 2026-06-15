@@ -15,6 +15,7 @@ const SERVICE_CHARGE_RATE = 0.07;
 
 function escapeHtml(s) { return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s)  { return s ? s[0].toUpperCase()+s.slice(1) : ''; }
+
 function computeVat(total) {
   const vatAmount     = total * VAT_RATE / (1 + VAT_RATE);
   const netAmount     = total - vatAmount;
@@ -90,7 +91,12 @@ async function updateOrderStatus(id, status) {
 }
 window._updateStatus = updateOrderStatus;
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Toggle items expand ───────────────────────────────────────────────────────
+window._toggleItems = function(el) {
+  el.classList.toggle('expanded');
+};
+
+// ── Render orders ─────────────────────────────────────────────────────────────
 function renderOrders() {
   const grid = document.getElementById('ordersGrid'); if (!grid) return;
 
@@ -156,24 +162,28 @@ function renderOrders() {
 // ── Receipt modal ─────────────────────────────────────────────────────────────
 window._showReceipt = id => {
   const o = allOrders.find(x => x.id===id); if (!o) { showToast('Order not found'); return; }
-  const modal = document.getElementById('receiptModal'), body = document.getElementById('receiptModalBody');
+  const modal = document.getElementById('receiptModal');
+  const body  = document.getElementById('receiptModalBody');
   if (!modal||!body) return;
+
   const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
-  const ts    = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
+  const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
+
+  // Build items list ONCE (no duplication)
   const items = (o.items||[]).map(it => `
     <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.08);">
       <div>${escapeHtml(it.name)} <span style="color:var(--text-muted)">×${it.qty}</span></div>
       <div style="font-weight:600;">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
     </div>`).join('');
+
   body.innerHTML = `
     <div style="text-align:center;margin-bottom:12px;">
       <div style="font-weight:700;font-size:15px;">Order #${o.id.slice(-5).toUpperCase()}</div>
       <div style="color:var(--text-muted);font-size:12px;margin-top:4px;">${ts}</div>
       <div style="color:var(--text-muted);font-size:12px;">Table ${o.tableNumber||'?'} · ${escapeHtml(o.waiterName||'Unknown')}</div>
     </div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">${items}
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-    <div style="overflow-y:auto;max-height:240px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+    <div style="overflow-y:auto;max-height:220px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
       ${items}
     </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
@@ -189,6 +199,7 @@ window._showReceipt = id => {
     <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;padding:8px 0 0;border-top:2px solid var(--border);margin-top:6px;">
       <span>TOTAL</span><span style="color:var(--gold-light);">₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
     </div>`;
+
   body.dataset.orderId = id;
   modal.classList.add('show');
 };
@@ -201,41 +212,75 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   const id   = body?.dataset.orderId;
   const o    = id ? allOrders.find(x => x.id===id) : null;
   if (!o) { showToast('Could not find order for printing'); return; }
+
   let logo = null;
-  try { const res=await fetch('../image/logo.png'); const blob=await res.blob(); logo=await new Promise(r=>{const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(blob);}); } catch(_){}
+  try {
+    const res  = await fetch('../image/logo.png');
+    const blob = await res.blob();
+    logo = await new Promise(r => { const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.readAsDataURL(blob); });
+  } catch(_) {}
+
   const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
-  const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
-  const rows = (o.items||[]).map(it=>`<tr><td>${escapeHtml(it.name)}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</td></tr>`).join('');
-  const pw = window.open('','_blank','width=400,height=700'); if(!pw){showToast('Allow popups to print.');return;}
+  const ts = o.createdAt?.toDate
+    ? o.createdAt.toDate().toLocaleString('en-PH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})
+    : '—';
+
+  const rows = (o.items||[]).map(it =>
+    `<tr>
+      <td>${escapeHtml(it.name)}</td>
+      <td style="text-align:center">${it.qty}</td>
+      <td style="text-align:right">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
+    </tr>`
+  ).join('');
+
+  const pw = window.open('','_blank','width=400,height=700');
+  if (!pw) { showToast('Allow popups to print.'); return; }
+
   pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
-  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Courier New',monospace;font-size:11px;color:#111;background:#fff;padding:12mm 6mm;}
-  .rh{text-align:center;margin-bottom:10px;}.logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
-  .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
-  hr.s{border:none;border-top:1px solid #111;margin:7px 0;}hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
-  .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}.ml{color:#888;}
-  table{width:100%;border-collapse:collapse;font-size:10px;}th{text-align:left;font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#555;border-bottom:1px solid #ddd;padding:3px 0;}
-  th:not(:first-child){text-align:right;}td{padding:4px 0;}tbody tr:last-child td{border-bottom:1px dashed #ccc;}
-  .tr{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;}
-  .tg{display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1.5px solid #111;margin-top:6px;padding-top:5px;}
-  .tg span:last-child{color:#b8821e;}.ft{text-align:center;margin-top:14px;font-size:9px;color:#777;line-height:1.8;}
-  @media print{body{padding:0;}}</style></head><body>
-  <div class="rh">${logo?`<img class="logo" src="${logo}" alt=""/>`:''}
-  <div class="rn">Salo sa <span class="ri">Antipolo</span></div></div>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Courier New',monospace;font-size:11px;color:#111;background:#fff;padding:12mm 6mm;}
+    .rh{text-align:center;margin-bottom:10px;}
+    .logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
+    .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
+    hr.s{border:none;border-top:1px solid #111;margin:7px 0;}
+    hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
+    .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
+    .ml{color:#888;}
+    table{width:100%;border-collapse:collapse;font-size:10px;}
+    th{text-align:left;font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#555;border-bottom:1px solid #ddd;padding:3px 0;}
+    th:not(:first-child){text-align:right;}
+    td{padding:4px 0;}
+    tbody tr:last-child td{border-bottom:1px dashed #ccc;}
+    .tr{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;}
+    .tg{display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1.5px solid #111;margin-top:6px;padding-top:5px;}
+    .tg span:last-child{color:#b8821e;}
+    .ft{text-align:center;margin-top:14px;font-size:9px;color:#777;line-height:1.8;}
+    @media print{body{padding:0;}}
+  </style></head><body>
+  <div class="rh">
+    ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
+    <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
+  </div>
   <hr class="s"/>
   <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
   <div class="mr"><span class="ml">Date:</span><span>${ts}</span></div>
   <div class="mr"><span class="ml">Table:</span><span>${o.tableNumber||'—'}</span></div>
   <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(o.waiterName||'—')}</span></div>
   <hr class="d"/>
-  <table><thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>${rows}</tbody></table>
+  <table>
+    <thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
   <div style="margin-top:6px;">
     <div class="tr"><span>VAT-Excl.</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
     <div class="tr"><span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div class="tr"><span>Service (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
+    <div class="tr"><span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
     <div class="tg"><span>TOTAL</span><span>₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
   </div>
   <hr class="d" style="margin-top:12px;"/>
   <div class="ft"><strong>Thank you for dining with us!</strong><br>Please come again 😊</div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+  <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
+  </body></html>`);
   pw.document.close();
 });
