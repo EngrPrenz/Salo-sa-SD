@@ -682,53 +682,24 @@ $('confirmOrderBtn').onclick = async () => {
   }
 
   try {
-    const existingOrder = allOrders.find(o =>
-      o.tableNumber === selectedTable &&
-      ['pending','preparing','served'].includes(o.status)
-    );
-
-    if (existingOrder) {
-      const merged = [...(existingOrder.items || [])];
-      newItems.forEach(newItem => {
-        const idx = merged.findIndex(i => i.id === newItem.id);
-        if (idx >= 0) {
-          merged[idx] = { ...merged[idx], qty: Math.min(merged[idx].qty + newItem.qty, 20) };
-        } else {
-          merged.push({
-            id: newItem.id,
-            name: newItem.name,
-            price: newItem.price,
-            qty: Math.min(newItem.qty, 20),
-            category: newItem.category
-          });
-        }
-      });
-      const newTotal = merged.reduce((s,i) => s + i.price * i.qty, 0);
-      const newNote  = [existingOrder.note, note].filter(Boolean).join(' | ');
-      await updateDoc(doc(db,'orders', existingOrder.id), {
-        items: merged, total: newTotal, note: newNote, updatedAt: serverTimestamp()
-      });
-    } else {
-      const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
-      await addDoc(collection(db,'orders'), {
-        tableNumber: selectedTable, waiterId, waiterName,
-        items: newItems.map(i=>({
-          id: i.id,
-          name: i.name,
-          price: i.price,
-          qty: Math.min(i.qty, 20),
-          category: i.category||'Other'
-        })),
-        total, note, status: 'pending',
-        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-      });
-    }
+    // Always create a NEW order, regardless of existing orders from same table/waiter
+    const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
+    await addDoc(collection(db,'orders'), {
+      tableNumber: selectedTable, waiterId, waiterName,
+      items: newItems.map(i=>({
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        qty: Math.min(i.qty, 20),
+        category: i.category||'Other'
+      })),
+      total, note, status: 'pending',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    });
 
     $('confirmModal').classList.remove('show');
     const os = $('orderSuccess');
-    $('orderSuccessSub').textContent = existingOrder
-      ? `Added to Table ${selectedTable}'s order`
-      : `Table ${selectedTable} · ₱${newItems.reduce((s,i)=>s+i.price*i.qty,0).toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+    $('orderSuccessSub').textContent = `Table ${selectedTable} · ₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
     os.classList.add('show');
     cart = {}; $('orderNote').value = '';
     updateCart(); renderMenuGrid();
