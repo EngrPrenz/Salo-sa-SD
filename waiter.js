@@ -15,6 +15,7 @@ const showToast = m => { $('toastMsg').textContent=m; $('toast').classList.add('
 // ── State ──
 let waiterName = '', waiterId = '', menuItems = [], cart = {}, selectedTable = null, activeCat = 'all';
 let allOrders = [];
+let menuOrderCounts = {};
 let tablesData = {};
 let pendingOccupyTable = null;
 let pendingWalkinTable = null;
@@ -66,10 +67,11 @@ onAuthStateChanged(auth, async user => {
 $('logoutBtn').onclick = async () => { await signOut(auth); window.location.href = 'waiter-login.html'; };
 
 async function init() {
-  await loadMenu();
+  loadMenu();
 
-  onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
+onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    calculateMenuOrderCounts();
     renderTables();
   });
 
@@ -91,6 +93,24 @@ async function init() {
     });
     tablesList.sort((a, b) => a.tableNumber - b.tableNumber);
     renderTables();
+  });
+}
+
+function calculateMenuOrderCounts() {
+  menuOrderCounts = {};
+  const todayStr = new Date().toISOString().slice(0, 10);
+  allOrders.filter(o => {
+    if (!['pending', 'preparing', 'served', 'paid'].includes(o.status)) return false;
+    const orderDate = o.createdAt?.toDate
+      ? o.createdAt.toDate().toISOString().slice(0, 10)
+      : null;
+    return orderDate === todayStr;
+  }).forEach(o => {
+    (o.items || []).forEach(item => {
+      const key = item.name || item.id;
+      if (!menuOrderCounts[key]) menuOrderCounts[key] = { served: 0 };
+      menuOrderCounts[key].served += Number(item.qty) || 0;
+    });
   });
 }
 
@@ -392,11 +412,12 @@ $('pill3').addEventListener('click', () => {
 });
 
 // ── MENU ──
-async function loadMenu() {
-  const snap = await getDocs(collection(db, 'menu'));
-  menuItems = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(m => m.available !== false);
-  buildCategoryTabs();
-  renderMenuGrid();
+function loadMenu() {
+  onSnapshot(collection(db, 'menu'), snap => {
+    menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.available !== false);
+    buildCategoryTabs();
+    renderMenuGrid();
+  });
 }
 
 function buildCategoryTabs() {
@@ -433,11 +454,13 @@ function renderMenuGrid() {
   const pageItems = items.slice(start, start + ITEMS_PER_PAGE);
 
   grid.innerHTML = pageItems.map(m => {
-    const inCart       = cart[m.id];
-    const isBento      = isBentoItem(m.name || '');
-    const bentoOpen    = isBentoWindowOpen();
-    const bentoBlocked = isBento && !bentoOpen;
-    const unavail      = m.available === false || bentoBlocked;
+   const inCart       = cart[m.id];
+const isBento      = isBentoItem(m.name || '');
+const bentoOpen    = isBentoWindowOpen();
+const bentoBlocked = isBento && !bentoOpen;
+const served       = menuOrderCounts[m.name || '']?.served || 0;
+const limitReached = m.serveLimit !== null && m.serveLimit !== undefined && served >= m.serveLimit;
+const unavail      = m.available === false || bentoBlocked || limitReached;
     const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeDesc = (m.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeCat  = (m.category||'Other').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -445,8 +468,9 @@ function renderMenuGrid() {
 
     // Tag shown on card — bento-blocked gets its own blue time tag
     const tagHtml = bentoBlocked
-      ? `<div class="unavail-tag bento-time-tag">⏰ 11AM–3PM</div>`
-      : (m.available === false ? `<div class="unavail-tag">Unavail.</div>` : '');
+  ? `<div class="unavail-tag bento-time-tag">11AM–3PM</div>`
+  : (limitReached ? `<div class="unavail-tag">Sold Out</div>`
+  : (m.available === false ? `<div class="unavail-tag">Unavail.</div>` : ''));
 
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
       ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
@@ -551,6 +575,16 @@ window._addToCart = id => {
   if (isBentoItem(item.name || '') && !isBentoWindowOpen()) {
     showToast('⏰ Bento items are only available 11:00 AM – 3:00 PM.');
     return;
+  }
+
+ // Serve limit check
+  if (item.serveLimit !== null && item.serveLimit !== undefined) {
+    const served = menuOrderCounts[item.name || '']?.served || 0;
+    const inCartQty = cart[id]?.qty || 0;
+    if (served + inCartQty >= item.serveLimit) {
+      showToast(`⚠ "${item.name}" has reached its serving limit for today.`);
+      return;
+    }
   }
 
   if (cart[id]) {

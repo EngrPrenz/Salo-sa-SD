@@ -45,6 +45,11 @@ function computeVat(subtotal) {
   const netAmount     = subtotal - vatAmount;
   const serviceCharge = subtotal * SERVICE_CHARGE_RATE;
   const grandTotal    = subtotal + serviceCharge;
+function computeVat(total) {
+  const vatAmount     = total * VAT_RATE / (1 + VAT_RATE);
+  const netAmount     = total - vatAmount;
+  const serviceCharge = total * SERVICE_CHARGE_RATE;
+  const grandTotal    = total + serviceCharge;
   return { netAmount, vatAmount, serviceCharge, grandTotal };
 }
 
@@ -172,20 +177,12 @@ async function updateOrderStatus(id, newStatus) {
 
 window._updateStatus = updateOrderStatus;
 
-// ── Cancel with confirm ────────────────────────────────────────────────────────
-window._cancelOrder = id => {
-  const o = allOrders.find(x => x.id === id);
-  if (!o) return;
-  showConfirm({
-    title: 'Cancel Order?',
-    body: `Cancel order #${id.slice(-5).toUpperCase()} for Table ${o.tableNumber || '?'}? This cannot be undone.`,
-    confirmLabel: 'Yes, Cancel',
-    confirmClass: 'danger',
-    onConfirm: () => updateOrderStatus(id, 'cancelled'),
-  });
+// ── Toggle items expand ───────────────────────────────────────────────────────
+window._toggleItems = function(el) {
+  el.classList.toggle('expanded');
 };
 
-// ── Render ─────────────────────────────────────────────────────────────────────
+// ── Render orders ─────────────────────────────────────────────────────────────
 function renderOrders() {
   const grid = document.getElementById('ordersGrid');
   if (!grid) return;
@@ -391,21 +388,19 @@ window._updateStatus = async (id, newStatus) => {
 
 // ── Receipt modal ──────────────────────────────────────────────────────────────
 window._showReceipt = id => {
-  const o = allOrders.find(x => x.id === id);
-  if (!o) { showToast('Order not found'); return; }
+  const o = allOrders.find(x => x.id===id); if (!o) { showToast('Order not found'); return; }
   const modal = document.getElementById('receiptModal');
   const body  = document.getElementById('receiptModalBody');
-  if (!modal || !body) return;
+  if (!modal||!body) return;
 
-  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total || 0);
-  const ts     = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
-  const paidAt = o.paidAt?.toDate    ? o.paidAt.toDate().toLocaleString('en-PH')    : null;
-  const meta   = STATUS_META[o.status] || STATUS_META.pending;
+  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
+  const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
 
-  const items = (o.items || []).map(it => `
-    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,0.07);">
-      <div style="font-size:13px;">${escapeHtml(it.name)} <span style="color:var(--text-muted);">×${it.qty}</span></div>
-      <div style="font-weight:600;font-size:13px;">₱${((it.price || 0) * (it.qty || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+  // Build items list ONCE (no duplication)
+  const items = (o.items||[]).map(it => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.08);">
+      <div>${escapeHtml(it.name)} <span style="color:var(--text-muted)">×${it.qty}</span></div>
+      <div style="font-weight:600;">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
     </div>`).join('');
 
   body.innerHTML = `
@@ -418,6 +413,7 @@ window._showReceipt = id => {
     </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
     <div style="max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+    <div style="overflow-y:auto;max-height:220px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
       ${items}
     </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
@@ -446,21 +442,23 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   try {
     const res  = await fetch('../image/logo.png');
     const blob = await res.blob();
-    logo = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.readAsDataURL(blob); });
-  } catch (_) {}
+    logo = await new Promise(r => { const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.readAsDataURL(blob); });
+  } catch(_) {}
 
-  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total || 0);
+  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
   const ts = o.createdAt?.toDate
-    ? o.createdAt.toDate().toLocaleString('en-PH', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true })
+    ? o.createdAt.toDate().toLocaleString('en-PH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})
     : '—';
-  const paidAt = o.paidAt?.toDate
-    ? o.paidAt.toDate().toLocaleString('en-PH', { hour:'2-digit', minute:'2-digit', hour12:true })
-    : null;
-  const rows = (o.items || []).map(it =>
-    `<tr><td>${escapeHtml(it.name)}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</td></tr>`
+
+  const rows = (o.items||[]).map(it =>
+    `<tr>
+      <td>${escapeHtml(it.name)}</td>
+      <td style="text-align:center">${it.qty}</td>
+      <td style="text-align:right">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
+    </tr>`
   ).join('');
 
-  const pw = window.open('', '_blank', 'width=400,height=700');
+  const pw = window.open('','_blank','width=400,height=700');
   if (!pw) { showToast('Allow popups to print.'); return; }
 
   pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
@@ -489,7 +487,6 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   <div class="rh">
     ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
     <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
-    <div class="sb">${(STATUS_META[o.status] || STATUS_META.pending).label}</div>
   </div>
   <hr class="s"/>
   <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
@@ -506,25 +503,12 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   <div style="margin-top:6px;">
     <div class="tr"><span>VAT-Excl.</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
     <div class="tr"><span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div class="tr"><span>Service (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
+    <div class="tr"><span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
     <div class="tg"><span>TOTAL</span><span>₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
   </div>
   <hr class="d" style="margin-top:12px;"/>
-  <div class="ft"><strong>Thank you for dining with us!</strong><br>Please come again.</div>
+  <div class="ft"><strong>Thank you for dining with us!</strong><br>Please come again 😊</div>
   <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
   </body></html>`);
   pw.document.close();
 });
-
-// ── Sidebar hamburger / overlay ────────────────────────────────────────────────
-const sidebar   = document.getElementById('sidebar');
-const hamburger = document.getElementById('hamburger');
-const overlay   = document.getElementById('overlay');
-hamburger?.addEventListener('click', () => { sidebar?.classList.toggle('open'); overlay?.classList.toggle('show'); });
-overlay?.addEventListener('click',   () => { sidebar?.classList.remove('open'); overlay?.classList.remove('show'); });
-
-// ── Page date ──────────────────────────────────────────────────────────────────
-const pageDateEl = document.getElementById('pageDate');
-if (pageDateEl) {
-  pageDateEl.textContent = new Date().toLocaleDateString('en-PH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-}
