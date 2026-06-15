@@ -40,11 +40,6 @@ const TABS = ['all', 'pending', 'paid', 'preparing', 'served', 'cancelled'];
 function escapeHtml(s) { return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s)  { return s ? s[0].toUpperCase()+s.slice(1) : ''; }
 
-function computeVat(subtotal) {
-  const vatAmount     = subtotal * VAT_RATE / (1 + VAT_RATE);
-  const netAmount     = subtotal - vatAmount;
-  const serviceCharge = subtotal * SERVICE_CHARGE_RATE;
-  const grandTotal    = subtotal + serviceCharge;
 function computeVat(total) {
   const vatAmount     = total * VAT_RATE / (1 + VAT_RATE);
   const netAmount     = total - vatAmount;
@@ -106,6 +101,10 @@ function startListeners() {
       allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderOrders();
       updateOrdersBadge();
+    },
+    err => {
+      console.error('❌ Failed to load orders:', err);
+      showToast('Error loading orders: ' + (err.message || 'Unknown error'), 'error');
     }
   );
 }
@@ -176,6 +175,17 @@ async function updateOrderStatus(id, newStatus) {
 }
 
 window._updateStatus = updateOrderStatus;
+
+// ── Cancel order ───────────────────────────────────────────────────────────────
+window._cancelOrder = (id) => {
+  showConfirm({
+    title: 'Cancel Order?',
+    body: `Are you sure you want to cancel order #${id.slice(-5).toUpperCase()}? This action cannot be undone.`,
+    confirmLabel: 'Yes, Cancel',
+    confirmClass: 'danger',
+    onConfirm: () => updateOrderStatus(id, 'cancelled')
+  });
+};
 
 // ── Toggle items expand ───────────────────────────────────────────────────────
 window._toggleItems = function(el) {
@@ -393,6 +403,10 @@ window._showReceipt = id => {
   const body  = document.getElementById('receiptModalBody');
   if (!modal||!body) return;
 
+  const meta = STATUS_META[o.status] || STATUS_META.pending;
+  const paidAt = o.paidAt?.toDate
+    ? o.paidAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+    : null;
   const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
   const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
 
