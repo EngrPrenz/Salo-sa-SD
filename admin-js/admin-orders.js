@@ -296,10 +296,10 @@ function orderCardHtml(o) {
   } else if (o.status !== 'served' && o.status !== 'paid' && o.status !== 'preparing') {
     secondaryButtons += `<button class="order-btn-secondary" onclick="window._showReceipt('${o.id}')">Receipt</button>`;
     secondaryButtons += `<button class="order-btn-danger" onclick="window._cancelOrder('${o.id}')">Cancel</button>`;
-  } else if (o.status === 'paid') {
+  } else if (o.status === 'paid' || o.status === 'served') {
     secondaryButtons += `<button class="order-btn-secondary full" onclick="window._showReceipt('${o.id}')">View Receipt</button>`;
   }
-  // No buttons for preparing and served
+  // No buttons for preparing
 
   return `
     <div class="order-card-v2" style="--card-accent:${meta.color}; --card-border:${meta.color}33;">
@@ -403,39 +403,46 @@ window._showReceipt = id => {
   const body  = document.getElementById('receiptModalBody');
   if (!modal||!body) return;
 
-  const meta = STATUS_META[o.status] || STATUS_META.pending;
-  const paidAt = o.paidAt?.toDate
-    ? o.paidAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
-    : null;
-  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
-  const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
+  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(Number(o.total)||0);
 
-  // Build items list ONCE (no duplication)
   const items = (o.items||[]).map(it => `
-    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.08);">
-      <div>${escapeHtml(it.name)} <span style="color:var(--text-muted)">×${it.qty}</span></div>
-      <div style="font-weight:600;">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        ${escapeHtml(it.name)} <span style="color:var(--text-muted)">× ${it.qty}</span>
+      </div>
+      <div style="flex-shrink:0;margin-left:12px;font-weight:600;">
+        ₱${((Number(it.price)||0)*(Number(it.qty)||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}
+      </div>
     </div>`).join('');
 
+  const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
+
   body.innerHTML = `
-    <div style="text-align:center;margin-bottom:14px;">
-      <div style="font-weight:700;font-size:16px;color:var(--white);">Order #${o.id.slice(-5).toUpperCase()}</div>
-      <div style="margin-top:6px;"><span class="status-badge ${o.status}">${meta.label}</span></div>
-      <div style="color:var(--text-muted);font-size:12px;margin-top:8px;">${ts}</div>
-      <div style="color:var(--text-muted);font-size:12px;">Table ${o.tableNumber || '?'} · ${escapeHtml(o.waiterName || 'Unknown')}</div>
-      ${paidAt ? `<div style="font-size:12px;color:var(--gold);margin-top:4px;">Paid: ${paidAt}</div>` : ''}
+    <div style="margin-bottom:12px;">
+      <div style="font-size:15px;font-weight:700;color:var(--white)">Order #${o.id.slice(-5).toUpperCase()}</div>
+      <div style="color:var(--text-muted);font-size:12px;margin-top:3px;">${ts}</div>
+      <div style="color:var(--text-muted);font-size:12px;">
+        Table ${escapeHtml(String(o.tableNumber||'—'))} · ${escapeHtml(o.waiterName||'—')}
+      </div>
     </div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-    <div style="max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
-    <div style="overflow-y:auto;max-height:220px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
-      ${items}
+    <hr style="border:none;border-top:1px solid var(--border);margin:0 0 10px;">
+    ${items}
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0 8px;">
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
+      <span>VAT-excl. Amount</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
     </div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;"><span>VAT-excl. Amount</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;"><span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;"><span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;padding:10px 0 0;border-top:2px solid var(--border);margin-top:6px;">
-      <span>TOTAL</span><span style="color:var(--gold-light);">₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
+      <span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
+      <span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)">Total</span>
+      <span style="font-size:20px;font-weight:700;color:var(--gold-light);font-family:'Cormorant Garamond',serif;">
+        ₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}
+      </span>
     </div>`;
 
   body.dataset.orderId = id;
@@ -444,6 +451,9 @@ window._showReceipt = id => {
 
 document.getElementById('receiptModalClose')?.addEventListener('click',  () => document.getElementById('receiptModal')?.classList.remove('show'));
 document.getElementById('receiptModalClose2')?.addEventListener('click', () => document.getElementById('receiptModal')?.classList.remove('show'));
+document.getElementById('receiptModal')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('receiptModal')) document.getElementById('receiptModal').classList.remove('show');
+});
 
 // ── Print receipt ──────────────────────────────────────────────────────────────
 document.getElementById('receiptModalPrint')?.addEventListener('click', async () => {
@@ -482,7 +492,6 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
     .rh{text-align:center;margin-bottom:10px;}
     .logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
     .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
-    .sb{display:inline-block;padding:2px 10px;border-radius:100px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border:1px solid #999;color:#555;margin-top:4px;}
     hr.s{border:none;border-top:1px solid #111;margin:7px 0;}
     hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
     .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
@@ -505,10 +514,8 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   <hr class="s"/>
   <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
   <div class="mr"><span class="ml">Date:</span><span>${ts}</span></div>
-  <div class="mr"><span class="ml">Table:</span><span>${o.tableNumber || '—'}</span></div>
-  <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(o.waiterName || '—')}</span></div>
-  ${paidAt ? `<div class="mr"><span class="ml">Paid at:</span><span style="color:#b8821e;font-weight:700;">${paidAt}</span></div>` : ''}
-  ${o.receiptIndex > 1 ? `<div class="mr"><span class="ml">Re-order:</span><span>#${o.receiptIndex}</span></div>` : ''}
+  <div class="mr"><span class="ml">Table:</span><span>${o.tableNumber||'—'}</span></div>
+  <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(o.waiterName||'—')}</span></div>
   <hr class="d"/>
   <table>
     <thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead>

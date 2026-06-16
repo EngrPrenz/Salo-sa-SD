@@ -18,6 +18,17 @@ let tableStatuses = {};
 let tableDocsList = [];
 let currentRole   = '';
 
+const VAT_RATE            = 0.12;
+const SERVICE_CHARGE_RATE = 0.07;
+
+function computeVat(total) {
+  const vatAmount     = total * VAT_RATE / (1 + VAT_RATE);
+  const netAmount     = total - vatAmount;
+  const serviceCharge = total * SERVICE_CHARGE_RATE;
+  const grandTotal    = total + serviceCharge;
+  return { netAmount, vatAmount, serviceCharge, grandTotal };
+}
+
 // ── Bootstrap (resolves after auth guard passes) ───────────────────────────────
 bootstrapAdmin(auth, db, { doc, getDoc, signOut }, 'admin-overview.html')
   .then(userInfo => {
@@ -76,7 +87,7 @@ function updateOrdersBadge() {
 }
 
 function renderOverview() {
-  const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
+  const active = allOrders.filter(o => ['pending','preparing','paid'].includes(o.status));
   const el = id => document.getElementById(id);
 
   if (el('statActiveOrders')) el('statActiveOrders').textContent = active.length;
@@ -92,10 +103,10 @@ function renderOverview() {
   // Revenue — only rendered when card is visible (non-cashier)
   if (currentRole !== 'admin_cashier') {
     const today = new Date(); today.setHours(0,0,0,0);
-    const paidToday = allOrders.filter(o => o.status==='paid' && o.createdAt?.toDate()>=today);
-    const rev = paidToday.reduce((s,o) => s+(o.total||0), 0);
+    const completedToday = allOrders.filter(o => ['paid','served'].includes(o.status) && o.createdAt?.toDate()>=today);
+    const rev = completedToday.reduce((s,o) => s + computeVat(Number(o.total)||0).grandTotal, 0);
     if (el('statRevenue')) el('statRevenue').textContent = `₱${rev.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
-    if (el('statRevSub'))  el('statRevSub').textContent  = `${paidToday.length} paid orders today`;
+    if (el('statRevSub'))  el('statRevSub').textContent  = `${completedToday.length} completed orders today (incl. service)`;
   }
 
   renderRecentOrders();
@@ -120,7 +131,7 @@ function renderRecentOrders() {
 function renderOverviewTableGrid() {
   const grid = document.getElementById('overviewTableGrid');
   if (!grid) return;
-  const active = allOrders.filter(o => ['pending','preparing','served'].includes(o.status));
+  const active = allOrders.filter(o => ['pending','preparing','paid'].includes(o.status));
   const occupied = {};
   active.forEach(o => { if (o.tableNumber) occupied[o.tableNumber] = o.status; });
   const tables = tableDocsList.length ? tableDocsList : Array.from({length:10},(_,i)=>({tableNumber:i+1}));

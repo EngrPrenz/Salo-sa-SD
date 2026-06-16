@@ -55,7 +55,7 @@ function updateOrdersBadge() {
 // ── Render billing ────────────────────────────────────────────────────────────
 function renderBilling() {
   const tbody = document.getElementById('billingTableBody'); if (!tbody) return;
-  const paidOrders = allOrders.filter(o => o.status==='paid');
+  const paidOrders = allOrders.filter(o => ['paid', 'served'].includes(o.status));
 
   // Today's total (using grandTotal with service charge)
   const now        = new Date();

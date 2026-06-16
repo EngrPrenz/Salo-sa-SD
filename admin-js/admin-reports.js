@@ -163,7 +163,7 @@ function renderDaily() {
   const end     = new Date(y, m-1, d, 23, 59, 59);
   const dayOrders = allOrders.filter(o => {
     const dt = o.createdAt?.toDate();
-    return dt && dt>=start && dt<=end && o.status==='paid';
+    return dt && dt>=start && dt<=end && ['paid', 'served'].includes(o.status);
   });
 
   // Use grandTotal (subtotal + 7% service charge) for all revenue display
@@ -218,7 +218,7 @@ function renderWeekly() {
 
   const weekOrders = allOrders.filter(o => {
     const dt = o.createdAt?.toDate();
-    return dt && dt>=ws && dt<=weekEnd && o.status==='paid';
+    return dt && dt>=ws && dt<=weekEnd && ['paid', 'served'].includes(o.status);
   });
 
   // Grand totals for the whole week
@@ -320,7 +320,7 @@ function renderMonthly() {
 
   const monthOrders = allOrders.filter(o => {
     const d = o.createdAt?.toDate();
-    return d && d>=startDate && d<=endDate && o.status==='paid';
+    return d && d>=startDate && d<=endDate && ['paid', 'served'].includes(o.status);
   });
 
   // Use grandTotal (incl. 7% service charge) for revenue KPIs
