@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="../image/logo.png"/>
+  <title>Salo sa Antipolo — Staff</title>
+  <link rel="stylesheet" href="../admin.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* Role-change modal option label hover */
+    #roleChangeOptions label { transition: border-color 0.15s, opacity 0.15s; }
+    #roleChangeOptions label:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="bg-dots"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+      <div class="brand-text">
+        <span class="brand-name">Salo sa</span>
+        <em class="brand-italic">Antipolo</em>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="admin-overview.html" class="nav-item" data-view="overview">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
+      </a>
+      <a href="admin-orders.html" class="nav-item" data-view="orders">
+        <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
+        <span class="nav-badge" id="ordersBadge">0</span>
+      </a>
+      <a href="admin-tables.html" class="nav-item" data-view="tables">
+        <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
+      </a>
+      <a href="admin-menu.html" class="nav-item" data-view="menu">
+        <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
+      </a>
+      <div class="nav-section-label">Management</div>
+      <a href="admin-billing.html" class="nav-item" data-view="billing">
+        <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
+      </a>
+      <a href="admin-staff.html" class="nav-item active" data-view="staff">
+        <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+        <span class="nav-badge" id="staffBadge" style="display:none">0</span>
+      </a>
+      <a href="admin-reports.html" class="nav-item" data-view="reports">
+        <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
+      </a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatarSidebar">A</div>
+      <div class="user-info">
+        <span class="user-name" id="userNameSidebar">Admin</span>
+        <span class="user-role">Administrator</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
+    </div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <div class="topbar-left">
+        <h1 class="page-title">Staff</h1>
+        <span class="page-date" id="pageDate"></span>
+      </div>
+      <div class="topbar-right">
+        <div class="live-indicator"><span class="live-dot"></span>Live</div>
+        <div class="topbar-user">
+          <span id="topbarName">Admin</span>
+          <div class="user-avatar sm" id="userAvatarTop">A</div>
+          <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="view active">
+      <div class="view-toolbar">
+        <div class="panel-title panel-title--small">Staff Accounts</div>
+      </div>
+      <div class="staff-grid" id="staffGrid">
+        <div class="empty-state">Loading staff…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
+
+  <!-- Confirm Modal -->
+  <div class="confirm-modal-overlay" id="confirmModal">
+    <div class="confirm-modal" role="dialog" aria-modal="true">
+      <div class="confirm-modal-head">
+        <div class="confirm-modal-icon-wrap"><span id="confirmIcon">⚠️</span></div>
+        <button class="confirm-modal-close" id="confirmModalClose">✕</button>
+      </div>
+      <div class="confirm-modal-body">
+        <div class="confirm-modal-title"   id="confirmTitle">Confirm Action</div>
+        <div class="confirm-modal-message" id="confirmMessage">Are you sure?</div>
+      </div>
+      <div class="confirm-modal-foot">
+        <button class="btn-sm" id="confirmCancel">Cancel</button>
+        <button class="btn-sm gold" id="confirmOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role-change Modal (Owner/CEO only — JS guards internally) -->
+  <div class="confirm-modal-overlay" id="roleChangeModal">
+    <div class="confirm-modal" role="dialog" aria-modal="true" style="max-width:460px;">
+      <div class="confirm-modal-head">
+        <div class="confirm-modal-icon-wrap"><span>🛡️</span></div>
+        <button class="confirm-modal-close" id="roleChangeModalClose">✕</button>
+      </div>
+      <div class="confirm-modal-body">
+        <div class="confirm-modal-title"   id="roleChangeTitle">Change Admin Role</div>
+        <div class="confirm-modal-message" id="roleChangeSubtitle" style="margin-bottom:16px;"></div>
+        <div id="roleChangeOptions" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+      <div class="confirm-modal-foot">
+        <button class="btn-sm" id="roleChangeCancel">Cancel</button>
+        <button class="btn-sm gold" id="roleChangeSave">Save Role</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../admin-js/admin-staff.js"></script>
+  <script>document.addEventListener("DOMContentLoaded",()=>{ if(window.lucide) lucide.createIcons(); });</script>
+  <script>
+    (function(){
+      var root=document.documentElement, saved=localStorage.getItem("adminTheme")||"dark";
+      if(saved==="light") root.setAttribute("data-theme","light");
+      document.addEventListener("DOMContentLoaded",function(){
+        var btn=document.getElementById("themeToggle"); if(!btn) return;
+        btn.addEventListener("click",function(){
+          var isLight=root.getAttribute("data-theme")==="light";
+          if(isLight){root.removeAttribute("data-theme");localStorage.setItem("adminTheme","dark");}
+          else{root.setAttribute("data-theme","light");localStorage.setItem("adminTheme","light");}
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

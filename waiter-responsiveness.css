@@ -1,0 +1,274 @@
+/* ═══════════════════════════════════════════════
+   waiter-responsiveness.css
+   Scrollbar styling & responsive breakpoints
+   for Salo sa Antipolo — Waiter
+═══════════════════════════════════════════════ */
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── DESKTOP — fix card content clipping at all wide viewports ── */
+.menu-item-card {
+  display: flex;
+  flex-direction: column;
+  height: 250px;
+}
+.mic-img {
+  flex-shrink: 0;
+  width: 100%;
+  height: 110px;
+  aspect-ratio: unset;
+  object-fit: cover;
+}
+.mic-img-placeholder {
+  flex-shrink: 0;
+  width: 100%;
+  height: 110px;
+  aspect-ratio: unset;
+}
+.mic-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px;
+  gap: 2px;
+}
+.mic-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+.mic-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+.mic-footer {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── RESPONSIVE ── */
+
+/* Small desktop / large tablet — 864px and below */
+@media (max-width: 864px) {
+  /* Shrink topbar to prevent overflow */
+  .topbar { padding: 0 14px; gap: 10px; }
+  .brand-name { font-size: 18px; }
+  .brand-logo { width: 36px; height: 36px; }
+
+  /* Compress step pills text */
+  .step-pill { padding: 6px 12px; font-size: 12px; gap: 5px; }
+
+  /* Shrink logout button */
+  .logout-btn { padding: 6px 10px; font-size: 12px; }
+  .waiter-avatar { width: 32px; height: 32px; font-size: 13px; }
+}
+
+/* Medium tablet — 1024px and below */
+@media (max-width: 1024px) {
+  /* Horizontal card layout — same as 768px but keeping 14 items/page */
+  .menu-items { grid-template-columns: 1fr; padding: 10px 14px; }
+
+  .menu-item-card {
+    flex-direction: row;
+    align-items: stretch;
+    height: 88px;
+    overflow: hidden;
+  }
+
+  .mic-img,
+  .mic-img-placeholder {
+    width: 88px;
+    min-width: 88px;
+    max-width: 88px;
+    height: 88px;
+    flex-shrink: 0;
+    aspect-ratio: unset;
+    object-fit: cover;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+
+  .mic-body {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .mic-cat { font-size: 9px; }
+  .mic-name { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mic-desc {
+    font-size: 11px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+  }
+  .mic-footer {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .mic-price { font-size: 13px; }
+  .mic-add { width: 24px; height: 24px; font-size: 15px; }
+
+  /* Cart narrower */
+  .cart-panel { width: 260px; }
+}
+
+
+@media (max-width: 768px) {
+  /* Cart panel — narrower to give menu more room */
+  .cart-panel { width: 240px; }
+
+  /* Menu items — single column */
+  .menu-items { grid-template-columns: 1fr; padding: 10px 12px; }
+
+  /* Card: fixed height horizontal row */
+  .menu-item-card {
+    flex-direction: row;
+    align-items: stretch;
+    height: 88px;
+    overflow: hidden;
+  }
+
+  /* Both image and placeholder: fixed 88px square on the left */
+  .mic-img,
+  .mic-img-placeholder {
+    width: 88px;
+    min-width: 88px;
+    max-width: 88px;
+    height: 88px;
+    flex-shrink: 0;
+    aspect-ratio: unset;
+    object-fit: cover;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+
+  /* Body: flex-column filling remaining width */
+  .mic-body {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .mic-cat { font-size: 9px; }
+  .mic-name { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Description: 1 line only */
+  .mic-desc {
+    font-size: 11px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  /* Footer: always at bottom, price + add button */
+  .mic-footer {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .mic-price { font-size: 13px; }
+  .mic-add { width: 24px; height: 24px; font-size: 15px; }
+
+  /* Category tab font */
+  .cat-btn { font-size: 11px; padding: 6px 8px; }
+
+  /* Table label */
+  .table-label { font-size: 16px; padding: 0 10px; }
+
+  /* Cart */
+  .cart-header { padding: 12px 14px; }
+  .cart-title { font-size: 17px; }
+  .cart-items { padding: 10px; }
+  .cart-footer { padding: 10px; }
+  .total-val { font-size: 22px; }
+
+  /* ── Pagination: ‹Prev  [1][2][3]  Next› all on one row ── */
+  .menu-pagination {
+    flex-wrap: nowrap;
+    padding: 10px 12px;
+    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pg-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .pg-pills {
+    flex: 1;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 4px;
+    overflow: hidden;
+  }
+  .pg-pill {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .pg-dots {
+    color: var(--text-muted);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+  .pg-count { display: none; }
+}
+
+/* Mobile — 560px and below */
+@media (max-width: 560px) {
+  .order-layout { flex-direction: column; }
+  .menu-panel { border-right: none; border-bottom: 1px solid var(--border); flex: none; height: 55%; }
+  .cart-panel { width: 100%; flex: none; height: 45%; }
+
+  /* Back to grid on small mobile */
+  .menu-item-card { flex-direction: column; }
+  .mic-img,
+  .mic-img-placeholder { width: 100%; aspect-ratio: 16 / 9; border-right: none; border-bottom: 1px solid var(--border); }
+  .menu-items { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding: 10px; }
+
+  .step-pills { display: none; }
+  .step-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+
+  /* Hide brand name on very small screens */
+  .brand-name { display: none; }
+}

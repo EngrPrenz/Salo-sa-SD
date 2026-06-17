@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="../image/logo.png"/>
+  <title>Salo sa Antipolo — Live Orders</title>
+  <link rel="stylesheet" href="../admin.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* ── Tab count pills ─────────────────────────────────────────── */
+    .ftab { display: inline-flex; align-items: center; gap: 6px; }
+    .tab-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px; border-radius: 100px; padding: 0 5px;
+      font-size: 10px; font-weight: 700;
+      background: rgba(255,255,255,0.08); color: var(--text-muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .ftab.active .tab-count { background: var(--gold-dim); color: var(--gold); }
+    .ftab[data-status="pending"]   .tab-count { background: var(--orange-dim); color: var(--orange); }
+    .ftab[data-status="paid"]      .tab-count { background: var(--gold-dim);   color: var(--gold); }
+    .ftab[data-status="preparing"] .tab-count { background: var(--blue-dim);   color: var(--blue); }
+    .ftab[data-status="served"]    .tab-count { background: var(--green-dim);  color: var(--green); }
+    .ftab[data-status="cancelled"] .tab-count { background: var(--red-dim);    color: var(--red); }
+
+    /* ── Confirm modal ───────────────────────────────────────────── */
+    .confirm-modal {
+      position: fixed; inset: 0; z-index: 1000;
+      display: none; align-items: center; justify-content: center;
+    }
+    .confirm-modal.show { display: flex; }
+    .confirm-modal .modal-backdrop {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+      -webkit-backdrop-filter: blur(4px);
+      backdrop-filter: blur(4px);
+    }
+    .confirm-modal-box {
+      position: relative; z-index: 1;
+      background: var(--black-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px 24px 20px;
+      max-width: 340px; width: 90%;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+      animation: scaleIn 0.2s cubic-bezier(0.16,1,0.3,1);
+    }
+    @keyframes scaleIn { from { opacity:0; transform:scale(0.93); } to { opacity:1; transform:scale(1); } }
+    .confirm-modal-title {
+      font-size: 16px; font-weight: 700; color: var(--white); margin-bottom: 10px;
+    }
+    .confirm-modal-body {
+      font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;
+    }
+    .confirm-modal-foot { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Toast variants ──────────────────────────────────────────── */
+    .toast.toast-success .toast-dot { background: var(--green); }
+    .toast.toast-error   .toast-dot { background: var(--red); }
+
+    /* ── Flow pill breadcrumb ────────────────────────────────────── */
+    .order-flow-track {
+      display: flex; align-items: center; gap: 0;
+      padding: 8px 12px; background: var(--black-mid);
+      border-bottom: 1px solid var(--border);
+      font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; overflow-x: auto;
+      -webkit-scrollbar-width: none;
+      scrollbar-width: none;
+    }
+    .order-flow-track::-webkit-scrollbar { display: none; }
+    .flow-step {
+      display: flex; align-items: center; gap: 4px;
+      color: var(--text-muted); white-space: nowrap; padding: 2px 4px;
+    }
+    .flow-step.done  { color: var(--green); }
+    .flow-step.active { color: var(--gold); }
+    .flow-arrow { color: var(--border); margin: 0 2px; font-size: 12px; }
+
+    /* View scroll area */
+    .view.active {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; padding: 16px 20px; gap: 14px;
+    }
+    .hidden { display: none !important; }
+    .order-flow-track-pill {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .modal-content-receipt {
+      max-width: 420px;
+    }
+    .orders-grid {
+      flex: 1; overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      align-content: start;
+      padding-bottom: 24px;
+      padding-right: 4px;
+    }
+
+    /* Responsive tabs scroll */
+    .filter-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-scrollbar-width: none; scrollbar-width: none; }
+    .filter-tabs::-webkit-scrollbar { display: none; }
+    .ftab { white-space: nowrap; }
+
+    /* ── Override any global card styles that break layout ───────── */
+    .orders-grid .order-card-v2 {
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      background: var(--black-card);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.2s;
+      animation: cardIn 0.25s cubic-bezier(0.16,1,0.3,1);
+      position: relative;
+      height: 350px;
+    }
+    .orders-grid .order-card-v2::before { display: none !important; }
+    .orders-grid .order-card-v2:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+      border-color: rgba(201,151,58,0.3);
+    }
+    .orders-grid .order-card-stripe {
+      height: 2px; width: 100%; flex-shrink: 0; border-radius: 14px 14px 0 0;
+    }
+    .orders-grid .order-card-inner {
+      padding: 10px; display: flex; flex-direction: column; gap: 7px; flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0;
+    }
+    .orders-grid .order-card-inner::-webkit-scrollbar { width: 3px; }
+    .orders-grid .order-card-inner::-webkit-scrollbar-track { background: transparent; }
+    .orders-grid .order-card-inner::-webkit-scrollbar-thumb { background: rgba(201,151,58,0.2); border-radius: 2px; }
+
+    .orders-grid .order-card-header {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; flex-wrap: wrap; row-gap: 2px; flex-shrink: 0;
+    }
+    .orders-grid .order-card-id-row {
+      display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+    }
+    .orders-grid .order-card-id {
+      font-family: 'Courier New', monospace; font-size: 10px; font-weight: 700;
+      color: var(--card-accent, var(--gold)); letter-spacing: 0.05em;
+    }
+    .orders-grid .status-badge { font-size: 8px; padding: 2px 5px; border-radius: 3px; }
+    .orders-grid .order-lock-badge { font-size: 7px; padding: 1px 4px; border-radius: 2px; }
+    .orders-grid .order-card-time-col {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 0px; flex-shrink: 0;
+    }
+    .orders-grid .order-card-time { font-size: 9px; color: var(--text-muted); white-space: nowrap; line-height: 1; }
+    .orders-grid .order-elapsed { font-size: 8px; color: var(--text-muted); white-space: nowrap; line-height: 1; }
+
+    .orders-grid .order-card-meta {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px; background: var(--black-mid);
+      border-radius: 6px; border: 1px solid rgba(255,255,255,0.04);
+      flex-wrap: wrap;
+      row-gap: 4px;
+      flex-shrink: 0;
+    }
+    .orders-grid .order-meta-table,
+    .orders-grid .order-meta-waiter,
+    .orders-grid .order-meta-paid-at { display: flex; flex-direction: column; gap: 0px; }
+    .orders-grid .order-meta-label {
+      font-size: 7px; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--text-muted); line-height: 1;
+    }
+    .orders-grid .order-meta-value { font-size: 11px; font-weight: 600; color: var(--off-white); line-height: 1; }
+    .orders-grid .order-meta-table .order-meta-value {
+      font-family: 'Cormorant Garamond', serif; font-size: 14px;
+      color: var(--card-accent, var(--gold)); line-height: 1;
+      font-weight: 700;
+    }
+    .orders-grid .order-meta-divider {
+      width: 1px; height: 16px; background: rgba(255,255,255,0.07); flex-shrink: 0;
+    }
+
+    /* Totals section */
+    .orders-grid .order-totals-section {
+      display: flex; flex-direction: column; gap: 2px; padding: 6px 0 0; flex-shrink: 0;
+    }
+    .orders-grid .order-totals-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 8px; color: var(--text-muted); padding: 1px 0; line-height: 1;
+    }
+    .orders-grid .order-grand-total {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; padding: 4px 0 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 3px; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .orders-grid .order-grand-total span:last-child {
+      font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 600; text-transform: none; letter-spacing: normal; color: inherit;
+    }
+
+    /* Cancelled notice */
+    .orders-grid .order-cancelled-notice {
+      padding: 8px 0; text-align: center; font-size: 12px; color: var(--red); opacity: 0.7;
+    }
+    .orders-grid .order-item-empty {
+      color: var(--text-muted); font-size: 11px; justify-content: center;
+    }
+
+    .orders-grid .order-items-list {
+      display: flex; flex-direction: column;
+      border-radius: 6px; overflow-y: auto; overflow-x: hidden;
+      border: 1px solid rgba(255,255,255,0.05);
+      flex: 1; min-height: 0;
+      margin: 0 -2px;
+      padding: 0 2px;
+    }
+    .orders-grid .order-items-list::-webkit-scrollbar { width: 3px; }
+    .orders-grid .order-items-list::-webkit-scrollbar-track { background: transparent; }
+    .orders-grid .order-items-list::-webkit-scrollbar-thumb { background: rgba(201,151,58,0.25); border-radius: 2px; }
+
+    .orders-grid .order-item-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 8px; font-size: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      flex-shrink: 0;
+    }
+    .orders-grid .order-item-row:last-child { border-bottom: none; }
+    .orders-grid .order-item-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .orders-grid .order-item-qty {
+      font-size: 8px; font-weight: 700; color: var(--card-accent, var(--gold));
+      background: rgba(201,151,58,0.12); border-radius: 2px; padding: 1px 3px; flex-shrink: 0; line-height: 1;
+    }
+    .orders-grid .order-item-name {
+      color: var(--off-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px;
+    }
+    .orders-grid .order-item-price {
+      color: var(--text-muted); font-size: 9px; flex-shrink: 0; margin-left: 2px;
+    }
+    .orders-grid .order-note {
+      font-size: 9px; color: var(--text-muted); font-style: italic;
+      background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 4px; padding: 4px 6px; line-height: 1.2; flex-shrink: 0;
+    }
+    .orders-grid .order-total-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 4px;
+    }
+    .orders-grid .order-total-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .orders-grid .order-total-val {
+      font-family: 'Cormorant Garamond', serif; font-size: 18px;
+      font-weight: 600; line-height: 1;
+    }
+    .orders-grid .order-actions { display: flex; flex-direction: column; gap: 5px; margin-top: auto; flex-shrink: 0; }
+    .orders-grid .order-actions-primary { display: flex; gap: 4px; }
+    .orders-grid .order-actions-secondary { display: flex; gap: 4px; flex-wrap: wrap; }
+    .orders-grid .btn-sm { 
+      flex: 1; min-width: 50px; font-size: 9px; padding: 5px 6px; 
+      border-radius: 4px; border: 1px solid; cursor: pointer; transition: all 0.15s; font-weight: 600;
+      border-color: rgba(201,151,58,0.4); color: var(--gold); background: rgba(201,151,58,0.1);
+    }
+    .orders-grid .btn-sm:hover {
+      background: rgba(201,151,58,0.2); border-color: rgba(201,151,58,0.6); color: var(--gold-light);
+    }
+    .orders-grid .order-btn-secondary { 
+      flex: 1; min-width: 50px; font-size: 9px; padding: 5px 6px; 
+      background: var(--black-mid); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; font-weight: 500;
+    }
+    .orders-grid .order-btn-secondary:hover {
+      background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: var(--off-white);
+    }
+    .orders-grid .order-btn-danger {
+      flex: 1; min-width: 50px; font-size: 9px; padding: 5px 6px;
+      background: transparent; border: 1px solid rgba(231,76,60,0.35); color: var(--red); border-radius: 4px; cursor: pointer; transition: all 0.15s; font-weight: 500;
+    }
+    .orders-grid .order-btn-danger:hover {
+      background: rgba(231,76,60,0.12); border-color: rgba(231,76,60,0.6);
+    }
+
+    /* Section headers span full width */
+    .orders-grid .orders-section-header { grid-column: 1 / -1; }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="bg-dots"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <!-- ── Sidebar ───────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><img src="../image/logo.png" alt="Salo sa Antipolo Logo" class="brand-logo-img"/></div>
+      <div class="brand-text">
+        <span class="brand-name">Salo sa</span>
+        <em class="brand-italic">Antipolo</em>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="admin-overview.html" class="nav-item" data-view="overview">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span><span class="nav-label">Overview</span>
+      </a>
+      <a href="admin-orders.html" class="nav-item active" data-view="orders">
+        <span class="nav-icon"><i data-lucide="clipboard-list"></i></span><span class="nav-label">Live Orders</span>
+        <span class="nav-badge hidden" id="ordersBadge">0</span>
+      </a>
+      <a href="admin-tables.html" class="nav-item" data-view="tables">
+        <span class="nav-icon"><i data-lucide="armchair"></i></span><span class="nav-label">Tables</span>
+      </a>
+      <a href="admin-menu.html" class="nav-item" data-view="menu">
+        <span class="nav-icon"><i data-lucide="utensils"></i></span><span class="nav-label">Menu</span>
+      </a>
+
+      <div class="nav-section-label">Management</div>
+      <a href="admin-billing.html" class="nav-item" data-view="billing">
+        <span class="nav-icon"><i data-lucide="banknote"></i></span><span class="nav-label">Billing</span>
+      </a>
+      <a href="admin-staff.html" class="nav-item" data-view="staff">
+        <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Staff</span>
+      </a>
+      <a href="admin-reports.html" class="nav-item" data-view="reports">
+        <span class="nav-icon"><i data-lucide="trending-up"></i></span><span class="nav-label">Reports</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatarSidebar">A</div>
+      <div class="user-info">
+        <span class="user-name" id="userNameSidebar">Admin</span>
+        <span class="user-role">Administrator</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn" title="Logout"><i data-lucide="log-out"></i></button>
+    </div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ── Main ──────────────────────────────────────────────────────────── -->
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger">&#9776;</button>
+      <div class="topbar-left">
+        <h1 class="page-title" id="pageTitle">Live Orders</h1>
+        <span class="page-date" id="pageDate"></span>
+      </div>
+      <div class="topbar-right">
+        <div class="live-indicator"><span class="live-dot"></span>Live</div>
+        <div class="topbar-user">
+          <span id="topbarName">Admin</span>
+          <div class="user-avatar sm" id="userAvatarTop">A</div>
+          <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle theme">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="icon-sun"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="view active">
+      <!-- Toolbar -->
+      <div class="view-toolbar">
+        <div class="filter-tabs">
+          <button class="ftab active" data-status="all">
+            All <span class="tab-count hidden">0</span>
+          </button>
+          <button class="ftab" data-status="pending">
+            Pending <span class="tab-count hidden">0</span>
+          </button>
+          <button class="ftab" data-status="paid">
+            Paid <span class="tab-count hidden">0</span>
+          </button>
+          <button class="ftab" data-status="preparing">
+            Preparing <span class="tab-count hidden">0</span>
+          </button>
+          <button class="ftab" data-status="served">
+            Served <span class="tab-count hidden">0</span>
+          </button>
+          <button class="ftab" data-status="cancelled">
+            Cancelled <span class="tab-count hidden">0</span>
+          </button>
+        </div>
+        <div class="toolbar-right">
+          <div class="search-wrap">
+            <span class="search-icon"><i class="material-icons">&#xe8b6;</i></span>
+            <input type="text" class="search-input" id="orderSearch" placeholder="Search table, waiter, ID…"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders grid -->
+      <div class="orders-grid" id="ordersGrid">
+        <div class="orders-empty-state">
+          <div class="orders-empty-icon"></div>
+          <div class="orders-empty-title">Loading orders…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast ─────────────────────────────────────────────────────────── -->
+  <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
+
+  <!-- ── Receipt Modal ─────────────────────────────────────────────────── -->
+  <div class="modal" id="receiptModal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-content-receipt">
+      <div class="modal-head">
+        <h3>Receipt</h3>
+        <button class="modal-close" id="receiptModalClose">×</button>
+      </div>
+      <div class="modal-body" id="receiptModalBody"></div>
+      <div class="modal-foot">
+        <button class="btn-sm gold" id="receiptModalPrint">Print</button>
+        <button class="btn-sm" id="receiptModalClose2">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Confirm Modal ─────────────────────────────────────────────────── -->
+  <div class="confirm-modal" id="confirmModal">
+    <div class="modal-backdrop"></div>
+    <div class="confirm-modal-box">
+      <div class="confirm-modal-title" id="confirmModalTitle">Are you sure?</div>
+      <div class="confirm-modal-body" id="confirmModalBody"></div>
+      <div class="confirm-modal-foot">
+        <button class="btn-sm" id="confirmModalCancel">Cancel</button>
+        <button class="btn-sm danger" id="confirmModalOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Scripts ───────────────────────────────────────────────────────── -->
+  <script type="module" src="../admin-js/admin-orders.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => { if (window.lucide) lucide.createIcons(); });
+  </script>
+
+  <!-- Theme toggle (runs before DOMContentLoaded to avoid flash) -->
+  <script>
+    (function () {
+      var root  = document.documentElement;
+      var saved = localStorage.getItem("adminTheme") || "dark";
+      if (saved === "light") root.setAttribute("data-theme", "light");
+      document.addEventListener("DOMContentLoaded", function () {
+        var btn = document.getElementById("themeToggle");
+        if (!btn) return;
+        btn.addEventListener("click", function () {
+          var isLight = root.getAttribute("data-theme") === "light";
+          if (isLight) { root.removeAttribute("data-theme"); localStorage.setItem("adminTheme", "dark"); }
+          else { root.setAttribute("data-theme", "light"); localStorage.setItem("adminTheme", "light"); }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
