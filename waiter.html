@@ -237,6 +237,71 @@
     </div>
   </div>
 </div>
+<!-- ── Receipt Modal ── -->
+  <div class="modal" id="receiptModal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width:420px; display:flex; flex-direction:column; max-height:92vh; overflow:hidden;">
+      <div class="modal-head" style="flex-shrink:0;">
+        <h3>Receipt</h3>
+        <button class="modal-close" id="receiptModalClose">×</button>
+      </div>
+ 
+      <!-- Discount selector bar -->
+      <div style="flex-shrink:0; padding: 0 20px 0;">
+        <div class="discount-bar">
+          <span class="discount-bar-label">Discount:</span>
+          <button class="discount-btn active" data-dtype="none">None</button>
+          <button class="discount-btn" data-dtype="pwd">PWD</button>
+          <button class="discount-btn" data-dtype="sc">Senior Citizen</button>
+          <button class="discount-btn" data-dtype="mixed">PWD &amp; SC</button>
+        </div>
+        <div class="discount-note" id="discountNote"></div>
+      </div>
+ 
+      <!-- Per-person counters (shown only when a discount type is active) -->
+      <div id="receiptGuestCounters" style="display:none; flex-shrink:0; padding: 8px 20px 0;">
+        <div style="border-top:1px solid var(--border); padding-top:10px;">
+ 
+          <!-- PWD row -->
+          <div id="receiptPwdRow" style="display:flex; align-items:center; justify-content:space-between; padding:8px 0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px;">♿</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--white, #fff);">PWD Guests</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <button class="receipt-cnt-btn" id="receiptPwdMinus">−</button>
+              <span style="font-size:16px; font-weight:700; min-width:20px; text-align:center;" id="receiptPwdCount">0</span>
+              <button class="receipt-cnt-btn" id="receiptPwdPlus">+</button>
+            </div>
+          </div>
+ 
+          <!-- SC row -->
+          <div id="receiptScRow" style="display:flex; align-items:center; justify-content:space-between; padding:8px 0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px;">👴</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--white, #fff);">Senior Citizen Guests</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <button class="receipt-cnt-btn" id="receiptScMinus">−</button>
+              <span style="font-size:16px; font-weight:700; min-width:20px; text-align:center;" id="receiptScCount">0</span>
+              <button class="receipt-cnt-btn" id="receiptScPlus">+</button>
+            </div>
+          </div>
+ 
+        </div>
+      </div>
+ 
+      <div class="modal-body" id="receiptModalBody" style="overflow-y:auto; flex:1; min-height:0; margin-top:8px;"></div>
+      <div class="modal-foot" style="flex-shrink:0;">
+        <button class="btn-sm" id="receiptModalPrint">Print</button>
+        <button class="btn-sm" id="receiptModalClose2">Close</button>
+      </div>
+    </div>
+  </div>
 
 <script type="module" src="waiter.js"></script>
 </body>

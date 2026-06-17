@@ -1867,3 +1867,19 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .u-text-xs { font-size: 10px; }
 .u-uppercase { text-transform: uppercase; letter-spacing: 0.1em; }
 .u-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* PWD / Senior Citizen badge in billing table */
+.discount-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: rgba(212, 168, 67, 0.18);
+  color: var(--gold-light, #d4a843);
+  border: 1px solid rgba(212, 168, 67, 0.35);
+  vertical-align: middle;
+}

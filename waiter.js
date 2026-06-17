@@ -19,6 +19,11 @@ let menuOrderCounts = {};
 let tablesData = {};
 let pendingOccupyTable = null;
 let pendingWalkinTable = null;
+// Guest info state (PWD / SC counts for the current seating)
+let guestInfoPwdCount = 0;
+let guestInfoScCount  = 0;
+// Pending table number waiting for guest-info confirmation
+let pendingGuestInfoTable = null;
 let menuPage = 1;
 const ITEMS_PER_PAGE_DESKTOP = 14;
 const ITEMS_PER_PAGE_MEDIUM  = 10;
@@ -33,7 +38,7 @@ const getItemsPerPage = () => {
 window.addEventListener('resize', () => { menuPage = 1; renderMenuGrid(); });
 
 // ── Bento time-window helpers ──
-const BENTO_WINDOW = { start: 11, end: 15 }; // 11:00 AM – 3:00 PM
+const BENTO_WINDOW = { start: 11, end: 15 };
 function isBentoItem(name = '') { return name.toLowerCase().includes('bento'); }
 function isBentoWindowOpen() {
   const now = new Date();
@@ -69,7 +74,7 @@ $('logoutBtn').onclick = async () => { await signOut(auth); window.location.href
 async function init() {
   loadMenu();
 
-onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
+  onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     calculateMenuOrderCounts();
     renderTables();
@@ -94,6 +99,88 @@ onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap =
     tablesList.sort((a, b) => a.tableNumber - b.tableNumber);
     renderTables();
   });
+
+  // ── Guest Info Modal wiring ──
+  $('guestInfoModalClose').onclick = $('guestInfoModalCancel').onclick = () => {
+    $('guestInfoModal').classList.remove('show');
+    pendingGuestInfoTable = null;
+    guestInfoPwdCount = 0;
+    guestInfoScCount  = 0;
+  };
+
+  // Counter buttons for PWD
+  $('pwdMinus').onclick = () => {
+    guestInfoPwdCount = Math.max(0, guestInfoPwdCount - 1);
+    $('pwdCount').textContent = guestInfoPwdCount;
+    updateGuestInfoSummary();
+  };
+  $('pwdPlus').onclick = () => {
+    guestInfoPwdCount = Math.min(20, guestInfoPwdCount + 1);
+    $('pwdCount').textContent = guestInfoPwdCount;
+    updateGuestInfoSummary();
+  };
+  // Counter buttons for SC
+  $('scMinus').onclick = () => {
+    guestInfoScCount = Math.max(0, guestInfoScCount - 1);
+    $('scCount').textContent = guestInfoScCount;
+    updateGuestInfoSummary();
+  };
+  $('scPlus').onclick = () => {
+    guestInfoScCount = Math.min(20, guestInfoScCount + 1);
+    $('scCount').textContent = guestInfoScCount;
+    updateGuestInfoSummary();
+  };
+
+  $('confirmGuestInfoBtn').onclick = () => _proceedAfterGuestInfo();
+}
+
+function updateGuestInfoSummary() {
+  const note = $('guestInfoNote');
+  const total = guestInfoPwdCount + guestInfoScCount;
+  if (total === 0) {
+    note.textContent = 'No discount will be applied.';
+    note.style.color = 'var(--text-muted)';
+  } else {
+    const parts = [];
+    if (guestInfoPwdCount > 0) parts.push(`${guestInfoPwdCount} PWD`);
+    if (guestInfoScCount  > 0) parts.push(`${guestInfoScCount} Senior Citizen`);
+    note.textContent = `Discount will be applied for: ${parts.join(' & ')}.`;
+    note.style.color = 'var(--gold, #c9973a)';
+  }
+}
+
+// ── Open guest info modal ──
+function openGuestInfoModal(tableNum) {
+  pendingGuestInfoTable = tableNum;
+  guestInfoPwdCount = 0;
+  guestInfoScCount  = 0;
+  $('pwdCount').textContent  = '0';
+  $('scCount').textContent   = '0';
+  $('guestInfoTableBadge').textContent = `Table ${tableNum}`;
+  updateGuestInfoSummary();
+  $('guestInfoModal').classList.add('show');
+}
+
+// ── Called when waiter confirms guest info and proceeds to order ──
+async function _proceedAfterGuestInfo() {
+  const num = pendingGuestInfoTable;
+  if (!num) return;
+
+  // Save counts to table doc so billing can read them
+  const tableDoc = tablesData[num];
+  if (tableDoc?.docId) {
+    try {
+      await updateDoc(doc(db, 'tables', tableDoc.docId), {
+        pwdCount:  guestInfoPwdCount,
+        scCount:   guestInfoScCount,
+        lastUpdated: serverTimestamp()
+      });
+    } catch(e) { /* non-blocking */ }
+  }
+
+  $('guestInfoModal').classList.remove('show');
+  goToOrder(num);
+  pendingGuestInfoTable = null;
 }
 
 function calculateMenuOrderCounts() {
@@ -295,6 +382,7 @@ $('freeTableModalClose').onclick = $('freeTableModalCancel').onclick = () => {
   pendingWalkinTable = null;
 };
 
+// ── Start Order from walk-in → show guest info first ──
 $('startOrderFromWalkin').onclick = async () => {
   if (!pendingWalkinTable) return;
   const tableDoc = tablesData[pendingWalkinTable];
@@ -305,9 +393,11 @@ $('startOrderFromWalkin').onclick = async () => {
       });
     } catch(e) { /* non-blocking */ }
   }
+  const tableNum = pendingWalkinTable;
   $('freeTableModal').classList.remove('show');
-  goToOrder(pendingWalkinTable);
   pendingWalkinTable = null;
+  // Open guest info modal instead of going directly to order
+  openGuestInfoModal(tableNum);
 };
 
 $('freeTableBtn').onclick = async () => {
@@ -316,7 +406,9 @@ $('freeTableBtn').onclick = async () => {
   if (tableDoc) {
     try {
       await updateDoc(doc(db, 'tables', tableDoc.docId), {
-        status: 'available', waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
+        status: 'available', waiterId: null, waiterName: null,
+        pwdCount: 0, scCount: 0,
+        lastUpdated: serverTimestamp()
       });
       $('freeTableModal').classList.remove('show');
       showToast(`✅ Table ${pendingWalkinTable} marked as free.`);
@@ -355,7 +447,8 @@ $('confirmArrivalBtn').onclick = async () => {
       status: 'occupied', waiterId, waiterName, lastUpdated: serverTimestamp()
     });
     $('reservedModal').classList.remove('show');
-    goToOrder(num);
+    // Open guest info modal for reserved guests too
+    openGuestInfoModal(num);
   } catch(e) {
     console.error(e);
     showToast('❌ Failed to confirm arrival. Please retry.');
@@ -385,6 +478,9 @@ function goBackToTables() {
   setTimeout(() => so.classList.remove('visible'), 400);
   pill1Active(); pill2Reset(); pill3Reset();
   selectedTable = null;
+  // Reset guest info
+  guestInfoPwdCount = 0;
+  guestInfoScCount  = 0;
 }
 
 // ── STEP PILLS ──
@@ -454,23 +550,22 @@ function renderMenuGrid() {
   const pageItems = items.slice(start, start + ITEMS_PER_PAGE);
 
   grid.innerHTML = pageItems.map(m => {
-   const inCart       = cart[m.id];
-const isBento      = isBentoItem(m.name || '');
-const bentoOpen    = isBentoWindowOpen();
-const bentoBlocked = isBento && !bentoOpen;
-const served       = menuOrderCounts[m.name || '']?.served || 0;
-const limitReached = m.serveLimit !== null && m.serveLimit !== undefined && served >= m.serveLimit;
-const unavail      = m.available === false || bentoBlocked || limitReached;
+    const inCart       = cart[m.id];
+    const isBento      = isBentoItem(m.name || '');
+    const bentoOpen    = isBentoWindowOpen();
+    const bentoBlocked = isBento && !bentoOpen;
+    const served       = menuOrderCounts[m.name || '']?.served || 0;
+    const limitReached = m.serveLimit !== null && m.serveLimit !== undefined && served >= m.serveLimit;
+    const unavail      = m.available === false || bentoBlocked || limitReached;
     const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeDesc = (m.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeCat  = (m.category||'Other').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const atMax = inCart && inCart.qty >= 20;
 
-    // Tag shown on card — bento-blocked gets its own blue time tag
     const tagHtml = bentoBlocked
-  ? `<div class="unavail-tag bento-time-tag">11AM–3PM</div>`
-  : (limitReached ? `<div class="unavail-tag">Sold Out</div>`
-  : (m.available === false ? `<div class="unavail-tag">Unavail.</div>` : ''));
+      ? `<div class="unavail-tag bento-time-tag">11AM–3PM</div>`
+      : (limitReached ? `<div class="unavail-tag">Sold Out</div>`
+      : (m.available === false ? `<div class="unavail-tag">Unavail.</div>` : ''));
 
     return `<div class="menu-item-card${unavail?' unavailable':inCart?' in-cart':''}" onclick="window._addToCart('${m.id}')">
       ${inCart ? `<div class="cart-badge-pill${atMax?' at-max':''}">×${inCart.qty}${atMax?' MAX':''}</div>` : ''}
@@ -566,18 +661,16 @@ const unavail      = m.available === false || bentoBlocked || limitReached;
   }
 }
 
-// ── ADD TO CART — enforces bento time-window + max qty 20 ──
+// ── ADD TO CART ──
 window._addToCart = id => {
   const item = menuItems.find(m => m.id === id);
   if (!item || item.available === false) return;
 
-  // Bento time-window gate
   if (isBentoItem(item.name || '') && !isBentoWindowOpen()) {
     showToast('⏰ Bento items are only available 11:00 AM – 3:00 PM.');
     return;
   }
 
- // Serve limit check
   if (item.serveLimit !== null && item.serveLimit !== undefined) {
     const served = menuOrderCounts[item.name || '']?.served || 0;
     const inCartQty = cart[id]?.qty || 0;
@@ -648,7 +741,16 @@ $('submitOrderBtn').onclick = () => {
       <div><div class="confirm-item">${i.name}</div><div class="confirm-qty">× ${i.qty}</div></div>
       <div class="confirm-sub">₱${(i.price*i.qty).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
     </div>`).join('') +
-    `<div class="confirm-total-row"><span class="confirm-total-label">Total</span><span class="confirm-total-val">₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>`;
+    `<div class="confirm-total-row"><span class="confirm-total-label">Total</span><span class="confirm-total-val">₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>` +
+    // Show guest discount summary if applicable
+    (guestInfoPwdCount > 0 || guestInfoScCount > 0 ? `
+    <div class="confirm-discount-note">
+      <span>👥 Discount guests:</span>
+      <span>${[
+        guestInfoPwdCount > 0 ? `${guestInfoPwdCount} PWD` : '',
+        guestInfoScCount  > 0 ? `${guestInfoScCount} Senior Citizen` : ''
+      ].filter(Boolean).join(', ')}</span>
+    </div>` : '');
   $('confirmModal').classList.add('show');
   pill2Done(); pill3Active();
 };
@@ -664,7 +766,6 @@ $('confirmOrderBtn').onclick = async () => {
   const newItems = Object.values(cart);
   const note     = $('orderNote').value.trim();
 
-  // Frontend qty guard
   const overLimit = newItems.filter(i => i.qty > 20 || i.qty < 1);
   if (overLimit.length) {
     showToast('⚠ Item quantities must be between 1 and 20.');
@@ -672,7 +773,6 @@ $('confirmOrderBtn').onclick = async () => {
     return;
   }
 
-  // Final bento time-window guard before submit
   const bentoOutOfWindow = newItems.filter(i => isBentoItem(i.name || '') && !isBentoWindowOpen());
   if (bentoOutOfWindow.length) {
     const names = bentoOutOfWindow.map(i => i.name).join(', ');
@@ -682,7 +782,6 @@ $('confirmOrderBtn').onclick = async () => {
   }
 
   try {
-    // Always create a NEW order, regardless of existing orders from same table/waiter
     const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
     await addDoc(collection(db,'orders'), {
       tableNumber: selectedTable, waiterId, waiterName,
@@ -694,6 +793,9 @@ $('confirmOrderBtn').onclick = async () => {
         category: i.category||'Other'
       })),
       total, note, status: 'pending',
+      // Save PWD/SC counts so billing page can auto-apply discounts
+      pwdCount: guestInfoPwdCount,
+      scCount:  guestInfoScCount,
       createdAt: serverTimestamp(), updatedAt: serverTimestamp()
     });
 
