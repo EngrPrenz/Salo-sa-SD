@@ -480,3 +480,10 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   margin-top: -4px;
   margin-bottom: 2px;
 }
+
+.mic-price-wrap { display: flex; flex-direction: column; gap: 2px; }
+.serving-left-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--gold, #c9973a);
+}
