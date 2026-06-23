@@ -461,6 +461,10 @@ const bentoBlocked = isBento && !bentoOpen;
 const served       = menuOrderCounts[m.name || '']?.served || 0;
 const limitReached = m.serveLimit !== null && m.serveLimit !== undefined && served >= m.serveLimit;
 const unavail      = m.available === false || bentoBlocked || limitReached;
+const remaining = (m.serveLimit !== null && m.serveLimit !== undefined) ? Math.max(m.serveLimit - served, 0) : null;
+const remainingHtml = remaining !== null
+  ? `<div class="serving-left-tag">${remaining} serving${remaining === 1 ? '' : 's'} left</div>`
+  : '';
     const safeName = (m.name||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeDesc = (m.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeCat  = (m.category||'Other').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -480,11 +484,14 @@ const unavail      = m.available === false || bentoBlocked || limitReached;
         <div class="mic-cat">${safeCat}</div>
         <div class="mic-name">${safeName}</div>
         <div class="mic-desc">${safeDesc}</div>
-        ${bentoBlocked ? `<div class="bento-window-hint">Available 11:00 AM – 3:00 PM only</div>` : ''}
-        <div class="mic-footer">
-          <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-          ${!unavail ? `<button class="mic-add${atMax?' mic-add-disabled':''}" onclick="event.stopPropagation();window._addToCart('${m.id}')" ${atMax?'title="Maximum 20 reached"':''}>+</button>` : ''}
-        </div>
+${bentoBlocked ? `<div class="bento-window-hint">Available 11:00 AM – 3:00 PM only</div>` : ''}
+<div class="mic-footer">
+  <div class="mic-price-wrap">
+    <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+    ${remainingHtml}
+  </div>
+  ${!unavail ? `<button class="mic-add${atMax?' mic-add-disabled':''}" onclick="event.stopPropagation();window._addToCart('${m.id}')" ${atMax?'title="Maximum 20 reached"':''}>+</button>` : ''}
+</div>
       </div>
     </div>`;
   }).join('');
