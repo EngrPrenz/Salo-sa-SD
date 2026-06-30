@@ -13,6 +13,7 @@ const db   = getFirestore(app);
 // ── Constants ──────────────────────────────────────────────────────────────────
 const VAT_RATE            = 0.12;
 const SERVICE_CHARGE_RATE = 0.07;
+const RESTAURANT_ADDRESS  = '1870 Sumulong Hwy, Antipolo, 1870 Rizal';
 
 // Status flow definition
 // pending → paid → preparing → served
@@ -421,7 +422,8 @@ window._showReceipt = id => {
     <div style="margin-bottom:12px;">
       <div style="font-size:15px;font-weight:700;color:var(--white)">Order #${o.id.slice(-5).toUpperCase()}</div>
       <div style="color:var(--text-muted);font-size:12px;margin-top:3px;">${ts}</div>
-      <div style="color:var(--text-muted);font-size:12px;">
+      <div style="color:var(--text-muted);font-size:11px;margin-top:2px;">${escapeHtml(RESTAURANT_ADDRESS)}</div>
+      <div style="color:var(--text-muted);font-size:12px;margin-top:6px;">
         Table ${escapeHtml(String(o.tableNumber||'—'))} · ${escapeHtml(o.waiterName||'—')}
       </div>
     </div>
@@ -492,6 +494,7 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
     .rh{text-align:center;margin-bottom:10px;}
     .logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
     .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
+    .ra{font-size:9px;color:#777;margin-top:3px;}
     hr.s{border:none;border-top:1px solid #111;margin:7px 0;}
     hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
     .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
@@ -510,6 +513,7 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   <div class="rh">
     ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
     <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
+    <div class="ra">${RESTAURANT_ADDRESS}</div>
   </div>
   <hr class="s"/>
   <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
