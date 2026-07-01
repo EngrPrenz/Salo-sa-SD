@@ -12,6 +12,8 @@ const db   = getFirestore(app);
 
 const VAT_RATE            = 0.12;
 const SERVICE_CHARGE_RATE = 0.07;
+const PAGE_SIZE            = 10;
+let billingPage             = 1;
 
 function escapeHtml(s) { return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s)  { return s ? s[0].toUpperCase()+s.slice(1) : ''; }
@@ -73,10 +75,16 @@ function renderBilling() {
 
   if (!paidOrders.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No paid orders yet.</td></tr>';
+    renderPagination(0);
     return;
   }
 
-  tbody.innerHTML = paidOrders.map(o => {
+  const totalPages = Math.max(1, Math.ceil(paidOrders.length / PAGE_SIZE));
+  if (billingPage > totalPages) billingPage = totalPages;
+  const start    = (billingPage - 1) * PAGE_SIZE;
+  const pageRows = paidOrders.slice(start, start + PAGE_SIZE);
+
+  tbody.innerHTML = pageRows.map(o => {
     const ts        = o.createdAt?.toDate
       ? o.createdAt.toDate().toLocaleString('en-PH',{dateStyle:'short',timeStyle:'short'}) : '—';
     const itemCount = (o.items||[]).length;
@@ -92,6 +100,28 @@ function renderBilling() {
       <td><button class="btn-sm" onclick="window._showReceipt('${escapeHtml(o.id)}')">Receipt</button></td>
     </tr>`;
   }).join('');
+
+  renderPagination(paidOrders.length, totalPages);
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+function renderPagination(rowCount, totalPages = 1) {
+  const el = document.getElementById('billingPagination'); if (!el) return;
+  if (rowCount <= PAGE_SIZE) { el.innerHTML = ''; return; }
+
+  const start = (billingPage - 1) * PAGE_SIZE + 1;
+  const end   = Math.min(billingPage * PAGE_SIZE, rowCount);
+
+  el.innerHTML = `
+    <span class="pagination-info">${start}–${end} of ${rowCount}</span>
+    <div class="pagination-controls">
+      <button class="btn-sm" id="pgPrev" ${billingPage<=1?'disabled':''}>‹ Prev</button>
+      <span class="pagination-page">${billingPage} / ${totalPages}</span>
+      <button class="btn-sm" id="pgNext" ${billingPage>=totalPages?'disabled':''}>Next ›</button>
+    </div>`;
+
+  document.getElementById('pgPrev')?.addEventListener('click', () => { if (billingPage>1) { billingPage--; renderBilling(); } });
+  document.getElementById('pgNext')?.addEventListener('click', () => { if (billingPage<totalPages) { billingPage++; renderBilling(); } });
 }
 
 // ── Receipt modal ─────────────────────────────────────────────────────────────
@@ -162,11 +192,16 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   if (!o) {
     const pw = window.open('','_blank');
     pw.document.write(`<!DOCTYPE html><html><head><title>Receipt — Salo sa Antipolo</title>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css"/>
       <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Courier New',monospace;padding:24px 20px;max-width:320px;margin:0 auto;font-size:13px;color:#111;}
-      h2{text-align:center;font-size:18px;margin-bottom:4px;}.sub{text-align:center;color:#666;font-size:11px;margin-bottom:20px;}
-      hr{border:none;border-top:1px dashed #bbb;margin:14px 0;}.footer{text-align:center;margin-top:28px;font-size:11px;color:#888;}</style></head>
+      h2{text-align:center;font-size:18px;margin-bottom:4px;}.sub{text-align:center;color:#666;font-size:11px;margin-bottom:6px;}
+      .addr{text-align:center;color:#999;font-size:10px;margin-bottom:20px;line-height:1.5;}
+      hr{border:none;border-top:1px dashed #bbb;margin:14px 0;}.footer{text-align:center;margin-top:28px;font-size:11px;color:#888;}
+      .social{display:flex;justify-content:center;gap:12px;margin-top:10px;}.social i{font-size:14px;color:#999;}</style></head>
       <body><h2>Salo sa Antipolo</h2><div class="sub">Official Receipt</div>
-      ${body.innerHTML}<div class="footer">Thank you for dining with us!</div></body></html>`);
+      <div class="addr">Sumulong Highway, Siete Media,<br>Antipolo City, Rizal, Philippines, 1870</div>
+      ${body.innerHTML}<div class="footer">Thank you for dining with us!</div>
+      <div class="social"><i class="ti ti-brand-instagram"></i><i class="ti ti-brand-tiktok"></i><i class="ti ti-phone"></i></div></body></html>`);
     pw.document.close();
     setTimeout(() => pw.print(), 300);
     return;
@@ -195,12 +230,17 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   if (!pw) { showToast('Allow popups to print.'); return; }
 
   pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css"/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'Courier New',monospace;font-size:11px;color:#111;background:#fff;padding:12mm 6mm;}
     .rh{text-align:center;margin-bottom:10px;}
     .logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
     .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
+    .ra{font-size:9px;color:#888;margin-top:3px;line-height:1.5;}
+    .social{display:flex;justify-content:center;gap:12px;margin-top:8px;}
+    .social i{font-size:14px;color:#999;}
+    .handle{text-align:center;font-size:9px;color:#aaa;margin-top:4px;}
     hr.s{border:none;border-top:1px solid #111;margin:7px 0;}
     hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
     .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
@@ -219,6 +259,7 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   <div class="rh">
     ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
     <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
+    <div class="ra">Sumulong Highway, Siete Media,<br>Antipolo City, Rizal, Philippines, 1870</div>
   </div>
   <hr class="s"/>
   <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
@@ -238,6 +279,10 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   </div>
   <hr class="d" style="margin-top:12px;"/>
   <div class="ft"><strong>Thank you for dining with us!</strong><br>Please come again 😊</div>
+  <div class="social">
+    <i class="ti ti-brand-instagram"></i><i class="ti ti-brand-tiktok"></i><i class="ti ti-brand-facebook"></i><i class="ti ti-phone"></i><i class="ti ti-mail"></i>
+  </div>
+  <div class="handle">@salosaantipolo</div>
   <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
   </body></html>`);
   pw.document.close();

@@ -26,32 +26,7 @@
     .ftab[data-status="cancelled"] .tab-count { background: var(--red-dim);    color: var(--red); }
 
     /* ── Confirm modal ───────────────────────────────────────────── */
-    .confirm-modal {
-      position: fixed; inset: 0; z-index: 1000;
-      display: none; align-items: center; justify-content: center;
-    }
-    .confirm-modal.show { display: flex; }
-    .confirm-modal .modal-backdrop {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.6);
-      -webkit-backdrop-filter: blur(4px);
-      backdrop-filter: blur(4px);
-    }
-    .confirm-modal-box {
-      position: relative; z-index: 1;
-      background: var(--black-card); border: 1px solid var(--border);
-      border-radius: 16px; padding: 28px 24px 20px;
-      max-width: 340px; width: 90%;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
-      animation: scaleIn 0.2s cubic-bezier(0.16,1,0.3,1);
-    }
-    @keyframes scaleIn { from { opacity:0; transform:scale(0.93); } to { opacity:1; transform:scale(1); } }
-    .confirm-modal-title {
-      font-size: 16px; font-weight: 700; color: var(--white); margin-bottom: 10px;
-    }
-    .confirm-modal-body {
-      font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;
-    }
-    .confirm-modal-foot { display: flex; gap: 8px; justify-content: flex-end; }
+    /* confirm modal styles handled by admin.css */
 
     /* ── Toast variants ──────────────────────────────────────────── */
     .toast.toast-success .toast-dot { background: var(--green); }
@@ -273,6 +248,18 @@
     .orders-grid .order-btn-danger:hover {
       background: rgba(231,76,60,0.12); border-color: rgba(231,76,60,0.6);
     }
+    :root[data-theme="light"] .orders-grid .order-btn-secondary {
+      background: #f0f0f0; border-color: #ccc; color: #555;
+    }
+    :root[data-theme="light"] .orders-grid .order-btn-secondary:hover {
+      background: #fff8ec; border-color: rgba(201,151,58,0.5); color: var(--gold);
+    }
+    :root[data-theme="light"] .orders-grid .order-btn-danger {
+      background: #fef0ef; border-color: rgba(192,57,43,0.3); color: var(--red);
+    }
+    :root[data-theme="light"] .orders-grid .order-btn-danger:hover {
+      background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.6);
+    }
 
     /* Section headers span full width */
     .orders-grid .orders-section-header { grid-column: 1 / -1; }
@@ -423,11 +410,14 @@
   </div>
 
   <!-- ── Confirm Modal ─────────────────────────────────────────────────── -->
-  <div class="confirm-modal" id="confirmModal">
-    <div class="modal-backdrop"></div>
-    <div class="confirm-modal-box">
-      <div class="confirm-modal-title" id="confirmModalTitle">Are you sure?</div>
-      <div class="confirm-modal-body" id="confirmModalBody"></div>
+  <div class="confirm-modal-overlay" id="confirmModal">
+    <div class="confirm-modal">
+      <div class="confirm-modal-head">
+        <div>
+          <div class="confirm-modal-title" id="confirmModalTitle">Are you sure?</div>
+          <div class="confirm-modal-body"><div class="confirm-modal-message" id="confirmModalBody"></div></div>
+        </div>
+      </div>
       <div class="confirm-modal-foot">
         <button class="btn-sm" id="confirmModalCancel">Cancel</button>
         <button class="btn-sm danger" id="confirmModalOk">Confirm</button>

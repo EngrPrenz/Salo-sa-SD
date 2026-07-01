@@ -13,7 +13,7 @@ const db   = getFirestore(app);
 // ── Constants ──────────────────────────────────────────────────────────────────
 const VAT_RATE            = 0.12;
 const SERVICE_CHARGE_RATE = 0.07;
-const RESTAURANT_ADDRESS  = '1870 Sumulong Hwy, Antipolo, 1870 Rizal';
+const RESTAURANT_ADDRESS  = 'Sumulong Highway, Siete Media, Antipolo City, Rizal, Philippines, 1870';
 
 // Status flow definition
 // pending → paid → preparing → served
@@ -79,15 +79,15 @@ if (toastEl && toastMsgEl) {
 function showConfirm({ title, body, confirmLabel, confirmClass = 'gold', onConfirm }) {
   const el = document.getElementById('confirmModal');
   if (!el) { onConfirm(); return; }
-  el.querySelector('.confirm-modal-title').textContent = title;
-  el.querySelector('.confirm-modal-body').textContent  = body;
+  el.querySelector('.confirm-modal-title').textContent  = title;
+  el.querySelector('.confirm-modal-message').textContent = body;
   const btn = el.querySelector('#confirmModalOk');
   btn.textContent  = confirmLabel;
   btn.className    = `btn-sm ${confirmClass}`;
   const close = () => el.classList.remove('show');
   btn.onclick = () => { close(); onConfirm(); };
   el.querySelector('#confirmModalCancel').onclick = close;
-  el.querySelector('.modal-backdrop').onclick = close;
+  el.addEventListener('click', e => { if (e.target === el) close(); }, { once: true });
   el.classList.add('show');
 }
 
@@ -488,13 +488,14 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   if (!pw) { showToast('Allow popups to print.'); return; }
 
   pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css"/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'Courier New',monospace;font-size:11px;color:#111;background:#fff;padding:12mm 6mm;}
     .rh{text-align:center;margin-bottom:10px;}
     .logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
     .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
-    .ra{font-size:9px;color:#777;margin-top:3px;}
+    .ra{font-size:9px;color:#777;margin-top:3px;line-height:1.5;}
     hr.s{border:none;border-top:1px solid #111;margin:7px 0;}
     hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
     .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
@@ -508,12 +509,15 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
     .tg{display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1.5px solid #111;margin-top:6px;padding-top:5px;}
     .tg span:last-child{color:#b8821e;}
     .ft{text-align:center;margin-top:14px;font-size:9px;color:#777;line-height:1.8;}
+    .social{display:flex;justify-content:center;gap:12px;margin-top:8px;}
+    .social i{font-size:14px;color:#999;}
+    .handle{text-align:center;font-size:9px;color:#aaa;margin-top:4px;}
     @media print{body{padding:0;}}
   </style></head><body>
   <div class="rh">
     ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
     <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
-    <div class="ra">${RESTAURANT_ADDRESS}</div>
+    <div class="ra">Sumulong Highway, Siete Media,<br>Antipolo City, Rizal, Philippines, 1870</div>
   </div>
   <hr class="s"/>
   <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
@@ -533,6 +537,10 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
   </div>
   <hr class="d" style="margin-top:12px;"/>
   <div class="ft"><strong>Thank you for dining with us!</strong><br>Please come again 😊</div>
+  <div class="social">
+    <i class="ti ti-brand-instagram"></i><i class="ti ti-brand-tiktok"></i><i class="ti ti-brand-facebook"></i><i class="ti ti-phone"></i><i class="ti ti-mail"></i>
+  </div>
+  <div class="handle">@salosaantipolo</div>
   <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
   </body></html>`);
   pw.document.close();
