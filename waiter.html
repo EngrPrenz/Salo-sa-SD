@@ -238,6 +238,43 @@
   </div>
 </div>
 
+<!-- SERVED ORDER MODAL -->
+<div class="modal-overlay" id="servedModal">
+  <div class="modal">
+    <div class="modal-strip" style="background: linear-gradient(90deg, transparent, var(--green), #2ecc71, var(--green), transparent);"></div>
+    <div class="modal-header">
+      <span class="modal-title"><i class="fa-solid fa-utensils"></i> Order Served</span>
+      <button class="modal-close-btn" id="servedModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="occupied-modal-info">
+        <div class="occupied-table-badge" style="color:var(--green);background:var(--green-dim);border-color:rgba(46,204,113,0.3);" id="servedTableBadge">Table —</div>
+        <p class="occupied-modal-desc" style="margin-top:16px;">
+          <i class="fa-solid fa-check-circle" style="color:var(--green);"></i> 
+          The food for this table has been served.
+          <br><br>
+          What would you like to do?
+        </p>
+        <div class="walkin-action-btns">
+          <button class="walkin-action-btn start-order" id="takeOrderAgainBtn">
+            <span class="walkin-btn-icon"><i class="fa-solid fa-plus"></i></span>
+            <span>Take Order Again</span>
+            <span class="walkin-btn-sub">Add more items</span>
+          </button>
+          <button class="walkin-action-btn free-table" id="customerLeftBtn">
+            <span class="walkin-btn-icon"><i class="fa-solid fa-door-open"></i></span>
+            <span>Customer Left</span>
+            <span class="walkin-btn-sub">Clear the table</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" id="servedModalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="waiter.js"></script>
 </body>
 </html>

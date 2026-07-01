@@ -57,7 +57,7 @@ function updateOrdersBadge() {
 // ── Render billing ────────────────────────────────────────────────────────────
 function renderBilling() {
   const tbody = document.getElementById('billingTableBody'); if (!tbody) return;
-  const paidOrders = allOrders.filter(o => ['paid', 'served'].includes(o.status));
+  const paidOrders = allOrders.filter(o => ['paid', 'served', 'completed'].includes(o.status));
 
   // Today's total (using grandTotal with service charge)
   const now        = new Date();
@@ -74,7 +74,7 @@ function renderBilling() {
   if (totalEl) totalEl.textContent = `₱${todayGrandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
 
   if (!paidOrders.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No paid orders yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No completed transactions yet.</td></tr>';
     renderPagination(0);
     return;
   }

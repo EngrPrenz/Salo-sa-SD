@@ -31,10 +31,11 @@ const STATUS_META = {
   paid:      { label: 'Paid',      color: 'var(--gold)',   stripe: 'var(--gold)',   accent: 'var(--gold)' },
   preparing: { label: 'Preparing', color: 'var(--blue)',   stripe: 'var(--blue)',   accent: 'var(--blue)' },
   served:    { label: 'Served',    color: 'var(--green)',  stripe: 'var(--green)',  accent: 'var(--green)' },
+  completed: { label: 'Completed', color: '#27ae60',       stripe: '#27ae60',       accent: '#27ae60' },
   cancelled: { label: 'Cancelled', color: 'var(--red)',    stripe: 'var(--red)',    accent: 'var(--red)' },
 };
 
-// Tabs shown in the filter bar (order matters)
+// Tabs shown in the filter bar (order matters) - completed excluded (billing only)
 const TABS = ['all', 'pending', 'paid', 'preparing', 'served', 'cancelled'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -120,7 +121,9 @@ function updateOrdersBadge() {
 
 // ── Tab bar (with counts) ──────────────────────────────────────────────────────
 function buildTabCounts() {
-  const counts = { all: allOrders.length };
+  // Exclude completed orders from live orders view
+  const liveOrders = allOrders.filter(o => o.status !== 'completed');
+  const counts = { all: liveOrders.length };
   for (const s of ['pending','paid','preparing','served','cancelled']) {
     counts[s] = allOrders.filter(o => o.status === s).length;
   }
@@ -200,7 +203,8 @@ function renderOrders() {
 
   refreshTabCounts();
 
-  let filtered = [...allOrders];
+  // Exclude completed orders from live orders view (they belong in billing)
+  let filtered = allOrders.filter(o => o.status !== 'completed');
   if (activeFilter !== 'all') {
     filtered = filtered.filter(o => o.status === activeFilter);
   }
@@ -224,7 +228,7 @@ function renderOrders() {
     return;
   }
 
-  // Group by status for "All" view
+  // Group by status for "All" view (exclude completed - billing only)
   if (activeFilter === 'all') {
     const ORDER_OF_STATUS = ['pending', 'paid', 'preparing', 'served', 'cancelled'];
     let html = '';

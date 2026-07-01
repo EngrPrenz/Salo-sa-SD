@@ -90,6 +90,30 @@ setInterval(updateDateTime, 60000);
 function init() {
   setupNavigation();
   subscribeToOrders();
+  
+  // Setup detail panel close button with event delegation
+  document.addEventListener('click', (e) => {
+    // Check if clicked element or its parent is the close button
+    const closeBtn = e.target.closest('#detailClose');
+    if (closeBtn) {
+      console.log('Close button clicked!');
+      // Reset to empty state instead of closing
+      selectedOrder = null;
+      discountType = 'none';
+      paymentMethod = null;
+      cashTendered = 0;
+      
+      // Show empty state in detail panel
+      $('detailBody').innerHTML = `
+        <div class="empty-detail">
+          <div class="empty-detail-icon"><i class="fa-solid fa-hand-pointer"></i></div>
+          <div class="empty-detail-text">Select an order to view details and process payment</div>
+        </div>
+      `;
+      
+      renderOrders(); // Re-render to remove selected state
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -288,15 +312,6 @@ window.selectOrder = function(orderId) {
   
   // Show detail panel
   $('detailPanel').classList.add('active');
-};
-
-$('detailClose').onclick = () => {
-  $('detailPanel').classList.remove('active');
-  selectedOrder = null;
-  discountType = 'none';
-  paymentMethod = null;
-  cashTendered = 0;
-  renderOrders(); // Re-render to remove selected state
 };
 
 function renderOrderDetail(order) {
@@ -610,11 +625,30 @@ window.processPayment = async function() {
     console.log('Order updated successfully');
 
     showToast('✅ Payment processed successfully');
-    $('detailPanel').classList.remove('active');
+    
+    // Store order ID for receipt printing before clearing selectedOrder
+    const paidOrderId = selectedOrder.id;
+    
+    // Reset to empty state instead of closing panel
     selectedOrder = null;
     discountType = 'none';
     paymentMethod = 'Cash';
     cashTendered = 0;
+    
+    // Show empty state in detail panel
+    $('detailBody').innerHTML = `
+      <div class="empty-detail">
+        <div class="empty-detail-icon"><i class="fa-solid fa-hand-pointer"></i></div>
+        <div class="empty-detail-text">Select an order to view details and process payment</div>
+      </div>
+    `;
+    
+    renderOrders(); // Re-render to remove selected state
+    
+    // Auto-print receipt after a short delay
+    setTimeout(() => {
+      printReceipt(paidOrderId);
+    }, 500);
 
   } catch (error) {
     console.error('Payment processing error:', error);
@@ -639,7 +673,7 @@ window.processPayment = async function() {
 function renderBilling() {
   const searchTerm = $('billingSearch').value.toLowerCase().trim();
   
-  let orders = allOrders.filter(o => o.status === 'paid'); // Only show paid orders
+  let orders = allOrders.filter(o => ['paid', 'served', 'completed'].includes(o.status)); // Show paid, served, and completed
 
   // Apply search filter
   if (searchTerm) {
@@ -657,7 +691,7 @@ function renderBilling() {
     .filter(o => {
       if (!o.createdAt) return false;
       const ts = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-      return ts >= todayStart && o.status === 'paid';
+      return ts >= todayStart;
     })
     .reduce((sum, o) => {
       const financials = calculateFinancials(o.total || 0, { type: o.discountType || 'none' });
@@ -669,7 +703,7 @@ function renderBilling() {
   const tbody = $('billingTableBody');
 
   if (orders.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No paid orders yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No transactions yet. Paid orders will appear here immediately.</td></tr>';
     return;
   }
 
@@ -680,6 +714,16 @@ function renderBilling() {
       : '—';
     
     const financials = calculateFinancials(order.total || 0, { type: order.discountType || 'none' });
+    
+    // Status badge styling
+    let statusBadge = '';
+    if (order.status === 'paid') {
+      statusBadge = '<span class="status-badge" style="color:#c9973a;background:rgba(201,151,58,0.15);border-color:rgba(201,151,58,0.3)">Paid</span>';
+    } else if (order.status === 'served') {
+      statusBadge = '<span class="status-badge" style="color:#2ecc71;background:rgba(46,204,113,0.15);border-color:rgba(46,204,113,0.3)">Served</span>';
+    } else if (order.status === 'completed') {
+      statusBadge = '<span class="status-badge completed" style="color:#27ae60;background:rgba(39,174,96,0.15);border-color:rgba(39,174,96,0.3)">Completed</span>';
+    }
 
     return `
       <tr>
@@ -689,7 +733,7 @@ function renderBilling() {
         <td>${itemCount} item${itemCount !== 1 ? 's' : ''}</td>
         <td><strong>₱${financials.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
         <td style="white-space:nowrap">${timestamp}</td>
-        <td><span class="status-badge paid">Paid</span></td>
+        <td>${statusBadge}</td>
         <td><button class="btn-sm" onclick="showBillingReceipt('${order.id}')">Receipt</button></td>
       </tr>
     `;
@@ -894,6 +938,7 @@ window.printReceipt = async function(orderId) {
     }
     .rn { font-weight: 700; font-size: 13px; }
     .ri { font-style: italic; color: #b8821e; }
+    .ra { font-size: 9px; color: #666; margin-top: 4px; line-height: 1.4; }
     hr.s { border: none; border-top: 1px solid #111; margin: 7px 0; }
     hr.d { border: none; border-top: 1px dashed #aaa; margin: 5px 0; }
     .mr {
@@ -960,6 +1005,7 @@ window.printReceipt = async function(orderId) {
   <div class="rh">
     ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
     <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
+    <div class="ra">Sumulong Highway, Siete Media,<br/>Antipolo City, Rizal, Philippines, 1870</div>
   </div>
   <hr class="s"/>
   <div class="mr">
@@ -1011,21 +1057,24 @@ window.printReceipt = async function(orderId) {
       <span>TOTAL</span>
       <span>₱${financials.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
     </div>
-    ${order.cashTendered ? `
-      <hr class="d"/>
-      <div class="tr" style="margin-top:6px;">
+  </div>
+  ${order.cashTendered ? `
+    <hr class="d" style="margin: 8px 0;"/>
+    <div style="margin-top:8px;">
+      <div class="tr">
         <span>Cash Tendered</span>
         <span>₱${order.cashTendered.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
       </div>
-      <div class="tr" style="font-weight:700;font-size:11px;">
+      <div class="tr" style="font-weight:700;font-size:12px;margin-top:4px;">
         <span>Change</span>
         <span>₱${(order.changeGiven || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
       </div>
-    ` : ''}
-  </div>
+    </div>
+  ` : ''}
   <div class="ft">
     Thank you for dining with us!<br/>
-    Salo sa Antipolo
+    Please come again 🍽️<br/>
+    @salosantipolo
   </div>
 </body>
 </html>`);
