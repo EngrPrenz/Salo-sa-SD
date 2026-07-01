@@ -108,10 +108,17 @@
       display: flex; justify-content: flex-end; gap: 10px;
     }
     .page-modal-foot .btn-sm { padding: 9px 20px; font-size: 13px; border-radius: 9px; }
-    .page-modal-foot .btn-sm:not(.gold):not(.danger) { background: transparent; border-color: var(--border); color: var(--text-muted); }
-    .page-modal-foot .btn-sm:not(.gold):not(.danger):hover { border-color: rgba(255,255,255,0.15); color: var(--white); background: rgba(255,255,255,0.04); }
+    .page-modal-foot .btn-sm:not(.gold):not(.danger) { background: rgba(201,151,58,0.08); border-color: rgba(201,151,58,0.4); color: var(--gold); }
+    .page-modal-foot .btn-sm:not(.gold):not(.danger):hover { border-color: rgba(201,151,58,0.7); color: var(--gold-light); background: rgba(201,151,58,0.18); }
     .page-modal-foot .btn-sm.gold { background: var(--gold-dim); border-color: rgba(201,151,58,0.4); color: var(--gold); }
     .page-modal-foot .btn-sm.gold:hover { background: var(--gold); color: var(--black); }
+    /* Edit modal cancel — red */
+    #menuModalCancel { background: rgba(192,57,43,0.08) !important; border-color: rgba(192,57,43,0.4) !important; color: var(--red) !important; }
+    #menuModalCancel:hover { background: rgba(192,57,43,0.18) !important; border-color: rgba(192,57,43,0.7) !important; color: #e74c3c !important; }
+    :root[data-theme="light"] .page-modal-foot .btn-sm:not(.gold):not(.danger) { background: rgba(201,151,58,0.1); border-color: rgba(201,151,58,0.5); color: #9a6a10; }
+    :root[data-theme="light"] .page-modal-foot .btn-sm:not(.gold):not(.danger):hover { background: rgba(192,57,43,0.1); border-color: rgba(192,57,43,0.5); color: var(--red); }
+    :root[data-theme="light"] #menuModalCancel { background: rgba(192,57,43,0.08) !important; border-color: rgba(192,57,43,0.4) !important; color: var(--red) !important; }
+    :root[data-theme="light"] #menuModalCancel:hover { background: rgba(192,57,43,0.18) !important; border-color: rgba(192,57,43,0.7) !important; }
     .delete-icon-wrap {
       width: 32px; height: 32px; border-radius: 50%;
       background: var(--red-dim); border: 1px solid rgba(192,57,43,0.3);

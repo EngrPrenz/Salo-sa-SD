@@ -11,7 +11,7 @@
       --gold-dim:    rgba(201,151,58,0.12);
       --white:       #ffffff;
       --off-white:   #f5f0e8;
-      --text-muted:  #5e5e5e;
+      --text-muted:  #ffffff;
       --red-dim:     rgba(192,57,43,0.12);
       --red-border:  rgba(192,57,43,0.3);
       --red-text:    #e07070;
@@ -78,7 +78,7 @@
     .card-header::after {
       content: '🧾';
       position: absolute; right: 40px; top: 32px;
-      font-size: 36px; opacity: 0.08;
+      font-size: 36px; opacity: 1; filter: grayscale(1) brightness(10);
     }
 
     .role-badge {
@@ -128,7 +128,7 @@
       color: var(--white); background: var(--black-mid);
       transition: all 0.2s; outline: none;
     }
-    input::placeholder { color: #3a3a3a; }
+    input::placeholder { color: #a0a0a0; }
     input:focus {
       border-color: var(--gold);
       box-shadow: 0 0 0 3px rgba(201,151,58,0.1);
@@ -190,7 +190,7 @@
       border-top: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
     }
-    .footer-text { font-size: 11px; color: #3a3a3a; }
+    .footer-text { font-size: 11px; color: #ffffff; }
     .switch-link {
       font-size: 12px; font-weight: 600; color: var(--gold);
       text-decoration: none; transition: color 0.2s;
@@ -211,5 +211,3 @@
     }
     .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
     .toast-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
-
-    
