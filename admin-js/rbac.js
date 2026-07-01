@@ -7,6 +7,77 @@
  *   admin_cashier  — Overview (revenue hidden) + Orders + Billing only
  *   admin (legacy) — treated as admin_manager
  *   waiter         — waiter portal only
+ *   cashier        — dedicated cashier portal with payment processing
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * FIRESTORE SECURITY RULES FOR CASHIER ROLE
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * The following security rules should be applied in firestore.rules:
+ *
+ * rules_version = '2';
+ * service cloud.firestore {
+ *   match /databases/{database}/documents {
+ *     
+ *     // Helper function to get user role
+ *     function getUserRole() {
+ *       return get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.role;
+ *     }
+ *     
+ *     // Orders collection - cashiers can read to view payment-ready orders
+ *     match /orders/{orderId} {
+ *       allow read: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || 
+ *          getUserRole() == 'admin_cashier' ||
+ *          getUserRole() == 'admin_manager' ||
+ *          getUserRole() == 'admin_owner' ||
+ *          getUserRole() == 'waiter');
+ *       
+ *       // Cashiers can update order status to 'paid' and payment fields
+ *       allow update: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || getUserRole() == 'admin_cashier') &&
+ *         request.resource.data.diff(resource.data).affectedKeys()
+ *           .hasOnly(['status', 'paidAt', 'paidBy', 'paymentStatus', 'updatedAt']);
+ *     }
+ *     
+ *     // Payments collection - cashiers can create payment records
+ *     match /payments/{paymentId} {
+ *       allow read: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || 
+ *          getUserRole() == 'admin_cashier' ||
+ *          getUserRole() == 'admin_manager' ||
+ *          getUserRole() == 'admin_owner');
+ *       
+ *       allow create: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || getUserRole() == 'admin_cashier') &&
+ *         request.resource.data.cashierId == request.auth.uid;
+ *     }
+ *     
+ *     // Cashier shifts collection - cashiers can manage their own shifts
+ *     match /cashier_shifts/{shiftId} {
+ *       allow read: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || 
+ *          getUserRole() == 'admin_cashier' ||
+ *          getUserRole() == 'admin_manager' ||
+ *          getUserRole() == 'admin_owner');
+ *       
+ *       allow create: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || getUserRole() == 'admin_cashier') &&
+ *         request.resource.data.cashierId == request.auth.uid;
+ *       
+ *       allow update: if request.auth != null && 
+ *         (getUserRole() == 'cashier' || getUserRole() == 'admin_cashier') &&
+ *         resource.data.cashierId == request.auth.uid;
+ *     }
+ *     
+ *     // Users collection - cashiers can read their own profile
+ *     match /Users/{userId} {
+ *       allow read: if request.auth != null && request.auth.uid == userId;
+ *     }
+ *   }
+ * }
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 
 export const ROLES = {
@@ -15,6 +86,7 @@ export const ROLES = {
   CASHIER:  'admin_cashier',
   LEGACY:   'admin',
   WAITER:   'waiter',
+  CASHIER_STANDALONE: 'cashier',  // Dedicated cashier portal role
 };
 
 // Pages each role may access (filenames relative to admin-html/)
@@ -53,6 +125,9 @@ const ROLE_PAGES = {
     'admin-billing.html',
     // NO reports
   ],
+  cashier: [
+    'cashier.html',  // Dedicated cashier interface
+  ],
 };
 
 // Sidebar nav data-view keys each role sees
@@ -69,6 +144,7 @@ const DEFAULT_PAGE = {
   admin:         'admin-overview.html',
   admin_owner:   'admin-overview.html',
   admin_cashier: 'admin-overview.html',
+  cashier:       'cashier.html',
 };
 
 export const ROLE_LABEL = {
@@ -77,6 +153,7 @@ export const ROLE_LABEL = {
   admin_owner:   'Owner / CEO',
   admin_cashier: 'Cashier',
   waiter:        'Waiter',
+  cashier:       'Cashier',
 };
 
 export const ROLE_BADGE_COLOR = {
@@ -84,6 +161,7 @@ export const ROLE_BADGE_COLOR = {
   admin:         '#c9973a',
   admin_owner:   '#9b59b6',
   admin_cashier: '#27ae60',
+  cashier:       '#27ae60',
 };
 
 /** Returns true if `role` can view `pageFile`. */
@@ -106,6 +184,33 @@ export function isAdminRole(role) {
   return ['admin','admin_manager','admin_owner','admin_cashier'].includes(role);
 }
 
+/** Returns true if `role` is the standalone cashier role. */
+export function isCashierRole(role) {
+  return role === 'cashier';
+}
+
+/**
+ * Cashier role permissions
+ * Defines what actions/operations cashiers can perform
+ */
+export const CASHIER_PERMISSIONS = {
+  viewOrders: true,
+  processPayments: true,
+  viewPaymentHistory: true,
+  manageShifts: true,
+  generateReceipts: true,
+  viewOrderDetails: true,
+  processSplitPayments: true,
+  manageCashDrawer: true,
+  // Restricted permissions
+  modifyOrders: false,
+  accessAdminPages: false,
+  manageMenu: false,
+  manageTables: false,
+  manageStaff: false,
+  viewReports: false,
+};
+
 /**
  * Guards every admin page.
  * - Redirects to login if not authenticated / wrong role.
@@ -125,7 +230,15 @@ export async function guardAdminPage(auth, db, fb, currentPage) {
         const data = snap.data();
         const role = data.role || '';
 
-        if (!isAdminRole(role)) {
+        // Check if user wants cashier interface (from cashier login)
+        if (role === 'admin_cashier' && sessionStorage.getItem('useCashierInterface') === 'true') {
+          // Don't redirect admin_cashier away from admin pages if they came from admin login
+          // Only redirect if they're not on an allowed admin page
+          if (!currentPage || !canAccess(role, currentPage)) {
+            window.location.href = getDefaultPage(role);
+            return;
+          }
+        } else if (!isAdminRole(role)) {
           await auth.signOut();
           window.location.href = '../admin-login.html';
           return;
@@ -149,6 +262,51 @@ export async function guardAdminPage(auth, db, fb, currentPage) {
       } catch (err) {
         console.error('guardAdminPage:', err);
         window.location.href = '../admin-login.html';
+      }
+    });
+  });
+}
+
+/**
+ * Guards cashier pages.
+ * - Redirects to cashier login if not authenticated / wrong role.
+ * - Redirects to default page if this page is forbidden for the role.
+ * - Populates name/avatar UI elements for cashier interface.
+ * Returns resolved user data { uid, name, role, ... }.
+ */
+export async function guardCashierPage(auth, db, fb, currentPage) {
+  return new Promise((resolve, reject) => {
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) { window.location.href = 'cashier-login.html'; return; }
+      try {
+        const snap = await fb.getDoc(fb.doc(db, 'Users', user.uid));
+        if (!snap.exists()) { window.location.href = 'cashier-login.html'; return; }
+
+        const data = snap.data();
+        const role = data.role || '';
+
+        // Only allow admin_cashier role
+        if (role !== 'admin_cashier') {
+          await auth.signOut();
+          window.location.href = 'cashier-login.html';
+          return;
+        }
+
+        // For cashier interface, don't redirect based on canAccess
+        // The cashier should always stay on cashier.html
+
+        const name = data.name || user.email;
+        // Populate UI elements if they exist
+        _setText('cashierName', name);
+        _setText('cashierNameDisplay', name);
+        _setInitial('cashierAvatar', name);
+
+        _applyRoleBadge(role);
+
+        resolve({ uid: user.uid, name, role, ...data });
+      } catch (err) {
+        console.error('guardCashierPage:', err);
+        window.location.href = 'cashier-login.html';
       }
     });
   });

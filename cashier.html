@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/png" href="image/logo.png"/>
+  <title>Salo sa Antipolo — Cashier</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="cashier.css">
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-dots"></div>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="brand">
+      <img src="image/logo.png" alt="Salo sa Antipolo" class="brand-logo"/>
+      <div class="brand-text">
+        <span class="brand-name">Salo sa Antipolo</span>
+        <span class="brand-italic">Cashier Portal</span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="header-center">
+    <div class="page-title-wrap">
+      <h1 class="page-title">Payment Processing</h1>
+      <p class="page-subtitle" id="currentDateTime">Loading...</p>
+    </div>
+  </div>
+  
+  <div class="header-right">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+      <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+      <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+    </button>
+    <div class="user-info">
+      <div class="user-avatar" id="userAvatar">C</div>
+      <div class="user-details">
+        <span class="user-name" id="userName">Cashier</span>
+        <span class="user-role">Payment Processing</span>
+      </div>
+    </div>
+    <button class="logout-btn" id="logoutBtn">
+      <i class="fa-solid fa-right-from-bracket"></i>
+      <span>Logout</span>
+    </button>
+  </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<main class="main">
+  <!-- NAV SIDEBAR -->
+  <nav class="nav-sidebar">
+    <div class="nav-section">
+      <div class="nav-section-label">Operations</div>
+      <a href="#" class="nav-item active" data-view="orders">
+        <i class="fa-solid fa-receipt nav-icon"></i>
+        <span class="nav-label">Pending Orders</span>
+        <span class="nav-badge" id="ordersCountBadge">0</span>
+      </a>
+      <a href="#" class="nav-item" data-view="billing">
+        <i class="fa-solid fa-file-invoice-dollar nav-icon"></i>
+        <span class="nav-label">Billing</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- CONTENT AREA -->
+  <div class="content">
+    <!-- ORDERS LIST VIEW -->
+    <section class="view active" id="ordersView">
+      <div class="view-header">
+        <div class="view-title-wrap">
+          <h2 class="view-title">Pending Orders</h2>
+          <p class="view-subtitle">Select an unpaid order to process payment</p>
+        </div>
+        <div class="view-actions">
+          <div class="search-wrap">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input 
+              type="text" 
+              class="search-input" 
+              id="orderSearch" 
+              placeholder="Search by table or order ID..."
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div class="view-body">
+        <div class="orders-list" id="ordersList">
+          <!-- Orders will be dynamically populated -->
+          <div class="empty-state">
+            <div class="empty-icon"><i class="fa-solid fa-receipt"></i></div>
+            <div class="empty-title">No pending orders</div>
+            <div class="empty-text">Unpaid orders from waiters will appear here</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BILLING VIEW (READ-ONLY) -->
+    <section class="view" id="billingView">
+      <div class="view-header">
+        <div class="view-title-wrap">
+          <h2 class="view-title">Billing Overview</h2>
+          <p class="view-subtitle">View all paid orders and receipts</p>
+        </div>
+        <div class="view-actions">
+          <div class="search-wrap">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input 
+              type="text" 
+              class="search-input" 
+              id="billingSearch" 
+              placeholder="Search by table or order ID..."
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div class="view-body">
+        <div class="billing-summary" style="margin-bottom: 24px;">
+          <div class="summary-card gold">
+            <div class="summary-label">Today's Total Revenue</div>
+            <div class="summary-value" id="todayRevenue">₱0.00</div>
+          </div>
+        </div>
+        
+        <div class="billing-table-wrap">
+          <table class="billing-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Table</th>
+                <th>Waiter</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="billingTableBody">
+              <tr><td colspan="8" class="empty-row">No paid orders yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ORDER DETAIL PANEL -->
+  <aside class="detail-panel" id="detailPanel">
+    <div class="detail-header">
+      <h3 class="detail-title">Order Details</h3>
+      <button class="detail-close" id="detailClose">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    
+    <div class="detail-body" id="detailBody">
+      <div class="empty-detail">
+        <div class="empty-detail-icon"><i class="fa-solid fa-hand-pointer"></i></div>
+        <div class="empty-detail-text">Select an order to view details and process payment</div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- TOAST NOTIFICATION -->
+<div class="toast" id="toast">
+  <div class="toast-dot"></div>
+  <span id="toastMsg">Notification</span>
+</div>
+
+<script type="module" src="cashier.js"></script>
+</body>
+</html>

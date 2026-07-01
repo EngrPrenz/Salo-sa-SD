@@ -181,6 +181,7 @@
       sessionStorage.setItem('userRole', data.role);
       sessionStorage.setItem('userName', data.name || email);
       sessionStorage.setItem('userId',   cred.user.uid);
+      sessionStorage.removeItem('useCashierInterface'); // Clear cashier flag
       const label = ROLE_LABEL[data.role] || 'Admin';
       showToast(`Welcome, ${data.name || label}! Loading dashboard…`);
       setTimeout(() => { window.location.href = 'admin-html/' + getDefaultPage(data.role); }, 1400);
