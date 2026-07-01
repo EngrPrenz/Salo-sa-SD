@@ -128,7 +128,12 @@ let tablesList = [];
 function renderTables() {
   const orderOccupied = {};
   allOrders.filter(o => ['pending','preparing','served'].includes(o.status)).forEach(o => {
-    if (o.tableNumber) orderOccupied[o.tableNumber] = { status: o.status, waiterName: o.waiterName, waiterId: o.waiterId };
+    if (o.tableNumber) orderOccupied[o.tableNumber] = { 
+      status: o.status, 
+      waiterName: o.waiterName, 
+      waiterId: o.waiterId,
+      orderId: o.id 
+    };
   });
 
   const grid = $('tablesGrid');
@@ -149,6 +154,7 @@ function renderTables() {
     const isOccupiedYours   = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
     const isYours           = orderInfo && orderInfo.waiterId === waiterId;
     const isTakenOrder      = orderInfo && !isYours;
+    const isServed          = isYours && orderInfo && orderInfo.status === 'served';
 
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
     const now = new Date();
@@ -165,8 +171,13 @@ function renderTables() {
     let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
-      stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
-      icon = '🍽️'; meta = 'Active order';
+      if (isServed) {
+        stClass = 'yours'; badge = 'served'; badgeLbl = '✓ Served';
+        icon = '✓'; meta = 'Food delivered · Awaiting payment';
+      } else {
+        stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
+        icon = '🍽️'; meta = 'Active order';
+      }
       yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else if (isReserved) {
       stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
@@ -201,7 +212,7 @@ function renderTables() {
       }
     }
 
-    return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn})">
+    return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn}, ${isServed})">
       ${yoursInd}
       <div class="table-num">${displayLabel}</div>
       ${capInfo}
@@ -249,9 +260,15 @@ $('confirmMarkOccupied').onclick = async () => {
 };
 
 // ── WALK-IN OPTIONS MODAL ──
-window._selectTable = (num, stClass, isWalkIn) => {
+window._selectTable = (num, stClass, isWalkIn, isServed) => {
   if (stClass === 'occupied') { showToast('⚠ This table has an active order from another waiter.'); return; }
   if (stClass === 'reserved') { window._openReservedModal(num); return; }
+
+  // If this is YOUR table with SERVED status, open served modal
+  if (isServed && stClass === 'yours') {
+    window._openServedModal(num);
+    return;
+  }
 
   if (isWalkIn) {
     pendingWalkinTable = num;
@@ -362,6 +379,70 @@ $('confirmArrivalBtn').onclick = async () => {
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
+};
+
+// ── SERVED ORDER MODAL ──
+let pendingServedTable = null;
+window._openServedModal = (num) => {
+  pendingServedTable = num;
+  $('servedTableBadge').textContent = `Table ${num}`;
+  $('servedModal').classList.add('show');
+};
+
+$('servedModalClose').onclick = $('servedModalCancel').onclick = () => {
+  $('servedModal').classList.remove('show');
+  pendingServedTable = null;
+};
+
+$('customerLeftBtn').onclick = async () => {
+  if (!pendingServedTable) return;
+  const btn = $('customerLeftBtn');
+  btn.disabled = true;
+  try {
+    // Find all served orders for this table
+    const servedOrders = allOrders.filter(o => 
+      o.tableNumber === pendingServedTable && 
+      o.status === 'served' &&
+      o.waiterId === waiterId
+    );
+    
+    // Update all served orders to remove them from active view
+    // (They're already paid, so we just need to mark them as complete)
+    for (const order of servedOrders) {
+      await updateDoc(doc(db, 'orders', order.id), {
+        status: 'completed',
+        note: (order.note || '') + ' [Customer left]',
+        updatedAt: serverTimestamp()
+      });
+    }
+    
+    // Clear the table assignment
+    const tableDoc = tablesData[pendingServedTable];
+    if (tableDoc?.docId) {
+      await updateDoc(doc(db, 'tables', tableDoc.docId), {
+        status: 'free',
+        waiterId: null,
+        waiterName: null,
+        lastUpdated: serverTimestamp()
+      });
+    }
+    
+    $('servedModal').classList.remove('show');
+    showToast(`✓ Table ${pendingServedTable} cleared.`);
+    pendingServedTable = null;
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Failed to clear table. Please retry.');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+$('takeOrderAgainBtn').onclick = () => {
+  if (!pendingServedTable) return;
+  $('servedModal').classList.remove('show');
+  goToOrder(pendingServedTable);
+  pendingServedTable = null;
 };
 
 function goToOrder(num) {

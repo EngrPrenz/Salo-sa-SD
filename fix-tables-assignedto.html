@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear All Tables</title>
+  <style>
+    body { font-family: system-ui; padding: 40px; max-width: 600px; margin: 0 auto; }
+    h1 { color: #2c3e50; }
+    button { padding: 12px 24px; font-size: 16px; background: #c9973a; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #b5873a; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #status { margin-top: 20px; padding: 16px; border-radius: 6px; }
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+  </style>
+</head>
+<body>
+  <h1>🧹 Clear All Tables</h1>
+  <p>This tool will clear all table assignments and reset them to "free" status:</p>
+  <ul>
+    <li>Clear all table assignments (waiterId, waiterName)</li>
+    <li>Reset status to "free"</li>
+    <li>Remove all reservations</li>
+    <li>Remove legacy "assignedTo" fields</li>
+  </ul>
+  <p><strong>Note:</strong> This does NOT affect orders. Active orders will remain in the system.</p>
+  <button id="fixBtn">Clear All Tables</button>
+  <div id="status"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, updateDoc, doc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const app = initializeApp({
+      apiKey: "AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w",
+      authDomain: "salo-sa-antipolo.firebaseapp.com",
+      projectId: "salo-sa-antipolo",
+      storageBucket: "salo-sa-antipolo.firebasestorage.app",
+      messagingSenderId: "60032898501",
+      appId: "1:60032898501:web:3a4e663fee4ccd2adae7ac"
+    });
+
+    const db = getFirestore(app);
+
+    document.getElementById('fixBtn').onclick = async () => {
+      const btn = document.getElementById('fixBtn');
+      const status = document.getElementById('status');
+      
+      btn.disabled = true;
+      btn.textContent = 'Clearing...';
+      status.innerHTML = '<div class="info">⏳ Processing... Please wait.</div>';
+      
+      try {
+        const tablesSnap = await getDocs(collection(db, 'tables'));
+        let tablesCleared = 0;
+        let assignedToRemoved = 0;
+        
+        for (const docSnap of tablesSnap.docs) {
+          const data = docSnap.data();
+          const updates = {
+            status: 'free',
+            reservation: null,
+            reservations: [],
+            waiterId: null,
+            waiterName: null,
+            lastUpdated: serverTimestamp()
+          };
+          
+          if (data.assignedTo) {
+            updates.assignedTo = deleteField();
+            assignedToRemoved++;
+          }
+          
+          await updateDoc(doc(db, 'tables', docSnap.id), updates);
+          tablesCleared++;
+        }
+        
+        status.innerHTML = `
+          <div class="success">
+            ✅ <strong>Success!</strong><br><br>
+            • ${tablesCleared} tables cleared<br>
+            ${assignedToRemoved > 0 ? `• ${assignedToRemoved} legacy "assignedTo" fields removed<br>` : ''}
+            <br>
+            <strong>Refresh your waiter/admin page to see the changes.</strong>
+          </div>
+        `;
+      } catch (error) {
+        status.innerHTML = `<div class="error">❌ <strong>Error:</strong> ${error.message}</div>`;
+        console.error(error);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Clear All Tables';
+      }
+    };
+  </script>
+</body>
+</html>

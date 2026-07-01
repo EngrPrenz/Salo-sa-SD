@@ -84,6 +84,7 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .table-status-badge.occupied { color: var(--orange); background: var(--orange-dim); }
 .table-status-badge.yours    { color: var(--gold);   background: var(--gold-dim); }
 .table-status-badge.walk-in  { color: #e74c3c;       background: rgba(231,76,60,0.12); }
+.table-status-badge.served   { color: var(--green);  background: var(--green-dim); }
 
 /* ── STEP 2: ORDER TAKING ── */
 #stepOrder { position: absolute; inset: 0; display: none; flex-direction: column; transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.4s; }
@@ -346,6 +347,21 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .btn-confirm-arrival:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .btn-confirm-arrival.loading .btn-conf-text { display: none; }
 .btn-confirm-arrival.loading .btn-conf-spin { display: block; }
+
+.btn-secondary {
+  flex: 1.5; padding: 12px;
+  background: rgba(94,94,94,0.2);
+  color: var(--text-muted); border: 1px solid rgba(94,94,94,0.3); border-radius: 8px;
+  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-secondary:hover { 
+  background: rgba(94,94,94,0.3); 
+  border-color: rgba(94,94,94,0.5);
+  transform: translateY(-1px); 
+}
+.btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
 /* ── SUCCESS FLASH ── */
 .order-success {

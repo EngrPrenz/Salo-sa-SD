@@ -279,9 +279,17 @@ document.getElementById('clearAllModalConfirm')?.addEventListener('click', async
   const btn=document.getElementById('clearAllModalConfirm');btn.disabled=true;btn.textContent='Clearing…';
   try{
     const snap=await getDocs(collection(db,'tables'));
-    await Promise.all(snap.docs.map(d=>updateDoc(d.ref,{status:'free',reservation:null,reservations:[],waiterId:null,waiterName:null,lastUpdated:serverTimestamp()})));
+    await Promise.all(snap.docs.map(d=>updateDoc(d.ref,{
+      status:'free',
+      reservation:null,
+      reservations:[],
+      waiterId:null,
+      waiterName:null,
+      assignedTo:null,
+      lastUpdated:serverTimestamp()
+    })));
     showToast('All tables cleared.');document.getElementById('clearAllModal').classList.remove('show');
-  }catch(e){showToast('Failed to clear tables.');}
+  }catch(e){showToast('Failed to clear tables.');console.error(e);}
   finally{btn.disabled=false;btn.textContent='Yes, Clear All';}
 });
 
