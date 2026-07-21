@@ -12,6 +12,16 @@ const db   = getFirestore(app);
 const $ = id => document.getElementById(id);
 const showToast = m => { $('toastMsg').textContent=m; $('toast').classList.add('show'); setTimeout(()=>$('toast').classList.remove('show'),3000); };
 
+// ── Theme toggle (light / dark) — shared behaviour with the cashier portal ──
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+$('themeToggle').onclick = () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+};
+
 // ── State ──
 let waiterName = '', waiterId = '', menuItems = [], cart = {}, selectedTable = null, activeCat = 'all';
 let allOrders = [];
@@ -20,6 +30,7 @@ let tablesData = {};
 let pendingOccupyTable = null;
 let pendingWalkinTable = null;
 let menuPage = 1;
+let currentOrderType = null; // 'dine-in' | 'takeout' | null
 const ITEMS_PER_PAGE_DESKTOP = 14;
 const ITEMS_PER_PAGE_MEDIUM  = 10;
 const ITEMS_PER_PAGE_TABLET  = 6;
@@ -66,7 +77,68 @@ onAuthStateChanged(auth, async user => {
 
 $('logoutBtn').onclick = async () => { await signOut(auth); window.location.href = 'waiter-login.html'; };
 
+// ── ORDER NOW BUTTON & ORDER TYPE SELECTION ──
+function showOrderTypeModal() {
+  const modal = $('orderTypeModal');
+  if (!modal) {
+    console.error('Order Type Modal element not found');
+    showToast('❌ Unable to display order type selection');
+    return;
+  }
+  modal.classList.add('show');
+}
+
+const orderNowBtn = $('orderNowBtn');
+if (orderNowBtn) {
+  orderNowBtn.onclick = () => { showOrderTypeModal(); };
+} else {
+  console.error('Order Now button element not found');
+}
+
+// Close the modal without selecting an order type. Guards against a missing
+// modal node so the interaction logs an error and shows a toast instead of
+// throwing, leaving the entry screen usable for a retry.
+const orderTypeModalClose = $('orderTypeModalClose');
+if (orderTypeModalClose) {
+  orderTypeModalClose.onclick = () => {
+    const modal = $('orderTypeModal');
+    if (!modal) {
+      console.error('Order Type Modal element not found on close');
+      showToast('❌ Unable to close order type selection');
+      return;
+    }
+    modal.classList.remove('show');
+  };
+} else {
+  console.error('Order Type Modal close button element not found');
+}
+
+// Guarantee a clean entry-screen state on every page load.
+// There is no in-progress order persistence (no localStorage by design), so a
+// browser refresh always discards any partial order. This makes that behavior
+// explicit in code rather than relying only on the static HTML defaults:
+// show the Order Now entry screen, hide the order-taking step, and reset the
+// order-type/session state and step pills so the waiter never lands in a
+// broken/partial state after a refresh (see design: "Browser refresh during
+// order taking").
+function ensureEntryScreenState() {
+  currentOrderType = null;
+  selectedTable = null;
+
+  const entry = $('orderEntry');
+  const tables = $('stepTables');
+  const order = $('stepOrder');
+  if (entry)  entry.classList.remove('hidden');
+  if (tables) tables.classList.remove('hidden', 'out-left');
+  if (order)  order.classList.remove('visible', 'in');
+
+  updateStepIndicator();
+  updateOrderTypeTabs();
+  pill1Active(); pill2Reset(); pill3Reset();
+}
+
 async function init() {
+  ensureEntryScreenState();
   loadMenu();
 
 onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
@@ -446,14 +518,112 @@ $('takeOrderAgainBtn').onclick = () => {
 };
 
 function goToOrder(num) {
+  // State consistency guard (design: "State Consistency Errors"). A dine-in
+  // order must have a valid table number; a missing/invalid num means the
+  // navigation was triggered with inconsistent state. Log a warning and recover
+  // to the known-good entry screen instead of navigating with a bad table.
+  if (num === null || num === undefined || isNaN(Number(num))) {
+    console.warn('goToOrder called with missing/invalid table number:', num, '— resetting to entry screen.');
+    showToast('⚠️ Something went wrong selecting the table. Please start again.');
+    ensureEntryScreenState();
+    return;
+  }
+
   selectedTable = num;
+  currentOrderType = 'dine-in'; // Set order type when going through table selection
+  // Dine-in: show the table number in the existing gold table-label style (Req 7.2).
+  // textContent also clears any takeout badge markup from a prior takeout order.
   $('selectedTableLabel').textContent = `Table ${num}`;
+  updateStepIndicator();
+  updateOrderTypeTabs();
   pill1Done(); pill2Active();
   const st = $('stepTables'), so = $('stepOrder');
   st.classList.add('out-left');
   so.classList.add('visible');
   requestAnimationFrame(() => so.classList.add('in'));
   setTimeout(() => st.classList.add('hidden'), 400);
+  renderMenuGrid();
+  setupCatScrollBtns();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// DINE-IN / TAKEOUT ORDER FLOW
+// Two order paths branch from the Order Type Selection Modal:
+//   • Dine-in: Order Now → Select Order Type → Table → Order → Submit
+//   • Takeout: Order Now → Select Order Type → Order → Submit (skips table)
+// currentOrderType ('dine-in' | 'takeout' | null) drives the branching in the
+// functions below, plus step-indicator visibility, back navigation, and the
+// order document written on submit.
+// ════════════════════════════════════════════════════════════════════════
+
+// ── ORDER TYPE SELECTION ──
+// Entry point for both flows: stores the chosen order type, closes the modal,
+// then routes to table selection (dine-in) or straight to order taking (takeout).
+function selectOrderType(type) {
+  currentOrderType = type;
+  // Guard against a missing modal node so selection still proceeds without
+  // throwing; log an error and surface a toast for visibility.
+  const modal = $('orderTypeModal');
+  if (modal) {
+    modal.classList.remove('show');
+  } else {
+    console.error('Order Type Modal element not found during selection');
+    showToast('❌ Unable to update order type selection');
+  }
+  
+  if (type === 'dine-in') {
+    // Show table selection. Also hide the order-taking step in case we're
+    // switching here FROM takeout order taking (otherwise its menu/summary
+    // would remain visible on top of the table grid).
+    selectedTable = null;
+    $('orderEntry').classList.add('hidden');
+    $('stepOrder').classList.remove('visible', 'in');
+    $('stepTables').classList.remove('hidden', 'out-left');
+    updateStepIndicator();
+    updateOrderTypeTabs(); // reflect Dine In as the active tab
+    // Refresh the table grid so all tables and their current status
+    // are shown when the table selection step becomes visible (Req 2.2)
+    renderTables();
+    pill1Active(); pill2Reset(); pill3Reset();
+  } else if (type === 'takeout') {
+    // Skip to order taking
+    $('orderEntry').classList.add('hidden');
+    $('stepTables').classList.add('hidden');
+    goToOrderDirect();
+  }
+}
+
+// ── GO TO ORDER (TAKEOUT) ──
+// Takeout-only navigation that skips table selection and jumps straight to the
+// order-taking step, clearing any table and showing the "Takeout Order" badge.
+function goToOrderDirect() {
+  // State consistency guard (design: "State Consistency Errors"). This path is
+  // takeout-only; if the active order type isn't 'takeout', the state is
+  // inconsistent. Log a warning and recover to the known-good entry screen
+  // rather than proceeding into the takeout order-taking step.
+  if (currentOrderType !== 'takeout') {
+    console.warn('goToOrderDirect called with inconsistent order type:', currentOrderType, '— resetting to entry screen.');
+    showToast('⚠️ Order flow was out of sync. Please start again.');
+    resetOrderFlow();
+    return;
+  }
+
+  // Navigate directly to order taking step for takeout
+  selectedTable = null;  // Ensure no table is set
+  // Takeout: show "Takeout Order" using the distinct orange badge style so the
+  // waiter clearly sees a takeout order is active throughout order taking
+  // (Req 3.5, 7.1, 7.3). Reuses the existing .order-type-badge/.takeout-badge classes.
+  const label = $('selectedTableLabel');
+  label.innerHTML = '<span class="order-type-badge takeout-badge"><i class="fa-solid fa-bag-shopping"></i> Takeout Order</span>';
+  updateStepIndicator();
+  updateOrderTypeTabs();
+  pill1Done();
+  pill2Active();
+  
+  const so = $('stepOrder');
+  so.classList.add('visible');
+  requestAnimationFrame(() => so.classList.add('in'));
+  
   renderMenuGrid();
   setupCatScrollBtns();
 }
@@ -468,6 +638,80 @@ function goBackToTables() {
   selectedTable = null;
 }
 
+// ── BACK FROM ORDER TAKING ──
+// Back always returns to the table-selection hub, which carries the
+// Dine In / Takeout tabs. The waiter switches modes there via the tabs, so we
+// never reopen the order-type modal (that modal is only shown once, on the
+// first "Order Now" entry). The hub defaults to dine-in mode.
+function goBackFromOrder() {
+  // Default the hub to dine-in so the table grid + full step indicator show,
+  // and the tabs reflect the active mode. From here the waiter can pick a table
+  // (dine-in) or tap the Takeout tab to switch back to takeout.
+  currentOrderType = 'dine-in';
+  selectedTable = null;
+  updateStepIndicator();
+  updateOrderTypeTabs();
+  renderTables();
+  goBackToTables();
+}
+
+// ── RESET ORDER FLOW ──
+// Returns the interface to a clean initial state so the next order can start
+// fresh from the entry screen (Req 4.2, 4.3). Reuses existing helpers
+// (updateCart, pill helpers, updateStepIndicator). Called from the submission
+// success handler for takeout orders to return to a clean entry screen.
+function resetOrderFlow() {
+  // Clear order session state
+  currentOrderType = null;
+  selectedTable = null;
+  cart = {};
+  updateCart();
+
+  // Clear the order note field
+  $('orderNote').value = '';
+
+  // Show the entry screen and hide the order-taking step.
+  // NOTE: #orderEntry is a CHILD of #stepTables and overlays the table grid
+  // (via z-index). So #stepTables must stay VISIBLE for the entry overlay to
+  // show — hiding #stepTables would hide the entry screen too (black screen).
+  $('stepTables').classList.remove('hidden', 'out-left');
+  $('orderEntry').classList.remove('hidden');
+  $('stepOrder').classList.remove('visible', 'in');
+
+  // Reset the step indicator pills to their initial state
+  pill1Active();
+  pill2Reset();
+  pill3Reset();
+  updateStepIndicator(); // restore pill1 display for the next order
+  updateOrderTypeTabs(); // clear active tab (no order type on the entry screen)
+}
+
+// ── ORDER TYPE TABS ──
+// Reflects the active order type on the table-selection segmented tabs.
+function updateOrderTypeTabs() {
+  const dineTab = $('tabDineIn');
+  const takeoutTab = $('tabTakeout');
+  if (!dineTab || !takeoutTab) return;
+  dineTab.classList.toggle('active', currentOrderType === 'dine-in');
+  takeoutTab.classList.toggle('active', currentOrderType === 'takeout');
+}
+
+// ── STEP INDICATOR ──
+// Shows a 2-step flow (Take Order → Submit) for takeout orders by hiding the
+// table selection pill and its arrow, and the full 3-step flow for dine-in.
+function updateStepIndicator() {
+  const pill1 = $('pill1');
+  const arrow1 = $('stepArrow1');
+
+  if (currentOrderType === 'takeout') {
+    if (pill1) pill1.style.display = 'none';
+    if (arrow1) arrow1.style.display = 'none';
+  } else {
+    if (pill1) pill1.style.display = '';
+    if (arrow1) arrow1.style.display = '';
+  }
+}
+
 // ── STEP PILLS ──
 function pill1Done()   { $('pill1').className='step-pill done clickable'; }
 function pill1Active() { $('pill1').className='step-pill active'; }
@@ -480,8 +724,16 @@ function pill3Reset()  { $('pill3').className='step-pill'; }
 $('pill1').addEventListener('click', () => {
   if ($('pill1').classList.contains('done')) {
     $('confirmModal').classList.remove('show');
-    goBackToTables();
+    // Route via order-type-aware navigation (Req 5.3, 5.4, 5.5).
+    goBackFromOrder();
   }
+});
+
+// Dedicated back button in the order taking header. Provides a working back
+// affordance for takeout orders where pill1 is hidden (Req 5.3, 5.5).
+$('backFromOrderBtn').addEventListener('click', () => {
+  $('confirmModal').classList.remove('show');
+  goBackFromOrder();
 });
 
 $('pill3').addEventListener('click', () => {
@@ -729,9 +981,16 @@ function updateCart() {
 // ── ORDER SUBMISSION ──
 $('submitOrderBtn').onclick = () => {
   const items = Object.values(cart);
-  if (!items.length || !selectedTable) return;
+  // Takeout orders have no selected table; only dine-in orders require one (Req 3.1, 6.4).
+  if (!items.length) return;
+  if (currentOrderType !== 'takeout' && !selectedTable) return;
   const total = items.reduce((s,i)=>s+i.price*i.qty,0);
+  // Order-type context line at the top of the confirmation body (Req 7.4, 7.5).
+  const orderTypeLine = currentOrderType === 'takeout'
+    ? `<div class="confirm-order-type"><i class="fa-solid fa-bag-shopping"></i> Order Type: <strong>Takeout</strong></div>`
+    : `<div class="confirm-order-type"><i class="fa-solid fa-utensils"></i> Table: <strong>${selectedTable}</strong></div>`;
   $('confirmModalBody').innerHTML =
+    orderTypeLine +
     items.map(i => `<div class="confirm-row">
       <div><div class="confirm-item">${i.name}</div><div class="confirm-qty">× ${i.qty}</div></div>
       <div class="confirm-sub">₱${(i.price*i.qty).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
@@ -751,6 +1010,20 @@ $('confirmOrderBtn').onclick = async () => {
   btn.disabled = true; btn.classList.add('loading');
   const newItems = Object.values(cart);
   const note     = $('orderNote').value.trim();
+
+  // Order type guard: prevent creating an order with no order type set (Req 6.3, 6.4).
+  if (!currentOrderType) {
+    showToast('⚠️ Order type not set. Please restart order flow.');
+    btn.disabled = false; btn.classList.remove('loading');
+    return;
+  }
+
+  // Dine-in table guard: dine-in orders must have a selected table before submit (Req 6.3).
+  if (currentOrderType === 'dine-in' && !selectedTable) {
+    showToast('⚠️ Please select a table for dine-in orders.');
+    btn.disabled = false; btn.classList.remove('loading');
+    return;
+  }
 
   // Frontend qty guard
   const overLimit = newItems.filter(i => i.qty > 20 || i.qty < 1);
@@ -772,8 +1045,12 @@ $('confirmOrderBtn').onclick = async () => {
   try {
     // Always create a NEW order, regardless of existing orders from same table/waiter
     const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
-    await addDoc(collection(db,'orders'), {
-      tableNumber: selectedTable, waiterId, waiterName,
+
+    // Build the base order document. orderType is always included so the cashier
+    // can distinguish dine-in vs takeout (Req 6.1, 6.2, 6.5).
+    const orderData = {
+      orderType: currentOrderType,
+      waiterId, waiterName,
       items: newItems.map(i=>({
         id: i.id,
         name: i.name,
@@ -783,18 +1060,33 @@ $('confirmOrderBtn').onclick = async () => {
       })),
       total, note, status: 'pending',
       createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-    });
+    };
+
+    // Dine-in orders carry the table number; takeout orders set it to null (Req 6.3, 6.4).
+    if (currentOrderType === 'takeout') {
+      orderData.tableNumber = null;
+    } else {
+      orderData.tableNumber = selectedTable;
+    }
+
+    await addDoc(collection(db,'orders'), orderData);
 
     $('confirmModal').classList.remove('show');
     const os = $('orderSuccess');
-    $('orderSuccessSub').textContent = `Table ${selectedTable} · ₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+    // Show "Takeout Order" for takeout, otherwise show the table number (Req 7.1, 7.2).
+    const orderLabel = currentOrderType === 'takeout' ? 'Takeout Order' : `Table ${selectedTable}`;
+    $('orderSuccessSub').textContent = `${orderLabel} · ₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
     os.classList.add('show');
     cart = {}; $('orderNote').value = '';
     updateCart(); renderMenuGrid();
     setTimeout(() => {
       os.classList.remove('show');
-      goBackToTables();
-      pill1Active(); pill2Reset(); pill3Reset();
+      // After a successful submission (dine-in or takeout), always return to the
+      // Order Now entry screen so the next order starts fresh from order-type
+      // selection. resetOrderFlow() clears state, shows the entry screen, and
+      // hides the table/order steps. (Table status for dine-in is written at
+      // table-selection time; takeout never touches the tables collection.)
+      resetOrderFlow();
     }, 2200);
   } catch(e) {
     console.error(e);
@@ -805,6 +1097,44 @@ $('confirmOrderBtn').onclick = async () => {
 };
 
 $('pill1').className = 'step-pill active';
+
+// ── ORDER TYPE BUTTON HANDLERS ──
+// Guard each handler against a missing DOM node so a broken element logs an
+// error and shows a toast rather than throwing at load time.
+const selectDineInBtn = $('selectDineIn');
+if (selectDineInBtn) {
+  selectDineInBtn.onclick = () => { selectOrderType('dine-in'); };
+} else {
+  console.error('Dine In button element not found');
+}
+
+const selectTakeoutBtn = $('selectTakeout');
+if (selectTakeoutBtn) {
+  selectTakeoutBtn.onclick = () => { selectOrderType('takeout'); };
+} else {
+  console.error('Takeout button element not found');
+}
+
+// ── ORDER TYPE SWITCH (persistent navbar tabs) ──
+// Always-visible switcher. Clicking a tab enters/switches that mode from
+// anywhere (entry screen, table selection, or order taking):
+//   - Dine In → show table selection (waiter then picks a table)
+//   - Takeout → jump straight to takeout order taking
+// The cart is order-type-agnostic, so switching mid-order preserves items.
+const tabDineIn = $('tabDineIn');
+const tabTakeout = $('tabTakeout');
+if (tabDineIn) {
+  tabDineIn.onclick = () => {
+    if (currentOrderType === 'dine-in') return; // already in dine-in mode
+    selectOrderType('dine-in');
+  };
+}
+if (tabTakeout) {
+  tabTakeout.onclick = () => {
+    if (currentOrderType === 'takeout') return; // already in takeout mode
+    selectOrderType('takeout');
+  };
+}
 
 // ── CATEGORY SCROLL BUTTONS (looping) ──
 let catScrollWired = false;

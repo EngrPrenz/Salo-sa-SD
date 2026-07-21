@@ -9,6 +9,16 @@
   --orange: #e67e22; --orange-dim: rgba(230,126,34,0.12);
   --topbar-h: 76px;
 }
+
+/* ── Light Theme ── */
+[data-theme="light"] {
+  --black: #ffffff; --black-card: #f8f9fa; --black-mid: #f0f1f3; --black-light: #e8e9eb;
+  --border: #d4d6d9; --gold: #b07d20; --gold-light: #96690f; --gold-dim: rgba(176,125,32,0.12);
+  --white: #0a0a0a; --text-muted: #495057;
+}
+/* Improve contrast of the neutral-gray step indicators on a light background */
+[data-theme="light"] .step-pill:not(.active):not(.done) { color: #6c757d; }
+[data-theme="light"] .step-arrow { color: #adb5bd; }
 html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--black); color: var(--white); overflow: hidden; }
 .bg { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at 20% 40%, rgba(201,151,58,0.06) 0%, transparent 55%), var(--black); }
 
@@ -18,8 +28,12 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .brand-icon { font-size: 28px; display: flex; align-items: center; }
 .brand-logo { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(201,151,58,0.35); box-shadow: 0 0 10px rgba(201,151,58,0.15); display: block; }
 .brand-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--gold-light); }
-.topbar-middle { flex: 1; display: flex; align-items: center; justify-content: center; }
-.step-pills { display: flex; align-items: center; gap: 0; }
+/* Absolutely center the step pills across the full navbar width so the added
+   order-type tabs on the left don't push them off-center. The topbar is
+   position:fixed, so this positions relative to it. pointer-events:none lets
+   clicks pass through to the side controls; the pills re-enable their own. */
+.topbar-middle { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.step-pills { display: flex; align-items: center; gap: 0; pointer-events: auto; }
 .step-pill { display: flex; align-items: center; gap: 8px; padding: 8px 20px; border-radius: 100px; font-size: 14px; font-weight: 600; color: #a0a0a0; transition: all 0.3s; cursor: default; }
 .step-pill.active { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(201,151,58,0.3); }
 .step-pill.done { color: var(--green); cursor: pointer; }
@@ -27,11 +41,18 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .step-pill.clickable { cursor: pointer; }
 .step-pill.clickable:hover { background: var(--gold-dim); color: var(--gold-light); border: 1px solid rgba(201,151,58,0.2); }
 .step-arrow { color: #a0a0a0; font-size: 16px; margin: 0 4px; }
-.topbar-right { display: flex; align-items: center; gap: 14px; }
+.topbar-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
 .waiter-tag { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
 .waiter-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .logout-btn { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); padding: 7px 14px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
 .logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+/* ── THEME TOGGLE ── */
+.theme-toggle { width: 38px; height: 38px; border-radius: 50%; background: var(--black-mid); border: 1px solid var(--border); color: var(--gold); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; position: relative; flex-shrink: 0; }
+.theme-toggle:hover { border-color: var(--gold); background: var(--gold-dim); }
+.theme-toggle .icon-sun { display: none; }
+[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+[data-theme="light"] .theme-toggle .icon-sun { display: block; }
 
 /* ── MAIN ── */
 .main { position: fixed; top: var(--topbar-h); left: 0; right: 0; bottom: 0; z-index: 1; display: flex; overflow: hidden; }
@@ -42,6 +63,8 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 #stepTables.hidden { display: none; }
 
 .step-header { padding: 22px 24px 16px; display: flex; align-items: center; justify-content: space-between; }
+.step-heading { display: flex; align-items: center; gap: 14px; }
+.step-heading-icon { width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--gold-dim); border: 1px solid rgba(201,151,58,0.3); color: var(--gold); font-size: 19px; }
 .step-title { font-family: 'Cormorant Garamond', serif; font-size: 26px; color: var(--white); }
 .step-subtitle { font-size: 13px; color: var(--text-muted); font-weight: 300; margin-top: 2px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -502,4 +525,288 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   font-size: 10px;
   font-weight: 500;
   color: var(--gold, #c9973a);
+}
+
+/* ═══════ ORDER TYPE SWITCH (persistent navbar segmented tabs) ═══════ */
+.order-type-switch {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ots-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: var(--black-mid);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.ots-tab i { font-size: 13px; }
+.ots-tab:hover {
+  border-color: rgba(201,151,58,0.4);
+  color: var(--gold-light);
+}
+.ots-tab.active {
+  background: var(--gold-dim);
+  border-color: rgba(201,151,58,0.4);
+  color: var(--gold);
+}
+
+/* ═══════ ORDER NOW ENTRY SCREEN ═══════ */
+.order-entry-screen {
+  position: absolute;
+  inset: 0;
+  /* Sit above the table grid/header. Table tiles use position:relative, which
+     puts them in the same stacking layer as this overlay; without a z-index the
+     later-in-DOM tiles paint on top and bleed through. z-index keeps the entry
+     screen fully covering the tables while it is visible (below modals @500). */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--black);
+  animation: fadeIn 0.5s ease;
+}
+.order-entry-screen.hidden {
+  display: none;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.order-entry-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 480px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.entry-icon {
+  font-size: 72px;
+  line-height: 1;
+  animation: iconBounce 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+}
+@keyframes iconBounce {
+  from { transform: scale(0) rotate(-10deg); opacity: 0; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.entry-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 38px;
+  font-weight: 600;
+  color: var(--white);
+  line-height: 1.2;
+  animation: fadeUp 0.5s ease 0.3s both;
+}
+
+.entry-subtitle {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  animation: fadeUp 0.5s ease 0.4s both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.btn-order-now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, var(--gold), #a87820);
+  color: var(--black);
+  border: none;
+  border-radius: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.5s ease 0.5s both;
+}
+.btn-order-now::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.btn-order-now:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(201,151,58,0.4);
+}
+.btn-order-now:hover::before {
+  opacity: 1;
+}
+.btn-order-now span,
+.btn-order-now i {
+  position: relative;
+  z-index: 1;
+}
+.btn-order-now i {
+  font-size: 18px;
+  transition: transform 0.3s;
+}
+.btn-order-now:hover i {
+  transform: translateX(4px);
+}
+
+/* ═══════ ORDER TYPE SELECTION MODAL ═══════ */
+.order-type-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.order-type-btn {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 24px;
+  background: var(--black-mid);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+  font-family: 'Outfit', sans-serif;
+  color: var(--white);
+  text-align: center;
+}
+.order-type-btn:hover {
+  border-color: var(--gold);
+  background: var(--gold-dim);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(201,151,58,0.3);
+}
+.order-type-btn:active {
+  transform: translateY(-1px) scale(1.01);
+}
+
+.ot-icon {
+  font-size: 48px;
+  line-height: 1;
+  transition: transform 0.25s;
+}
+.order-type-btn:hover .ot-icon {
+  transform: scale(1.1);
+}
+
+.ot-label {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--white);
+}
+
+.ot-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ═══════ ORDER TYPE BADGE (Takeout Indicator) ═══════ */
+.order-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+
+.takeout-badge {
+  background: var(--orange-dim);
+  color: var(--orange);
+  border: 1px solid rgba(230,126,34,0.3);
+}
+
+.confirm-order-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.confirm-order-type strong {
+  color: var(--gold-light);
+  font-weight: 700;
+}
+
+/* ═══════ RESPONSIVE: ORDER TYPE MODAL ═══════ */
+@media (max-width: 768px) {
+  .order-type-options {
+    flex-direction: column;
+  }
+  
+  .order-type-btn {
+    min-width: 100%;
+    padding: 28px 20px;
+  }
+  
+  .entry-title {
+    font-size: 32px;
+  }
+  
+  .entry-icon {
+    font-size: 64px;
+  }
+}
+
+@media (max-width: 480px) {
+  .order-entry-content {
+    padding: 32px 20px;
+  }
+  
+  .entry-title {
+    font-size: 28px;
+  }
+  
+  .entry-subtitle {
+    font-size: 14px;
+  }
+  
+  .btn-order-now {
+    padding: 14px 28px;
+    font-size: 15px;
+  }
+  
+  .order-type-btn {
+    padding: 24px 18px;
+  }
+  
+  .ot-icon {
+    font-size: 40px;
+  }
+  
+  .ot-label {
+    font-size: 16px;
+  }
 }

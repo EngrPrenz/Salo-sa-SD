@@ -20,16 +20,38 @@
     <div class="brand-icon"><img src="image/logo.png" alt="Salo sa Antipolo" class="brand-logo"/></div>
     <div class="brand-name">Salo sa <em>Antipolo</em></div>
   </div>
+  <!-- Persistent order-type switcher — always visible in the navbar so the
+       waiter can switch between Dine In and Takeout at any time. -->
+  <div class="order-type-switch" id="orderTypeSwitch">
+    <button class="ots-tab" id="tabDineIn"><i class="fa-solid fa-utensils"></i> Dine In</button>
+    <button class="ots-tab" id="tabTakeout"><i class="fa-solid fa-bag-shopping"></i> Takeout</button>
+  </div>
   <div class="topbar-middle">
     <div class="step-pills">
       <div class="step-pill done" id="pill1"><i class="fa-solid fa-chair"></i> Select Table</div>
-      <span class="step-arrow">›</span>
+      <span class="step-arrow" id="stepArrow1">›</span>
       <div class="step-pill" id="pill2"><i class="fa-solid fa-clipboard-list"></i> Take Order</div>
       <span class="step-arrow">›</span>
       <div class="step-pill" id="pill3"><i class="fa-solid fa-circle-check"></i> Submit</div>
     </div>
   </div>
   <div class="topbar-right">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+      <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+      <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+    </button>
     <div class="waiter-tag">
       <div class="waiter-avatar" id="waiterAvatar">W</div>
     </div>
@@ -40,10 +62,26 @@
 <div class="main">
   <!-- STEP 1 — TABLE GRID -->
   <div id="stepTables">
+    <!-- Order Entry Screen -->
+    <div class="order-entry-screen" id="orderEntry">
+      <div class="order-entry-content">
+        <div class="entry-icon">🍽️</div>
+        <h2 class="entry-title">Ready to Take an Order?</h2>
+        <p class="entry-subtitle">Choose your order type to begin</p>
+        <button class="btn-order-now" id="orderNowBtn">
+          <span>Order Now</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
     <div class="step-header">
-      <div>
-        <div class="step-title">Which table? <i class="fa-solid fa-chair"></i></div>
-        <div class="step-subtitle">Tap a free table to start taking orders, or toggle a table as occupied for walk-in guests</div>
+      <div class="step-heading">
+        <span class="step-heading-icon"><i class="fa-solid fa-chair"></i></span>
+        <div>
+          <div class="step-title">Which table?</div>
+          <div class="step-subtitle">Tap a free table to start taking orders, or toggle a table as occupied for walk-in guests</div>
+        </div>
       </div>
       <div class="legend">
         <div class="legend-item"><div class="legend-dot free"></div>Free</div>
@@ -64,6 +102,7 @@
     <div class="order-layout">
       <div class="menu-panel">
         <div class="menu-topbar">
+          <button class="btn-back-table" id="backFromOrderBtn" title="Go back">‹ Back</button>
           <span class="table-label" id="selectedTableLabel">Table —</span>
           <button class="cat-scroll-btn" id="catScrollLeft" title="Scroll left">‹</button>
           <div class="cat-scroll" id="catScroll"></div>
@@ -95,6 +134,31 @@
           <button class="btn-submit" id="submitOrderBtn" disabled><span>Place Order →</span></button>
           <button class="btn-clear" id="clearCartBtn">Clear Cart</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER TYPE SELECTION MODAL -->
+<div class="modal-overlay" id="orderTypeModal">
+  <div class="modal">
+    <div class="modal-strip"></div>
+    <div class="modal-header">
+      <span class="modal-title">Select Order Type</span>
+      <button class="modal-close-btn" id="orderTypeModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="order-type-options">
+        <button class="order-type-btn" data-type="dine-in" id="selectDineIn">
+          <div class="ot-icon"><i class="fa-solid fa-utensils"></i></div>
+          <div class="ot-label">Dine In</div>
+          <div class="ot-desc">Customer seated at table</div>
+        </button>
+        <button class="order-type-btn" data-type="takeout" id="selectTakeout">
+          <div class="ot-icon"><i class="fa-solid fa-bag-shopping"></i></div>
+          <div class="ot-label">Takeout</div>
+          <div class="ot-desc">Food to go</div>
+        </button>
       </div>
     </div>
   </div>
