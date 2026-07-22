@@ -11,43 +11,90 @@ const auth = getAuth(app);
 const db   = getFirestore(app);
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const VAT_RATE            = 0.12;
-const SERVICE_CHARGE_RATE = 0.07;
-const RESTAURANT_ADDRESS  = 'Sumulong Highway, Siete Media, Antipolo City, Rizal, Philippines, 1870';
+const VAT_RATE             = 0.12;
+const SERVICE_CHARGE_RATE  = 0.07;
+const SENIOR_DISCOUNT_RATE = 0.20;
+const PWD_DISCOUNT_RATE    = 0.20;
+const RESTAURANT_ADDRESS   = 'Sumulong Highway, Siete Media, Antipolo City, Rizal, Philippines, 1870';
 
-// Status flow definition
-// pending → paid → preparing → served
-// Any non-served/cancelled can → cancelled
-const STATUS_FLOW = {
-  pending:    { next: 'paid',      nextLabel: 'Mark as Paid',      btnClass: 'order-btn-pay' },
-  paid:       { next: 'preparing', nextLabel: 'Send to Kitchen',   btnClass: 'order-btn-primary' },
-  preparing:  { next: 'served',    nextLabel: 'Mark as Served',    btnClass: 'order-btn-primary' },
-  served:     { next: null,        nextLabel: null,                 btnClass: null },
-  cancelled:  { next: null,        nextLabel: null,                 btnClass: null },
+// ── Status model ───────────────────────────────────────────────────────────────
+// Preparation progress and payment are independent — an order can be paid before
+// or after it's served, and served before or after it's paid. The two combine
+// into a single status field:
+//
+//   pending → preparing → served_unpaid ─┐
+//                       ↘ paid_unserved ─┴→ served_paid
+//
+// pending / preparing may also → cancelled.
+const STATUS_ACTIONS = {
+  pending:       [{ to: 'preparing',     label: 'Start Preparing', btnClass: 'order-btn-primary' }],
+  preparing:     [
+    { to: 'served_unpaid', label: 'Mark as Served', btnClass: 'order-btn-primary' },
+    { to: 'paid_unserved', label: 'Mark as Paid',   btnClass: 'order-btn-pay' },
+  ],
+  served_unpaid: [{ to: 'served_paid',   label: 'Mark as Paid',   btnClass: 'order-btn-pay' }],
+  paid_unserved: [{ to: 'served_paid',   label: 'Mark as Served', btnClass: 'order-btn-primary' }],
+  served_paid:   [],
+  cancelled:     [],
 };
 
+// Orders can only be cancelled before food prep has committed resources.
+const CANCELLABLE_STATUSES = ['pending'];
+
 const STATUS_META = {
-  pending:   { label: 'Pending',   color: 'var(--orange)', stripe: 'var(--orange)', accent: 'var(--orange)' },
-  paid:      { label: 'Paid',      color: 'var(--gold)',   stripe: 'var(--gold)',   accent: 'var(--gold)' },
-  preparing: { label: 'Preparing', color: 'var(--blue)',   stripe: 'var(--blue)',   accent: 'var(--blue)' },
-  served:    { label: 'Served',    color: 'var(--green)',  stripe: 'var(--green)',  accent: 'var(--green)' },
-  completed: { label: 'Completed', color: '#27ae60',       stripe: '#27ae60',       accent: '#27ae60' },
-  cancelled: { label: 'Cancelled', color: 'var(--red)',    stripe: 'var(--red)',    accent: 'var(--red)' },
+  pending:       { label: 'Pending',           color: 'var(--orange)', stripe: 'var(--orange)', accent: 'var(--orange)' },
+  preparing:     { label: 'Preparing',         color: 'var(--blue)',   stripe: 'var(--blue)',   accent: 'var(--blue)' },
+  served_unpaid: { label: 'Served (Not Paid)', color: 'var(--purple)', stripe: 'var(--purple)', accent: 'var(--purple)' },
+  served_paid:   { label: 'Served (Paid)',     color: 'var(--green)',  stripe: 'var(--green)',  accent: 'var(--green)' },
+  paid_unserved: { label: 'Paid (Not Served)', color: 'var(--gold)',   stripe: 'var(--gold)',   accent: 'var(--gold)' },
+  completed:     { label: 'Completed',         color: '#27ae60',       stripe: '#27ae60',       accent: '#27ae60' },
+  cancelled:     { label: 'Cancelled',         color: 'var(--red)',    stripe: 'var(--red)',    accent: 'var(--red)' },
 };
 
 // Tabs shown in the filter bar (order matters) - completed excluded (billing only)
-const TABS = ['all', 'pending', 'paid', 'preparing', 'served', 'cancelled'];
+const TABS = ['all', 'pending', 'preparing', 'served_unpaid', 'served_paid', 'paid_unserved', 'cancelled'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function escapeHtml(s) { return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s)  { return s ? s[0].toUpperCase()+s.slice(1) : ''; }
 
-function computeVat(total) {
-  const vatAmount     = total * VAT_RATE / (1 + VAT_RATE);
-  const netAmount     = total - vatAmount;
-  const serviceCharge = total * SERVICE_CHARGE_RATE;
-  const grandTotal    = total + serviceCharge;
-  return { netAmount, vatAmount, serviceCharge, grandTotal };
+// Mirrors cashier.js's calculateFinancials exactly, so a Senior/PWD discount
+// set from either Admin or the Cashier produces the same numbers everywhere.
+function calculateFinancials(orderTotal, discountType = 'none') {
+  const subtotal = orderTotal;
+  let discountAmount = 0;
+  let vatExempt = false;
+
+  if (discountType === 'senior') {
+    discountAmount = subtotal * SENIOR_DISCOUNT_RATE;
+    vatExempt = true;
+  } else if (discountType === 'pwd') {
+    discountAmount = subtotal * PWD_DISCOUNT_RATE;
+    vatExempt = true;
+  }
+
+  const afterDiscount = subtotal - discountAmount;
+
+  let vatAmount = 0;
+  let netAmount = afterDiscount;
+  if (!vatExempt) {
+    vatAmount = afterDiscount * VAT_RATE / (1 + VAT_RATE);
+    netAmount = afterDiscount - vatAmount;
+  }
+
+  const serviceCharge = afterDiscount * SERVICE_CHARGE_RATE;
+  const grandTotal    = afterDiscount + serviceCharge;
+
+  return {
+    subtotal,
+    discountAmount,
+    discountRate: (discountType === 'senior' || discountType === 'pwd') ? 0.20 : 0,
+    vatExempt,
+    netAmount,
+    vatAmount,
+    serviceCharge,
+    grandTotal,
+  };
 }
 
 function elapsed(date) {
@@ -113,8 +160,11 @@ function startListeners() {
 
 // ── Badge ──────────────────────────────────────────────────────────────────────
 function updateOrdersBadge() {
-  // Badge shows pending + preparing (need attention)
-  const active = allOrders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
+  // Badge shows orders that still need attention (not fully done, not cancelled)
+  const active = allOrders.filter(o =>
+    o.status === 'pending' || o.status === 'preparing' ||
+    o.status === 'served_unpaid' || o.status === 'paid_unserved'
+  ).length;
   const badge  = document.getElementById('ordersBadge');
   if (badge) { badge.textContent = active; badge.style.display = active > 0 ? 'inline-flex' : 'none'; }
 }
@@ -124,7 +174,7 @@ function buildTabCounts() {
   // Exclude completed orders from live orders view
   const liveOrders = allOrders.filter(o => o.status !== 'completed');
   const counts = { all: liveOrders.length };
-  for (const s of ['pending','paid','preparing','served','cancelled']) {
+  for (const s of ['pending','preparing','served_unpaid','served_paid','paid_unserved','cancelled']) {
     counts[s] = allOrders.filter(o => o.status === s).length;
   }
   return counts;
@@ -162,17 +212,34 @@ async function updateOrderStatus(id, newStatus) {
   const o = allOrders.find(x => x.id === id);
   if (!o) return;
 
-  // Guard: only allow valid transitions
-  const flow = STATUS_FLOW[o.status];
-  if (newStatus !== 'cancelled' && flow?.next !== newStatus) {
+  // Guard: only allow valid transitions as defined by STATUS_ACTIONS, or a
+  // cancellation from a status that's still allowed to be cancelled.
+  const allowedNext = (STATUS_ACTIONS[o.status] || []).map(a => a.to);
+  const isCancel = newStatus === 'cancelled' && CANCELLABLE_STATUSES.includes(o.status);
+  if (!isCancel && !allowedNext.includes(newStatus)) {
     showToast('Invalid status transition', 'error'); return;
   }
 
-  await updateDoc(doc(db, 'orders', id), { status: newStatus, updatedAt: serverTimestamp() });
+  // Payment and serving are tracked independently the first time each happens,
+  // regardless of which order they occur in.
+  const extra = { updatedAt: serverTimestamp() };
+  const becomingPaid   = (newStatus === 'paid_unserved' || newStatus === 'served_paid') && !o.paidAt;
+  const becomingServed = (newStatus === 'served_unpaid' || newStatus === 'served_paid') && !o.servedAt;
+  if (becomingPaid)   extra.paidAt   = serverTimestamp();
+  if (becomingServed) extra.servedAt = serverTimestamp();
+
+  // Once the kitchen marks a re-ordered ticket served again, the "new items"
+  // it was carrying have now been cooked & delivered — clear them so the
+  // green announcement doesn't linger on an order that's already been handled.
+  const clearingNewItems = (newStatus === 'served_unpaid' || newStatus === 'served_paid') && Array.isArray(o.newItems) && o.newItems.length > 0;
+  if (clearingNewItems) { extra.newItems = []; }
+
+  await updateDoc(doc(db, 'orders', id), { status: newStatus, ...extra });
 
   const meta = STATUS_META[newStatus];
+  const isPositive = newStatus === 'served_paid' || newStatus === 'served_unpaid' || newStatus === 'paid_unserved';
   showToast(`Order #${id.slice(-5).toUpperCase()} → ${meta?.label || newStatus}`,
-    newStatus === 'cancelled' ? 'error' : newStatus === 'paid' || newStatus === 'served' ? 'success' : '');
+    newStatus === 'cancelled' ? 'error' : isPositive ? 'success' : '');
 
   // Auto-switch to relevant tab for better UX
   if (activeFilter !== 'all') switchTab(newStatus);
@@ -189,6 +256,22 @@ window._cancelOrder = (id) => {
     confirmClass: 'danger',
     onConfirm: () => updateOrderStatus(id, 'cancelled')
   });
+};
+
+// ── Discount (Senior / PWD) ──────────────────────────────────────────────────
+// Editable any time before payment is recorded; locked afterward so the
+// collected amount always matches what was actually charged.
+const DISCOUNT_LOCKED_STATUSES = ['paid_unserved', 'served_paid', 'cancelled'];
+
+window._setDiscount = async (id, type) => {
+  const o = allOrders.find(x => x.id === id);
+  if (!o) return;
+  if (DISCOUNT_LOCKED_STATUSES.includes(o.status)) return;
+  try {
+    await updateDoc(doc(db, 'orders', id), { discountType: type, updatedAt: serverTimestamp() });
+  } catch (err) {
+    showToast('Failed to update discount', 'error');
+  }
 };
 
 // ── Toggle items expand ───────────────────────────────────────────────────────
@@ -230,7 +313,7 @@ function renderOrders() {
 
   // Group by status for "All" view (exclude completed - billing only)
   if (activeFilter === 'all') {
-    const ORDER_OF_STATUS = ['pending', 'paid', 'preparing', 'served', 'cancelled'];
+    const ORDER_OF_STATUS = ['pending', 'preparing', 'served_unpaid', 'served_paid', 'paid_unserved', 'cancelled'];
     let html = '';
     for (const status of ORDER_OF_STATUS) {
       const group = filtered.filter(o => o.status === status);
@@ -247,6 +330,7 @@ function renderOrders() {
         </div>
         ${group.map(o => orderCardHtml(o)).join('')}`;
     }
+    html += unrecognizedStatusGroupHtml(filtered);
     grid.innerHTML = html;
   } else {
     grid.innerHTML = filtered.map(o => orderCardHtml(o)).join('');
@@ -257,54 +341,97 @@ function renderOrders() {
 }
 
 function statusIcon(status) {
-  return { pending: '—', paid: '—', preparing: '—', served: '—', cancelled: '—' }[status] || '';
+  return { pending: '—', preparing: '—', served_unpaid: '—', served_paid: '—', paid_unserved: '—', cancelled: '—' }[status] || '';
+}
+
+// Orders written with a status this app doesn't recognize (e.g. from a page
+// that's still on an older status vocabulary) fall in here so they're never
+// silently invisible in the "All" grouped view.
+function unrecognizedStatusGroupHtml(filtered) {
+  const known = new Set(['pending','preparing','served_unpaid','served_paid','paid_unserved','cancelled']);
+  const stray = filtered.filter(o => !known.has(o.status));
+  if (!stray.length) return '';
+  return `
+    <div class="orders-section-header">
+      <div class="orders-section-icon" style="background:#88888822;">
+        <span style="color:#888;font-size:14px;">—</span>
+      </div>
+      <span class="orders-section-label" style="color:#888;">Unrecognized Status</span>
+      <span class="orders-section-count">${stray.length} order${stray.length !== 1 ? 's' : ''}</span>
+      <div class="orders-section-line" style="background:#88888833;"></div>
+    </div>
+    ${stray.map(o => orderCardHtml(o)).join('')}`;
 }
 
 // ── Order Card HTML ────────────────────────────────────────────────────────────
 function orderCardHtml(o) {
-  const meta   = STATUS_META[o.status] || STATUS_META.pending;
-  const flow   = STATUS_FLOW[o.status];
+  const meta   = STATUS_META[o.status] || { label: o.status || 'Unknown', color: 'var(--text-muted)', stripe: 'var(--text-muted)', accent: 'var(--text-muted)' };
+  const actions = STATUS_ACTIONS[o.status] || [];
   const subtotal = o.total || 0;
-  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(subtotal);
+  const discountType = o.discountType || 'none';
+  const discountLocked = DISCOUNT_LOCKED_STATUSES.includes(o.status);
+  const { discountAmount, vatExempt, netAmount, vatAmount, serviceCharge, grandTotal } = calculateFinancials(subtotal, discountType);
 
   const ts = o.createdAt?.toDate
     ? o.createdAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
     : '—';
   const elapsedStr = o.createdAt?.toDate ? elapsed(o.createdAt.toDate()) : '';
 
-  const items = (o.items || []).map(it => `
+  // New-items indicator: set when a waiter adds more items to an order that
+  // was already served (see waiter.js's served_unpaid re-order merge). Those
+  // extra items still need to be cooked, but the merged ticket otherwise
+  // looks identical to any other order — so we flag it, spell out exactly
+  // what's new in a banner, and clear it once the kitchen marks it served
+  // again (cleared in updateOrderStatus).
+  const newItems = Array.isArray(o.newItems) ? o.newItems : [];
+  const hasNewItems = newItems.length > 0 && o.status !== 'served_paid' && o.status !== 'cancelled';
+  const newItemIdSet = new Set(newItems.map(i => i.id));
+
+  // e.g. "2× Ice Cream, 1× Halo-Halo" — reads correctly whether an item is
+  // brand new to the ticket or just more of something already ordered.
+  const newItemsAnnouncement = newItems.map(i => `${i.qty}× ${escapeHtml(i.name)}`).join(', ');
+
+  const items = (o.items || []).map(it => {
+    const isNewItem = hasNewItems && newItemIdSet.has(it.id);
+    return `
     <div class="order-item-row">
       <div class="order-item-left">
+        ${isNewItem ? `<span class="item-new-dot" title="Added in a re-order — needs cooking"></span>` : ''}
         <span class="order-item-qty">${it.qty}×</span>
         <span class="order-item-name">${escapeHtml(it.name)}</span>
       </div>
       <span class="order-item-price">₱${((it.price || 0) * it.qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
-  // Payment timeline
+  // Payment / serve timeline
   const paidAt = o.paidAt?.toDate
     ? o.paidAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+    : null;
+  const servedAt = o.servedAt?.toDate
+    ? o.servedAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
     : null;
 
   // Determine if order is a new receipt / re-order flag
   const isReOrder = o.receiptIndex && o.receiptIndex > 1;
 
-  // Action buttons
+  // Primary action buttons (progress the order — can be more than one, e.g.
+  // "preparing" can go straight to Served or straight to Paid)
   let actionButtons = '';
-  if (flow?.next) {
-    actionButtons += `<button class="${flow.btnClass}" onclick="window._updateStatus('${o.id}','${flow.next}')">${flow.nextLabel}</button>`;
+  for (const action of actions) {
+    actionButtons += `<button class="${action.btnClass}" onclick="window._updateStatus('${o.id}','${action.to}')">${action.label}</button>`;
   }
-  // Secondary row
+
+  // Secondary row: receipt is always available (except once cancelled); cancel
+  // is only offered while the order hasn't started preparing yet.
   let secondaryButtons = '';
-  if (o.status === 'cancelled') {
-    // No buttons for cancelled orders
-  } else if (o.status !== 'served' && o.status !== 'paid' && o.status !== 'preparing') {
-    secondaryButtons += `<button class="order-btn-secondary" onclick="window._showReceipt('${o.id}')">Receipt</button>`;
-    secondaryButtons += `<button class="order-btn-danger" onclick="window._cancelOrder('${o.id}')">Cancel</button>`;
-  } else if (o.status === 'paid' || o.status === 'served') {
-    secondaryButtons += `<button class="order-btn-secondary full" onclick="window._showReceipt('${o.id}')">View Receipt</button>`;
+  if (o.status !== 'cancelled') {
+    const canCancel = CANCELLABLE_STATUSES.includes(o.status);
+    secondaryButtons += `<button class="order-btn-secondary${canCancel ? '' : ' full'}" onclick="window._showReceipt('${o.id}')">Receipt</button>`;
+    if (canCancel) {
+      secondaryButtons += `<button class="order-btn-danger" onclick="window._cancelOrder('${o.id}')">Cancel</button>`;
+    }
   }
-  // No buttons for preparing
 
   return `
     <div class="order-card-v2" style="--card-accent:${meta.color}; --card-border:${meta.color}33;">
@@ -316,6 +443,7 @@ function orderCardHtml(o) {
           <div class="order-card-id-row">
             <span class="order-card-id">#${o.id.slice(-5).toUpperCase()}</span>
             <span class="status-badge ${o.status}">${meta.label}</span>
+            ${hasNewItems ? `<span class="new-order-badge"><span class="new-order-dot"></span>New items</span>` : ''}
             ${isReOrder ? `<span class="order-lock-badge">Re-order #${o.receiptIndex}</span>` : ''}
           </div>
           <div class="order-card-time-col">
@@ -341,7 +469,23 @@ function orderCardHtml(o) {
             <span class="order-meta-label">Paid at</span>
             <span class="order-meta-value">${paidAt}</span>
           </div>` : ''}
+          ${servedAt ? `
+          <div class="order-meta-divider"></div>
+          <div class="order-meta-paid-at">
+            <span class="order-meta-label">Served at</span>
+            <span class="order-meta-value">${servedAt}</span>
+          </div>` : ''}
         </div>
+
+        <!-- New-items announcement — spells out exactly what was just added,
+             even when it's more of something already on the ticket (e.g. a
+             second round of Ice Cream), so the kitchen doesn't have to guess
+             from the merged item list below. -->
+        ${hasNewItems ? `
+        <div class="new-items-banner">
+          <span class="new-items-banner-icon">🆕</span>
+          <div class="new-items-banner-text"><strong>New:</strong> ${newItemsAnnouncement}</div>
+        </div>` : ''}
 
         <!-- Items -->
         <div class="order-items-list">${items || '<div class="order-item-row order-item-empty">No items</div>'}</div>
@@ -349,17 +493,35 @@ function orderCardHtml(o) {
         <!-- Note -->
         ${o.note ? `<div class="order-note">${escapeHtml(o.note)}</div>` : ''}
 
+        <!-- Discount -->
+        ${o.status !== 'cancelled' ? `
+        <div class="order-discount-row">
+          <button class="disc-btn ${discountType === 'none' ? 'active' : ''}" ${discountLocked ? 'disabled' : `onclick="window._setDiscount('${o.id}','none')"`}>None</button>
+          <button class="disc-btn ${discountType === 'senior' ? 'active' : ''}" ${discountLocked ? 'disabled' : `onclick="window._setDiscount('${o.id}','senior')"`}>Senior</button>
+          <button class="disc-btn ${discountType === 'pwd' ? 'active' : ''}" ${discountLocked ? 'disabled' : `onclick="window._setDiscount('${o.id}','pwd')"`}>PWD</button>
+        </div>` : ''}
+
         <!-- Totals -->
-        ${o.status === 'pending' || o.status === 'paid' ? `
+        ${o.status !== 'cancelled' ? `
         <div class="order-totals-section">
+          ${discountAmount > 0 ? `
+          <div class="order-totals-row" style="color:var(--green);">
+            <span>Discount (${discountType === 'senior' ? 'Senior' : 'PWD'} 20%)</span>
+            <span>-₱${discountAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+          </div>` : ''}
           <div class="order-totals-row">
             <span>VAT-excl.</span>
             <span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
           </div>
+          ${!vatExempt ? `
           <div class="order-totals-row">
             <span>VAT (12%)</span>
             <span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-          </div>
+          </div>` : `
+          <div class="order-totals-row" style="color:var(--orange);font-style:italic;">
+            <span>VAT Exempt</span>
+            <span>₱0.00</span>
+          </div>`}
           <div class="order-totals-row">
             <span>Service (7%)</span>
             <span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
@@ -368,8 +530,8 @@ function orderCardHtml(o) {
             <span>GRAND TOTAL</span>
             <span style="color:${meta.color};">₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
           </div>
-        </div>` : o.status === 'cancelled' ? `
-        <div class="order-cancelled-notice">Order cancelled</div>` : ''}
+        </div>` : `
+        <div class="order-cancelled-notice">Order cancelled</div>`}
 
         <!-- Actions -->
         <div class="order-actions">
@@ -381,26 +543,6 @@ function orderCardHtml(o) {
     </div>`;
 }
 
-// ── Mark as Paid: also records paidAt timestamp ────────────────────────────────
-// Override to add paidAt field when marking paid
-const _origUpdate = updateOrderStatus;
-window._updateStatus = async (id, newStatus) => {
-  const extra = newStatus === 'paid' ? { paidAt: serverTimestamp() } : {};
-  const o = allOrders.find(x => x.id === id);
-  if (!o) return;
-  const flow = STATUS_FLOW[o.status];
-  if (newStatus !== 'cancelled' && flow?.next !== newStatus) {
-    showToast('Invalid status transition', 'error'); return;
-  }
-  await updateDoc(doc(db, 'orders', id), { status: newStatus, updatedAt: serverTimestamp(), ...extra });
-  const meta = STATUS_META[newStatus];
-  showToast(
-    `Order #${id.slice(-5).toUpperCase()} → ${meta?.label || newStatus}`,
-    newStatus === 'cancelled' ? 'error' : newStatus === 'paid' || newStatus === 'served' ? 'success' : ''
-  );
-  if (activeFilter !== 'all') switchTab(newStatus);
-};
-
 // ── Receipt modal ──────────────────────────────────────────────────────────────
 window._showReceipt = id => {
   const o = allOrders.find(x => x.id===id); if (!o) { showToast('Order not found'); return; }
@@ -408,7 +550,8 @@ window._showReceipt = id => {
   const body  = document.getElementById('receiptModalBody');
   if (!modal||!body) return;
 
-  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(Number(o.total)||0);
+  const discountType = o.discountType || 'none';
+  const { discountAmount, vatExempt, netAmount, vatAmount, serviceCharge, grandTotal } = calculateFinancials(Number(o.total)||0, discountType);
 
   const items = (o.items||[]).map(it => `
     <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
@@ -434,12 +577,20 @@ window._showReceipt = id => {
     <hr style="border:none;border-top:1px solid var(--border);margin:0 0 10px;">
     ${items}
     <hr style="border:none;border-top:1px solid var(--border);margin:12px 0 8px;">
+    ${discountAmount > 0 ? `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--green);padding:3px 0;">
+      <span>Discount (${discountType === 'senior' ? 'Senior Citizen' : 'PWD'} 20%)</span><span>-₱${discountAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+    </div>` : ''}
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
       <span>VAT-excl. Amount</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
     </div>
+    ${!vatExempt ? `
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
       <span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-    </div>
+    </div>` : `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--orange);font-style:italic;padding:3px 0;">
+      <span>VAT Exempt</span><span>₱0.00</span>
+    </div>`}
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
       <span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
     </div>
@@ -475,7 +626,8 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
     logo = await new Promise(r => { const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.readAsDataURL(blob); });
   } catch(_) {}
 
-  const { netAmount, vatAmount, serviceCharge, grandTotal } = computeVat(o.total||0);
+  const discountType = o.discountType || 'none';
+  const { discountAmount, vatExempt, netAmount, vatAmount, serviceCharge, grandTotal } = calculateFinancials(o.total||0, discountType);
   const ts = o.createdAt?.toDate
     ? o.createdAt.toDate().toLocaleString('en-PH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})
     : '—';
@@ -510,6 +662,8 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
     td{padding:4px 0;}
     tbody tr:last-child td{border-bottom:1px dashed #ccc;}
     .tr{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;}
+    .discount-row{color:#27ae60;font-weight:600;}
+    .vat-exempt-row{color:#e67e22;font-style:italic;}
     .tg{display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1.5px solid #111;margin-top:6px;padding-top:5px;}
     .tg span:last-child{color:#b8821e;}
     .ft{text-align:center;margin-top:14px;font-size:9px;color:#777;line-height:1.8;}
@@ -534,8 +688,9 @@ document.getElementById('receiptModalPrint')?.addEventListener('click', async ()
     <tbody>${rows}</tbody>
   </table>
   <div style="margin-top:6px;">
+    ${discountAmount > 0 ? `<div class="tr discount-row"><span>Discount (${discountType === 'senior' ? 'Senior' : 'PWD'} 20%)</span><span>-₱${discountAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>` : ''}
     <div class="tr"><span>VAT-Excl.</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div class="tr"><span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
+    ${!vatExempt ? `<div class="tr"><span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>` : `<div class="tr vat-exempt-row"><span>VAT Exempt</span><span>₱0.00</span></div>`}
     <div class="tr"><span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
     <div class="tg"><span>TOTAL</span><span>₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
   </div>

@@ -215,7 +215,7 @@ function subscribeToOrders() {
 
 function updateOrdersBadge() {
   const readyForPayment = allOrders.filter(o =>
-    o.status === 'pending' // Only count unpaid orders
+    o.status === 'pending' // Only count orders that haven't been paid yet
   ).length;
   $('ordersCountBadge').textContent = readyForPayment;
 }
@@ -228,7 +228,7 @@ function renderOrders() {
   const searchTerm = $('orderSearch').value.toLowerCase().trim();
   
   let orders = allOrders.filter(o =>
-    o.status === 'pending' // Only show unpaid orders
+    o.status === 'pending' // Only show orders that haven't been paid yet
   );
 
   // Apply search filter
@@ -259,6 +259,10 @@ function renderOrders() {
       ? formatTimeAgo(order.createdAt.toDate())
       : 'Unknown';
     const isSelected = selectedOrder && selectedOrder.id === order.id;
+    // Preview only — discount (if any) is chosen at checkout, so this assumes
+    // none yet. It exists so the queue shows the real payable amount, not
+    // just the pre-tax total.
+    const preview = calculateFinancials(order.total || 0, { type: 'none' });
 
     return `
       <div class="order-card ${isSelected ? 'selected' : ''}" onclick="selectOrder('${order.id}')">
@@ -268,6 +272,7 @@ function renderOrders() {
         </div>
         <div class="order-card-body">
           <div class="order-card-total">₱${(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+          <div class="order-card-total-note">≈ ₱${preview.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })} incl. 12% VAT + 7% SC</div>
           <div class="order-card-items">${itemCount} item${itemCount !== 1 ? 's' : ''}</div>
         </div>
         <div class="order-card-footer">
@@ -571,6 +576,18 @@ window.processPayment = async function() {
     return;
   }
 
+  // Guard against a stale selection — e.g. someone else already processed or
+  // cancelled this order since it was selected. Payment should only ever move
+  // an order out of 'pending'; it should never touch 'cancelled' or anything
+  // else.
+  const liveOrder = allOrders.find(o => o.id === selectedOrder.id);
+  if (!liveOrder || liveOrder.status !== 'pending') {
+    showToast('⚠ This order is no longer awaiting payment. Refreshing…');
+    selectedOrder = null;
+    renderOrders();
+    return;
+  }
+
   // Validate cash payment
   const financials = calculateFinancials(selectedOrder.total, { type: discountType });
   
@@ -608,9 +625,15 @@ window.processPayment = async function() {
     await addDoc(collection(db, 'payments'), paymentData);
     console.log('Payment record created successfully');
 
-    // Update order status
+    // Update order status.
+    // NOTE: 'paid_unserved' — i.e. "Paid (Not Served)" — is the correct target
+    // status here, matching the status model used across the app (pending →
+    // preparing → served_unpaid / paid_unserved → served_paid, or cancelled).
+    // The old 'paid' status string is no longer recognized anywhere and was
+    // the cause of paid orders showing up incorrectly elsewhere (e.g. as
+    // Cancelled in Live Orders) — do not reintroduce it.
     const orderUpdate = {
-      status: 'paid',
+      status: 'paid_unserved',
       paidAt: serverTimestamp(),
       paidBy: cashierData.uid,
       paymentMethod: 'Cash',
@@ -673,7 +696,9 @@ window.processPayment = async function() {
 function renderBilling() {
   const searchTerm = $('billingSearch').value.toLowerCase().trim();
   
-  let orders = allOrders.filter(o => ['paid', 'served', 'completed'].includes(o.status)); // Show paid, served, and completed
+  // Show orders that have been paid — whether or not they've been served yet
+  // — plus fully completed/archived orders.
+  let orders = allOrders.filter(o => ['paid_unserved', 'served_paid', 'completed'].includes(o.status));
 
   // Apply search filter
   if (searchTerm) {
@@ -717,10 +742,10 @@ function renderBilling() {
     
     // Status badge styling
     let statusBadge = '';
-    if (order.status === 'paid') {
-      statusBadge = '<span class="status-badge" style="color:#c9973a;background:rgba(201,151,58,0.15);border-color:rgba(201,151,58,0.3)">Paid</span>';
-    } else if (order.status === 'served') {
-      statusBadge = '<span class="status-badge" style="color:#2ecc71;background:rgba(46,204,113,0.15);border-color:rgba(46,204,113,0.3)">Served</span>';
+    if (order.status === 'paid_unserved') {
+      statusBadge = '<span class="status-badge" style="color:#c9973a;background:rgba(201,151,58,0.15);border-color:rgba(201,151,58,0.3)">Paid (Not Served)</span>';
+    } else if (order.status === 'served_paid') {
+      statusBadge = '<span class="status-badge" style="color:#2ecc71;background:rgba(46,204,113,0.15);border-color:rgba(46,204,113,0.3)">Served (Paid)</span>';
     } else if (order.status === 'completed') {
       statusBadge = '<span class="status-badge completed" style="color:#27ae60;background:rgba(39,174,96,0.15);border-color:rgba(39,174,96,0.3)">Completed</span>';
     }

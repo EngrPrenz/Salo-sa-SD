@@ -1043,21 +1043,74 @@ $('confirmOrderBtn').onclick = async () => {
   }
 
   try {
-    // Always create a NEW order, regardless of existing orders from same table/waiter
-    const total = newItems.reduce((s,i)=>s+i.price*i.qty,0);
+    const itemsForOrder = newItems.map(i=>({
+      id: i.id,
+      name: i.name,
+      price: i.price,
+      qty: Math.min(i.qty, 20),
+      category: i.category||'Other'
+    }));
+    const total = itemsForOrder.reduce((s,i)=>s+i.price*i.qty,0);
 
-    // Build the base order document. orderType is always included so the cashier
-    // can distinguish dine-in vs takeout (Req 6.1, 6.2, 6.5).
+    // ── Re-order onto the same ticket ────────────────────────────────
+    // If this dine-in table's current order is "served_unpaid" (food already
+    // delivered, bill not settled yet) and the customer orders again, the new
+    // items go onto that SAME order document instead of creating a new one.
+    // That way the cashier's receipt for this table shows the full order —
+    // everything the table ever ordered — as a single bill.
+    let existingServedUnpaidOrder = null;
+    if (currentOrderType === 'dine-in' && selectedTable) {
+      existingServedUnpaidOrder = allOrders.find(o =>
+        o.tableNumber === selectedTable &&
+        o.waiterId === waiterId &&
+        o.status === 'served_unpaid'
+      );
+    }
+
+    if (existingServedUnpaidOrder) {
+      // Merge by item id: same item ordered again → add to its quantity;
+      // a new item → appended as its own line.
+      const mergedItems = (existingServedUnpaidOrder.items || []).map(i => ({ ...i }));
+      itemsForOrder.forEach(newItem => {
+        const match = mergedItems.find(i => i.id === newItem.id);
+        if (match) match.qty += newItem.qty;
+        else mergedItems.push(newItem);
+      });
+      const mergedTotal = mergedItems.reduce((s, i) => s + i.price * i.qty, 0);
+      const mergedNote = [existingServedUnpaidOrder.note, note].filter(Boolean).join(' | ');
+
+      // newItems records exactly what THIS re-order added — id, name, and the
+      // qty just ordered (not the merged running total) — so admin-orders.js
+      // (Live Orders) can announce precisely what's new, e.g. "2× Ice Cream",
+      // even when it's more of something the table already had rather than a
+      // brand-new item. Cleared once the kitchen marks the order served again.
+      await updateDoc(doc(db, 'orders', existingServedUnpaidOrder.id), {
+        items: mergedItems,
+        total: mergedTotal,
+        note: mergedNote,
+        status: 'preparing', // the new items still need to be cooked & re-served
+        newItems: itemsForOrder.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
+        updatedAt: serverTimestamp()
+      });
+
+      $('confirmModal').classList.remove('show');
+      const os = $('orderSuccess');
+      $('orderSuccessSub').textContent = `Added to Table ${selectedTable}'s open bill · ₱${mergedTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+      os.classList.add('show');
+      cart = {}; $('orderNote').value = '';
+      updateCart(); renderMenuGrid();
+      setTimeout(() => {
+        os.classList.remove('show');
+        resetOrderFlow();
+      }, 2200);
+      return;
+    }
+
+    // ── No served_unpaid ticket for this table — create a brand-new order ──
     const orderData = {
       orderType: currentOrderType,
       waiterId, waiterName,
-      items: newItems.map(i=>({
-        id: i.id,
-        name: i.name,
-        price: i.price,
-        qty: Math.min(i.qty, 20),
-        category: i.category||'Other'
-      })),
+      items: itemsForOrder,
       total, note, status: 'pending',
       createdAt: serverTimestamp(), updatedAt: serverTimestamp()
     };

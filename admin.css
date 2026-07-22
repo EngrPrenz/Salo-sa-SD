@@ -23,6 +23,8 @@
   --blue-dim:     rgba(41,128,185,0.15);
   --orange:       #e67e22;
   --orange-dim:   rgba(230,126,34,0.15);
+  --purple:       #9b6bd6;
+  --purple-dim:   rgba(155,107,214,0.15);
 }
 
 /* ═══════ LIGHT MODE ═══════ */
@@ -42,6 +44,7 @@
   --green-dim:    rgba(39,174,96,0.09);
   --blue-dim:     rgba(41,128,185,0.09);
   --orange-dim:   rgba(230,126,34,0.09);
+  --purple-dim:   rgba(155,107,214,0.09);
 }
 
 /* ═══════ THEME TOGGLE BUTTON ═══════ */
@@ -1117,6 +1120,9 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .status-badge.admin     { background: var(--gold-dim); color: var(--gold); }
 .status-badge.waiter    { background: var(--blue-dim); color: var(--blue); }
 .status-badge.free      { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+.status-badge.served_unpaid { background: var(--purple-dim); color: var(--purple); }
+.status-badge.served_paid   { background: var(--green-dim);  color: var(--green); }
+.status-badge.paid_unserved { background: var(--gold-dim);   color: var(--gold); }
 
 /* ═══════ BUTTONS ═══════ */
 .btn-sm {
@@ -1373,6 +1379,9 @@ body { display: flex; min-height: 100vh; overflow: hidden; }
 .bar-fill.served    { background: var(--green); }
 .bar-fill.paid      { background: var(--gold); }
 .bar-fill.cancelled { background: var(--red); }
+.bar-fill.served_unpaid { background: var(--purple); }
+.bar-fill.served_paid   { background: var(--green); }
+.bar-fill.paid_unserved { background: var(--gold); }
 .bar-count { font-size: 12px; font-weight: 700; color: var(--white); width: 24px; text-align: right; flex-shrink: 0; }
 .empty-state { text-align: center; color: var(--text-muted); font-size: 14px; padding: 48px 20px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .empty-state::before { content: '📊'; font-size: 32px; opacity: 0.4; }
