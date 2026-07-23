@@ -19,12 +19,10 @@ const isUnpaid    = o => !isPaid(o) && !isCancelled(o);
 const belongsInCashierQueue = o => isUnpaid(o);
 // Payment may only be finalized while an order is still unpaid.
 const canFinalizePayment = o => isUnpaid(o);
-// Payment outcome:
-//  - Takeout needs no serving step, so paying a takeout order completes it.
-//  - Dine-in: an already-served order becomes served_paid; otherwise paid_unserved.
+// A paid order that has not been handed to the customer stays paid_unserved.
+// This includes takeout, which the waiter completes on handoff.
 const nextStatusAfterPayment = o =>
-  (o?.orderType === 'takeout' || !o?.tableNumber) ? 'completed'
-    : isServed(o) ? 'served_paid'
+  isServed(o) ? 'served_paid'
     : 'paid_unserved';
 
 // Firebase config
@@ -808,7 +806,7 @@ function renderBilling() {
     // serving step, so it's done once paid — covers legacy takeout orders that
     // were paid before takeout auto-completion existed). Other paid orders show
     // "Paid"; everything else "Not Paid".
-    if (order.status === 'completed' || (isPaid(order) && isTakeout(order))) {
+    if (order.status === 'completed') {
       statusBadge = '<span class="status-badge completed" style="color:#27ae60;background:rgba(39,174,96,0.15);border-color:rgba(39,174,96,0.3)">Completed</span>';
     } else if (isPaid(order)) {
       statusBadge = '<span class="status-badge" style="color:#c9973a;background:rgba(201,151,58,0.15);border-color:rgba(201,151,58,0.3)">Paid</span>';
