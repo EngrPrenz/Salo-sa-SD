@@ -39,7 +39,6 @@ onAuthStateChanged(auth, async user => {
       sessionStorage.setItem('userRole', 'admin_cashier');
       sessionStorage.setItem('userName', data.name || user.email);
       sessionStorage.setItem('userId', user.uid);
-      sessionStorage.setItem('useCashierInterface', 'true'); // Flag to prevent admin redirect
       window.location.href = 'cashier.html';
     }
   } catch (_) {}
@@ -112,7 +111,6 @@ async function authenticateCashier(email, password) {
     sessionStorage.setItem('userRole', 'admin_cashier');
     sessionStorage.setItem('userName', data.name || email);
     sessionStorage.setItem('userId', cred.user.uid);
-    sessionStorage.setItem('useCashierInterface', 'true'); // Flag to prevent admin redirect
     
     showToast(`Welcome, ${data.name || 'Cashier'}!`);
     setTimeout(() => window.location.href = 'cashier.html', 1500);
