@@ -190,6 +190,7 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
   border: none;
 }
 .slip-served-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(201,151,58,0.3); }
+.slip-served-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 .slip-print-btn {
   background: none;
   color: var(--gold-light);
@@ -478,6 +479,7 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .walkin-action-btn:hover { transform: translateY(-1px); }
 .walkin-action-btn.start-order:hover { border-color: rgba(201,151,58,0.5); background: var(--gold-dim); }
 .walkin-action-btn.free-table:hover  { border-color: rgba(39,174,96,0.5); background: var(--green-dim); }
+.walkin-action-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .walkin-btn-icon { font-size: 24px; flex-shrink: 0; }
 .walkin-action-btn span:nth-child(2) { font-size: 14px; font-weight: 600; flex: 1; }
 .walkin-btn-sub { font-size: 11px; color: var(--text-muted); display: block; }

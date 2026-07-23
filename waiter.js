@@ -22,6 +22,7 @@ const isPaid      = o => PAID_STATUSES.includes(o?.status);
 const isServed    = o => SERVED_STATUSES.includes(o?.status) || !!o?.servedAt;
 const isCancelled = o => o?.status === 'cancelled';
 const isUnpaid    = o => !isPaid(o) && !isCancelled(o);
+const isTakeout   = o => o?.orderType === 'takeout' || !o?.tableNumber;
 // A waiter's order-slip panel lists only their own orders that still need to be
 // served — i.e. not yet served (excludes served_unpaid / served_paid), and not
 // completed or cancelled. So it shows preparing/pending and paid-but-unserved
@@ -34,10 +35,14 @@ const belongsInWaiterSlips = (o, wId) =>
 // The Served button shows for any order still awaiting serving — not yet served
 // and not completed/cancelled. Covers preparing/legacy pending (→ served_unpaid)
 // and paid_unserved (→ served_paid).
-const shouldShowServedButton = o =>
+const canServeOrder = o =>
   !isServed(o) && o?.status !== 'completed' && o?.status !== 'cancelled';
-// Marking served completes a paid order; otherwise it's served but still unpaid.
-const nextStatusAfterServed = o => isPaid(o) ? STATUS.SERVED_PAID : STATUS.SERVED_UNPAID;
+// Takeout must be paid before the waiter can hand it to the customer.
+const shouldShowServedButton = o => canServeOrder(o) && (!isTakeout(o) || isPaid(o));
+const nextStatusAfterServed = o =>
+  isTakeout(o) && isPaid(o) ? STATUS.COMPLETED
+    : isPaid(o) ? STATUS.SERVED_PAID
+    : STATUS.SERVED_UNPAID;
 // First-write-wins: never overwrite an existing servedAt timestamp.
 const servedAtUpdate = (order, ts) => order?.servedAt ? {} : { servedAt: ts };
 
@@ -182,6 +187,7 @@ onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap =
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     calculateMenuOrderCounts();
     renderTables();
+    updateCustomerLeftButton();
     // The order-slip panel derives entirely from the live snapshot, so a new
     // order (Req 6.3) or a status change on an existing one (Req 6.4) refreshes
     // the panel automatically on the next callback.
@@ -498,9 +504,38 @@ $('confirmArrivalBtn').onclick = async () => {
 
 // ── SERVED ORDER MODAL ──
 let pendingServedTable = null;
+let customerLeftInProgress = false;
+
+// A table can only be cleared after every live order assigned to it is paid.
+// This checks all active table orders, so a newly added order cannot be bypassed.
+const getActiveTableOrders = tableNumber => allOrders.filter(order =>
+  order.tableNumber === tableNumber &&
+  order.status !== STATUS.COMPLETED &&
+  order.status !== STATUS.CANCELLED
+);
+
+const canCustomerLeave = tableNumber => {
+  const activeOrders = getActiveTableOrders(tableNumber);
+  return activeOrders.length > 0 && activeOrders.every(isPaid);
+};
+
+function updateCustomerLeftButton() {
+  const btn = $('customerLeftBtn');
+  const subtext = $('customerLeftBtnSub');
+  if (!btn) return;
+
+  const canLeave = !customerLeftInProgress &&
+    pendingServedTable !== null &&
+    canCustomerLeave(pendingServedTable);
+  btn.disabled = !canLeave;
+  btn.title = canLeave ? '' : 'All orders for this table must be paid before the customer can leave.';
+  if (subtext) subtext.textContent = canLeave ? 'Clear the table' : 'Payment required';
+}
+
 window._openServedModal = (num) => {
   pendingServedTable = num;
   $('servedTableBadge').textContent = `Table ${num}`;
+  updateCustomerLeftButton();
   $('servedModal').classList.add('show');
 };
 
@@ -512,14 +547,19 @@ $('servedModalClose').onclick = $('servedModalCancel').onclick = () => {
 $('customerLeftBtn').onclick = async () => {
   if (!pendingServedTable) return;
   const btn = $('customerLeftBtn');
+
+  // Re-check because payment status may have changed while this modal was open.
+  if (!canCustomerLeave(pendingServedTable)) {
+    updateCustomerLeftButton();
+    showToast('⚠️ Payment is required before the customer can leave.');
+    return;
+  }
+
+  customerLeftInProgress = true;
   btn.disabled = true;
   try {
-    // Find all served orders for this table
-    const servedOrders = allOrders.filter(o => 
-      o.tableNumber === pendingServedTable && 
-      isServed(o) &&
-      o.waiterId === waiterId
-    );
+    // The check above guarantees all live orders are paid before completion.
+    const servedOrders = getActiveTableOrders(pendingServedTable);
     
     // Update all served orders to remove them from active view
     // (They're already paid, so we just need to mark them as complete)
@@ -549,7 +589,8 @@ $('customerLeftBtn').onclick = async () => {
     console.error(e);
     showToast('❌ Failed to clear table. Please retry.');
   } finally {
-    btn.disabled = false;
+    customerLeftInProgress = false;
+    updateCustomerLeftButton();
   }
 };
 
@@ -1425,10 +1466,14 @@ function renderOrderSlipDetail() {
     ? `<div class="slip-detail-note"><strong>Note:</strong> ${escapeHtml(order.note)}</div>`
     : '';
 
-  // Served action (Req 7): offered only for unpaid, not-yet-served orders.
+  // Keep the takeout action visible but disabled until payment arrives. The
+  // live order snapshot re-renders it as soon as the cashier records payment.
+  const takeoutAwaitingPayment = isTakeout(order) && canServeOrder(order) && !isPaid(order);
   const servedBtnHtml = shouldShowServedButton(order)
     ? `<button type="button" class="slip-served-btn" onclick="window._markSlipServed('${order.id}')"><i class="fa-solid fa-utensils"></i> Mark as Served</button>`
-    : '';
+    : takeoutAwaitingPayment
+      ? `<button type="button" class="slip-served-btn" disabled title="Payment is required before serving a takeout order."><i class="fa-solid fa-lock"></i> Payment Required Before Serving</button>`
+      : '';
 
   // Print a kitchen order slip (items & qty, no prices). Use the browser print
   // dialog's "Save as PDF" to export a PDF.
@@ -1462,6 +1507,10 @@ window._selectSlip = (id) => {
 // panel automatically after the write.
 window._markSlipServed = async (id) => {
   const order = allOrders.find(o => o.id === id);
+  if (isTakeout(order) && canServeOrder(order) && !isPaid(order)) {
+    showToast('Payment is required before serving a takeout order.');
+    return;
+  }
   if (!order || !shouldShowServedButton(order)) {
     showToast('⚠ This order can no longer be marked served.');
     return;
