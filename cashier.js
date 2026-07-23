@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc,
+  getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, writeBatch,
   onSnapshot, query, orderBy, where, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { guardCashierPage } from './admin-js/rbac.js';
@@ -48,7 +48,7 @@ const PWD_DISCOUNT_RATE = 0.20;
 // State
 let cashierData = null;
 let allOrders = [];
-let selectedOrder = null;
+let selectedGroup = null;  // replaces selectedOrder; holds a Group object (see groupOrdersByTable)
 let paymentMethod = null;
 let discountType = 'none'; // 'none', 'senior', 'pwd'
 let cashTendered = 0;
@@ -139,7 +139,7 @@ function init() {
     if (closeBtn) {
       console.log('Close button clicked!');
       // Reset to empty state instead of closing
-      selectedOrder = null;
+      selectedGroup = null;
       discountType = 'none';
       paymentMethod = null;
       cashTendered = 0;
@@ -240,25 +240,138 @@ function calculateFinancials(orderTotal, discount = { type: 'none' }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ORDER GROUPING
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Groups unpaid dine-in orders by tableNumber into Group objects.
+ * Takeout orders are never merged — each becomes its own solo group.
+ *
+ * Group shape:
+ *   { key, tableNumber, isTakeout, orders[], combinedTotal,
+ *     combinedItems[], earliestCreatedAt, highestValueSlip }
+ *
+ * @param {Object[]} orders - Unpaid, non-cancelled orders
+ * @returns {Object[]} Array of Group objects sorted by earliestCreatedAt asc
+ */
+function groupOrdersByTable(orders) {
+  const toMs = ts => ts?.toDate ? ts.toDate().getTime() : (ts ? new Date(ts).getTime() : 0);
+
+  const map = new Map();
+  for (const order of orders) {
+    const key = isTakeout(order) ? order.id : String(order.tableNumber);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(order);
+  }
+
+  const groups = [];
+  for (const [key, slips] of map.entries()) {
+    // Sort slips by createdAt ascending (earliest first)
+    slips.sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt));
+
+    const combinedTotal = slips.reduce((sum, s) => sum + (s.total || 0), 0);
+    const combinedItems = slips.flatMap(s => s.items || []);
+    const earliestCreatedAt = slips[0].createdAt;
+
+    // highestValueSlip: max total, ties broken by earliest createdAt (slips already sorted asc)
+    const highestValueSlip = slips.reduce((best, s) => {
+      if ((s.total || 0) > (best.total || 0)) return s;
+      return best;
+    }, slips[0]);
+
+    groups.push({
+      key,
+      tableNumber: isTakeout(slips[0]) ? null : slips[0].tableNumber,
+      isTakeout: isTakeout(slips[0]),
+      orders: slips,
+      combinedTotal,
+      combinedItems,
+      earliestCreatedAt,
+      highestValueSlip
+    });
+  }
+
+  // Sort groups by earliest slip's createdAt ascending
+  groups.sort((a, b) => toMs(a.earliestCreatedAt) - toMs(b.earliestCreatedAt));
+  return groups;
+}
+
+/**
+ * Computes financials for a group using the grouped discount rule:
+ *   - 'none'  → delegates directly to calculateFinancials(combinedTotal)
+ *   - 'senior'/'pwd' → discount applies only to highestValueSlip.total (20%);
+ *                      VAT exemption applies to the entire combinedTotal.
+ *
+ * @param {Object} group - Group object from groupOrdersByTable
+ * @param {'none'|'senior'|'pwd'} discountType
+ * @returns {Object} Same shape as calculateFinancials()
+ */
+function calculateGroupFinancials(group, discountType) {
+  if (discountType === 'none' || !group.highestValueSlip || group.highestValueSlip.total === 0) {
+    return calculateFinancials(group.combinedTotal, { type: discountType });
+  }
+
+  // Discount on the highest-value slip only; VAT exempt on the full combined total
+  const discountBase = group.highestValueSlip.total;
+  const discountAmount = discountBase * 0.20;
+  const afterDiscount = group.combinedTotal - discountAmount;
+  const serviceCharge = afterDiscount * SERVICE_CHARGE_RATE;
+  const grandTotal = afterDiscount + serviceCharge;
+
+  return {
+    subtotal: group.combinedTotal,
+    discountAmount,
+    discountRate: 0.20,
+    vatExempt: true,
+    netAmount: afterDiscount,
+    vatAmount: 0,
+    serviceCharge,
+    grandTotal
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
 // ORDERS SUBSCRIPTION
 // ══════════════════════════════════════════════════════════════
 
 function subscribeToOrders() {
+  let firstLoad = true;
   onSnapshot(
     query(collection(db, 'orders'), orderBy('createdAt', 'desc')),
     snapshot => {
       allOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       renderOrders();
       updateOrdersBadge();
+
+      // On the first snapshot, check if the admin "Send to Cashier" button
+      // left a pre-selection request in localStorage. If so, resolve the slip
+      // ID to its table group and select that group automatically, then clear.
+      if (firstLoad) {
+        firstLoad = false;
+        const preselectId = localStorage.getItem('cashier_preselect_order');
+        localStorage.removeItem('cashier_preselect_order'); // always clear immediately
+        if (preselectId) {
+          const queueOrders = allOrders.filter(belongsInCashierQueue);
+          const groups = groupOrdersByTable(queueOrders);
+          const targetGroup = groups.find(g => g.orders.some(o => o.id === preselectId));
+          if (targetGroup) {
+            window.selectGroup(targetGroup.key);
+            // Scroll the grouped card into view after a brief paint delay
+            setTimeout(() => {
+              const card = document.querySelector(`.order-card[data-group-key="${targetGroup.key}"]`);
+              if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 150);
+          }
+        }
+      }
     }
   );
 }
 
 function updateOrdersBadge() {
-  const readyForPayment = allOrders.filter(o =>
-    belongsInCashierQueue(o) // Count every unpaid, non-cancelled order
-  ).length;
-  $('ordersCountBadge').textContent = readyForPayment;
+  const queueOrders = allOrders.filter(belongsInCashierQueue);
+  const groups = groupOrdersByTable(queueOrders);
+  $('ordersCountBadge').textContent = groups.length;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -268,23 +381,27 @@ function updateOrdersBadge() {
 function renderOrders() {
   const searchTerm = $('orderSearch').value.toLowerCase().trim();
   
-  let orders = allOrders.filter(o =>
-    belongsInCashierQueue(o) // Show every unpaid, non-cancelled order
-  );
+  const queueOrders = allOrders.filter(belongsInCashierQueue);
+  let groups = groupOrdersByTable(queueOrders);
 
-  // Apply search filter
+  // Apply search filter against each group
   if (searchTerm) {
-    orders = orders.filter(o =>
-      String(o.tableNumber).includes(searchTerm) ||
-      o.id.toLowerCase().includes(searchTerm) ||
-      (o.waiterName || '').toLowerCase().includes(searchTerm) ||
-      (isTakeout(o) && 'takeout'.includes(searchTerm))
-    );
+    groups = groups.filter(g => {
+      if (g.isTakeout) {
+        // Takeout: match 'takeout', the order ID, or any slip's waiterName
+        return 'takeout'.includes(searchTerm) ||
+          g.key.toLowerCase().includes(searchTerm) ||
+          g.orders.some(o => (o.waiterName || '').toLowerCase().includes(searchTerm));
+      }
+      // Dine-in: match tableNumber or any slip's waiterName
+      return String(g.tableNumber).includes(searchTerm) ||
+        g.orders.some(o => (o.waiterName || '').toLowerCase().includes(searchTerm));
+    });
   }
 
   const container = $('ordersList');
 
-  if (orders.length === 0) {
+  if (groups.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon"><i class="fa-solid fa-receipt"></i></div>
@@ -295,27 +412,28 @@ function renderOrders() {
     return;
   }
 
-  container.innerHTML = orders.map(order => {
-    const itemCount = (order.items || []).length;
-    const timestamp = order.createdAt?.toDate
-      ? formatTimeAgo(order.createdAt.toDate())
+  container.innerHTML = groups.map(group => {
+    const totalItemCount = group.combinedItems.length;
+    const slipCount = group.orders.length;
+    const timestamp = group.earliestCreatedAt?.toDate
+      ? formatTimeAgo(group.earliestCreatedAt.toDate())
       : 'Unknown';
-    const isSelected = selectedOrder && selectedOrder.id === order.id;
-    // Preview only — discount (if any) is chosen at checkout, so this assumes
-    // none yet. It exists so the queue shows the real payable amount, not
-    // just the pre-tax total.
-    const preview = calculateFinancials(order.total || 0, { type: 'none' });
+    const isSelected = selectedGroup && selectedGroup.key === group.key;
+    const preview = calculateGroupFinancials(group, 'none');
+
+    // Display ID: earliest slip's last 6 chars
+    const displayId = group.orders[0].id.slice(-6).toUpperCase();
 
     return `
-      <div class="order-card ${isSelected ? 'selected' : ''}" onclick="selectOrder('${order.id}')">
+      <div class="order-card ${isSelected ? 'selected' : ''}" data-group-key="${group.key}" onclick="selectGroup('${group.key}')">
         <div class="order-card-header">
-          <div class="order-card-id">#${order.id.slice(-6).toUpperCase()}</div>
-          <div class="order-card-table ${isTakeout(order) ? 'takeout' : ''}">${orderLocationInnerHtml(order)}</div>
+          <div class="order-card-id">#${displayId}${slipCount > 1 ? `<span class="slip-count-badge">+${slipCount - 1}</span>` : ''}</div>
+          <div class="order-card-table ${group.isTakeout ? 'takeout' : ''}">${group.isTakeout ? '<i class="fa-solid fa-bag-shopping"></i> Takeout' : `Table ${group.tableNumber}`}</div>
         </div>
         <div class="order-card-body">
-          <div class="order-card-total">₱${(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+          <div class="order-card-total">₱${group.combinedTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
           <div class="order-card-total-note">≈ ₱${preview.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })} incl. 12% VAT + 7% SC</div>
-          <div class="order-card-items">${itemCount} item${itemCount !== 1 ? 's' : ''}</div>
+          <div class="order-card-items">${totalItemCount} item${totalItemCount !== 1 ? 's' : ''}${slipCount > 1 ? ` · ${slipCount} slips` : ''}</div>
         </div>
         <div class="order-card-footer">
           <div class="order-card-time">
@@ -345,26 +463,28 @@ function formatTimeAgo(date) {
 // ORDER DETAIL PANEL
 // ══════════════════════════════════════════════════════════════
 
-window.selectOrder = function(orderId) {
-  const order = allOrders.find(o => o.id === orderId);
-  if (!order) return;
+window.selectGroup = function(groupKey) {
+  const queueOrders = allOrders.filter(belongsInCashierQueue);
+  const groups = groupOrdersByTable(queueOrders);
+  const group = groups.find(g => g.key === groupKey);
+  if (!group) return;
 
-  selectedOrder = order;
+  selectedGroup = group;
   discountType = 'none';
-  paymentMethod = 'Cash'; // Default to Cash (only option)
+  paymentMethod = 'Cash';
   cashTendered = 0;
 
-  renderOrderDetail(order);
+  renderOrderDetail(group);
   renderOrders(); // Re-render to show selected state
   
   // Show detail panel
   $('detailPanel').classList.add('active');
 };
 
-function renderOrderDetail(order) {
-  const financials = calculateFinancials(order.total, { type: discountType });
+function renderOrderDetail(group) {
+  const financials = calculateGroupFinancials(group, discountType);
   
-  const itemsHtml = (order.items || []).map(item => `
+  const itemsHtml = group.combinedItems.map(item => `
     <div class="detail-item">
       <div class="detail-item-info">
         <div class="detail-item-name">${escapeHtml(item.name)}</div>
@@ -374,36 +494,51 @@ function renderOrderDetail(order) {
     </div>
   `).join('');
 
+  // Slip IDs row — shown only when there are multiple slips
+  const slipIdsHtml = group.orders.length > 1
+    ? `<div class="detail-info-item">
+          <div class="detail-info-label">Slip IDs</div>
+          <div class="detail-info-value" style="font-size:0.82rem;letter-spacing:0.03em">${group.orders.map(o => '#' + o.id.slice(-6).toUpperCase()).join(', ')}</div>
+        </div>`
+    : '';
+
+  // Use the first (earliest) slip for waiter name; if slips have different waiters show them all
+  const waiterNames = [...new Set(group.orders.map(o => o.waiterName).filter(Boolean))];
+  const waiterDisplay = waiterNames.length ? waiterNames.join(', ') : '—';
+
+  const earliestSlip = group.orders[0];
+
   $('detailBody').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Order Information</div>
       <div class="detail-info-grid">
         <div class="detail-info-item">
           <div class="detail-info-label">Order ID</div>
-          <div class="detail-info-value">#${order.id.slice(-6).toUpperCase()}</div>
+          <div class="detail-info-value">#${earliestSlip.id.slice(-6).toUpperCase()}${group.orders.length > 1 ? ` <span style="font-size:0.8rem;opacity:0.6">+${group.orders.length - 1} more</span>` : ''}</div>
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Table</div>
-          <div class="detail-info-value">${orderLocationBadgeHtml(order)}</div>
+          <div class="detail-info-value">${group.isTakeout ? '<span class="takeout-pill"><i class="fa-solid fa-bag-shopping"></i> Takeout</span>' : `Table ${group.tableNumber}`}</div>
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Waiter</div>
-          <div class="detail-info-value">${escapeHtml(order.waiterName || '—')}</div>
+          <div class="detail-info-value">${escapeHtml(waiterDisplay)}</div>
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Time</div>
-          <div class="detail-info-value">${order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('en-PH', { timeStyle: 'short' }) : '—'}</div>
+          <div class="detail-info-value">${earliestSlip.createdAt?.toDate ? earliestSlip.createdAt.toDate().toLocaleString('en-PH', { timeStyle: 'short' }) : '—'}</div>
         </div>
+        ${slipIdsHtml}
       </div>
-      ${order.note ? `<div class="detail-note"><strong>Note:</strong> ${escapeHtml(order.note)}</div>` : ''}
-      <button class="btn-slip" onclick="printOrderSlip('${order.id}')">
+      ${group.orders.some(o => o.note) ? `<div class="detail-note"><strong>Note:</strong> ${group.orders.filter(o => o.note).map(o => escapeHtml(o.note)).join(' | ')}</div>` : ''}
+      <button class="btn-slip" onclick="printOrderSlip('${group.key}')">
         <i class="fa-solid fa-kitchen-set"></i>
         Print Order Slip
       </button>
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">Order Items</div>
+      <div class="detail-section-title">Order Items${group.orders.length > 1 ? ` <span style="font-weight:400;font-size:0.85rem;opacity:0.65">(${group.orders.length} slips combined)</span>` : ''}</div>
       ${itemsHtml}
     </div>
 
@@ -423,13 +558,14 @@ function renderOrderDetail(order) {
           <span>PWD<br><small>20% + VAT Exempt</small></span>
         </button>
       </div>
+      ${discountType !== 'none' ? `<div style="font-size:0.8rem;opacity:0.7;margin-top:6px;padding:0 4px">Discount applies to highest-value slip (₱${(group.highestValueSlip.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}); VAT exemption on full combined total.</div>` : ''}
     </div>
 
     <div class="detail-section">
       <div class="detail-section-title">Financial Breakdown</div>
       <div class="financial-breakdown">
         <div class="financial-row">
-          <span>Subtotal</span>
+          <span>Combined Total</span>
           <span>₱${financials.subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
         ${financials.discountAmount > 0 ? `
@@ -518,14 +654,14 @@ function renderOrderDetail(order) {
 
 window.setDiscount = function(type) {
   discountType = type;
-  if (selectedOrder) renderOrderDetail(selectedOrder);
+  if (selectedGroup) renderOrderDetail(selectedGroup);
 };
 
 window.updateCashTendered = function(value) {
   cashTendered = parseFloat(value) || 0;
   
   // Update only the change display without re-rendering entire detail panel
-  const financials = calculateFinancials(selectedOrder.total, { type: discountType });
+  const financials = calculateGroupFinancials(selectedGroup, discountType);
   const changeDisplay = document.querySelector('.cash-change-display');
   const processBtn = document.querySelector('.btn-process-payment');
   
@@ -617,25 +753,24 @@ window.setQuickCash = function(amount) {
 // ══════════════════════════════════════════════════════════════
 
 window.processPayment = async function() {
-  if (!selectedOrder) {
+  if (!selectedGroup || selectedGroup.orders.length === 0) {
     showToast('⚠ No order selected');
     return;
   }
 
-  // Guard against a stale selection — e.g. someone else already processed or
-  // cancelled this order since it was selected. Payment applies to any unpaid
-  // order (preparing, served_unpaid, or legacy pending); it must never touch an
-  // order that is already paid or cancelled.
-  const liveOrder = allOrders.find(o => o.id === selectedOrder.id);
-  if (!liveOrder || !canFinalizePayment(liveOrder)) {
-    showToast('⚠ This order is no longer awaiting payment. Refreshing…');
-    selectedOrder = null;
+  // Guard against stale selections — re-check every slip in the group against
+  // the live allOrders snapshot. If any slip is already paid or cancelled,
+  // abort and refresh.
+  const liveSlips = selectedGroup.orders.map(o => allOrders.find(a => a.id === o.id));
+  if (liveSlips.some(s => !s || !canFinalizePayment(s))) {
+    showToast('⚠ One or more orders in this group are no longer awaiting payment. Refreshing…');
+    selectedGroup = null;
     renderOrders();
     return;
   }
 
-  // Validate cash payment
-  const financials = calculateFinancials(selectedOrder.total, { type: discountType });
+  // Validate cash payment against combined grand total
+  const financials = calculateGroupFinancials(selectedGroup, discountType);
   
   if (cashTendered < financials.grandTotal) {
     showToast('⚠ Insufficient cash tendered');
@@ -645,13 +780,30 @@ window.processPayment = async function() {
   const changeAmount = cashTendered - financials.grandTotal;
 
   try {
-    console.log('Processing payment for order:', selectedOrder.id);
+    console.log('Processing payment for group:', selectedGroup.key, 'slips:', selectedGroup.orders.map(o => o.id));
     
-    // Create payment record
+    // Build a write batch to atomically update all slips in the group
+    const batch = writeBatch(db);
+    for (const liveSlip of liveSlips) {
+      const slipUpdate = {
+        status: nextStatusAfterPayment(liveSlip),
+        paidBy: cashierData.uid,
+        paymentMethod: 'Cash',
+        discountType,
+        grandTotal: financials.grandTotal,
+        cashTendered,
+        changeGiven: changeAmount
+      };
+      // First-write-wins: only stamp paidAt on slips that don't have it yet
+      if (!liveSlip.paidAt) slipUpdate.paidAt = serverTimestamp();
+      batch.update(doc(db, 'orders', liveSlip.id), slipUpdate);
+    }
+
+    // Create one payment record for the entire group
     const paymentData = {
-      orderId: selectedOrder.id,
-      tableNumber: selectedOrder.tableNumber,
-      waiterName: selectedOrder.waiterName,
+      orderIds: selectedGroup.orders.map(o => o.id),  // all constituent slip IDs
+      tableNumber: selectedGroup.tableNumber,
+      waiterName: [...new Set(selectedGroup.orders.map(o => o.waiterName).filter(Boolean))].join(', ') || null,
       cashierId: cashierData.uid,
       cashierName: cashierData.name,
       paymentMethod: 'Cash',
@@ -662,44 +814,24 @@ window.processPayment = async function() {
       vatExempt: financials.vatExempt,
       serviceCharge: financials.serviceCharge,
       grandTotal: financials.grandTotal,
-      cashTendered: cashTendered,
+      cashTendered,
       changeGiven: changeAmount,
       timestamp: serverTimestamp()
     };
 
-    console.log('Creating payment record:', paymentData);
+    // Commit batch first, then write the payment record
+    await batch.commit();
+    console.log('Batch committed successfully for', liveSlips.length, 'slip(s)');
     await addDoc(collection(db, 'payments'), paymentData);
     console.log('Payment record created successfully');
 
-    // Update order status based on the live order's prior serving state:
-    // paying an already-served (served_unpaid) order yields served_paid, while
-    // paying an unserved order yields paid_unserved. The status decision uses
-    // liveOrder (the re-read snapshot), not the possibly-stale selectedOrder.
-    const orderUpdate = {
-      status: nextStatusAfterPayment(liveOrder),
-      paidBy: cashierData.uid,
-      paymentMethod: 'Cash',
-      discountType,
-      grandTotal: financials.grandTotal,
-      cashTendered: cashTendered,
-      changeGiven: changeAmount
-    };
-
-    // First-write-wins: only stamp paidAt when the order isn't already paid, so
-    // an existing payment time is never overwritten.
-    if (!liveOrder.paidAt) orderUpdate.paidAt = serverTimestamp();
-
-    console.log('Updating order status:', orderUpdate);
-    await updateDoc(doc(db, 'orders', selectedOrder.id), orderUpdate);
-    console.log('Order updated successfully');
-
     showToast('✅ Payment processed successfully');
     
-    // Store order ID for receipt printing before clearing selectedOrder
-    const paidOrderId = selectedOrder.id;
+    // Hold onto the group for receipt printing before clearing state
+    const paidGroup = selectedGroup;
     
-    // Reset to empty state instead of closing panel
-    selectedOrder = null;
+    // Reset to empty state
+    selectedGroup = null;
     discountType = 'none';
     paymentMethod = 'Cash';
     cashTendered = 0;
@@ -712,19 +844,15 @@ window.processPayment = async function() {
       </div>
     `;
     
-    renderOrders(); // Re-render to remove selected state
+    renderOrders();
     
-    // Auto-print receipt after a short delay
+    // Auto-print receipt for the paid group
     setTimeout(() => {
-      printReceipt(paidOrderId);
+      printGroupReceipt(paidGroup, discountType, financials, cashTendered, changeAmount);
     }, 500);
 
   } catch (error) {
     console.error('Payment processing error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    
-    // Show specific error message
     if (error.code === 'permission-denied') {
       showToast('❌ Permission denied. Check Firebase security rules.');
     } else if (error.code === 'not-found') {
@@ -732,6 +860,7 @@ window.processPayment = async function() {
     } else {
       showToast(`❌ Failed to process payment: ${error.message}`);
     }
+    // Do NOT clear selectedGroup on error so the cashier can retry
   }
 };
 

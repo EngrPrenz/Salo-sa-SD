@@ -36,14 +36,14 @@ const STATUS_ACTIONS = {
   // `pending` is a LEGACY status only. New orders now arrive already as
   // `preparing`, so the "Start Preparing" control is keyed to `pending` and
   // therefore only ever renders on legacy pending cards — never on the normal
-  // flow (Req 2.1/2.2/2.3). The preparing → served_unpaid / paid_unserved
-  // transitions below are preserved intact (Req 2.4).
+  // flow (Req 2.1/2.2/2.3). The preparing → served_unpaid transition is
+  // preserved intact (Req 2.4). "Mark as Paid" is removed from admin cards —
+  // payment is processed exclusively on the Cashier page.
   pending:       [{ to: 'preparing',     label: 'Start Preparing', btnClass: 'order-btn-primary' }],
   preparing:     [
     { to: 'served_unpaid', label: 'Mark as Served', btnClass: 'order-btn-primary' },
-    { to: 'paid_unserved', label: 'Mark as Paid',   btnClass: 'order-btn-pay' },
   ],
-  served_unpaid: [{ to: 'served_paid',   label: 'Mark as Paid',   btnClass: 'order-btn-pay' }],
+  served_unpaid: [],
   paid_unserved: [{ to: 'served_paid',   label: 'Mark as Served', btnClass: 'order-btn-primary' }],
   served_paid:   [],
   cancelled:     [],
@@ -269,6 +269,14 @@ window._cancelOrder = (id) => {
   });
 };
 
+// ── Send to Cashier ────────────────────────────────────────────────────────────
+// Stores the order ID in localStorage so the Cashier page can pre-select
+// and highlight that order as soon as it loads.
+window._sendToCashier = (id) => {
+  localStorage.setItem('cashier_preselect_order', id);
+  window.open('../cashier.html', '_blank');
+};
+
 // ── Discount (Senior / PWD) ──────────────────────────────────────────────────
 // Editable any time before payment is recorded; locked afterward so the
 // collected amount always matches what was actually charged.
@@ -379,6 +387,12 @@ function unrecognizedStatusGroupHtml(filtered) {
 }
 
 // ── Order Card HTML ────────────────────────────────────────────────────────────
+// Rendering modes:
+//   'preparing'    — show only "order taken" info (header, meta, items). No
+//                    note, no discount, no totals, no Mark as Paid.
+//   'served_unpaid'— show totals (no discount row/buttons). No Mark as Paid.
+//                    "Send to Cashier" button replaces direct payment action.
+//   all others     — full card as before.
 function orderCardHtml(o) {
   const meta   = STATUS_META[o.status] || { label: o.status || 'Unknown', color: 'var(--text-muted)', stripe: 'var(--text-muted)', accent: 'var(--text-muted)' };
   const actions = STATUS_ACTIONS[o.status] || [];
@@ -386,6 +400,10 @@ function orderCardHtml(o) {
   const discountType = o.discountType || 'none';
   const discountLocked = DISCOUNT_LOCKED_STATUSES.includes(o.status);
   const { discountAmount, vatExempt, netAmount, vatAmount, serviceCharge, grandTotal } = calculateFinancials(subtotal, discountType);
+
+  // Per-status display flags
+  const isPreparing    = o.status === 'preparing' || o.status === 'pending';
+  const isServedUnpaid = o.status === 'served_unpaid';
 
   const ts = o.createdAt?.toDate
     ? o.createdAt.toDate().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
@@ -439,6 +457,8 @@ function orderCardHtml(o) {
 
   // Secondary row: receipt is always available (except once cancelled); cancel
   // is only offered while the order hasn't started preparing yet.
+  // "Send to Cashier" appears on served_unpaid cards (and preparing as a hint)
+  // so payment is always handled on the Cashier page.
   let secondaryButtons = '';
   if (o.status !== 'cancelled') {
     const canCancel = CANCELLABLE_STATUSES.includes(o.status);
@@ -447,6 +467,12 @@ function orderCardHtml(o) {
       secondaryButtons += `<button class="order-btn-danger" onclick="window._cancelOrder('${o.id}')">Cancel</button>`;
     }
   }
+
+  // "Send to Cashier" replaces direct payment for preparing and served_unpaid cards
+  const showSendToCashier = (isPreparing || isServedUnpaid) && o.status !== 'cancelled';
+  const sendToCashierBtn = showSendToCashier
+    ? `<div class="order-actions-primary"><button class="order-btn-send-cashier" onclick="window._sendToCashier('${o.id}')">Send to Cashier</button></div>`
+    : '';
 
   return `
     <div class="order-card-v2" style="--card-accent:${meta.color}; --card-border:${meta.color}33;">
@@ -505,21 +531,21 @@ function orderCardHtml(o) {
         <!-- Items -->
         <div class="order-items-list">${items || '<div class="order-item-row order-item-empty">No items</div>'}</div>
 
-        <!-- Note -->
-        ${o.note ? `<div class="order-note">${escapeHtml(o.note)}</div>` : ''}
+        <!-- Note (hidden on preparing cards — not relevant for kitchen) -->
+        ${!isPreparing && o.note ? `<div class="order-note">${escapeHtml(o.note)}</div>` : ''}
 
-        <!-- Discount -->
-        ${o.status !== 'cancelled' ? `
+        <!-- Discount (hidden on preparing and served_unpaid — discount is set at cashier) -->
+        ${!isPreparing && !isServedUnpaid && o.status !== 'cancelled' ? `
         <div class="order-discount-row">
           <button class="disc-btn ${discountType === 'none' ? 'active' : ''}" ${discountLocked ? 'disabled' : `onclick="window._setDiscount('${o.id}','none')"`}>None</button>
           <button class="disc-btn ${discountType === 'senior' ? 'active' : ''}" ${discountLocked ? 'disabled' : `onclick="window._setDiscount('${o.id}','senior')"`}>Senior</button>
           <button class="disc-btn ${discountType === 'pwd' ? 'active' : ''}" ${discountLocked ? 'disabled' : `onclick="window._setDiscount('${o.id}','pwd')"`}>PWD</button>
         </div>` : ''}
 
-        <!-- Totals -->
-        ${o.status !== 'cancelled' ? `
+        <!-- Totals (hidden on preparing cards; no discount row on served_unpaid) -->
+        ${isPreparing ? '' : o.status !== 'cancelled' ? `
         <div class="order-totals-section">
-          ${discountAmount > 0 ? `
+          ${!isServedUnpaid && discountAmount > 0 ? `
           <div class="order-totals-row" style="color:var(--green);">
             <span>Discount (${discountType === 'senior' ? 'Senior' : 'PWD'} 20%)</span>
             <span>-₱${discountAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
@@ -551,6 +577,7 @@ function orderCardHtml(o) {
         <!-- Actions -->
         <div class="order-actions">
           ${actionButtons ? `<div class="order-actions-primary">${actionButtons}</div>` : ''}
+          ${sendToCashierBtn}
           <div class="order-actions-secondary">${secondaryButtons}</div>
         </div>
 
