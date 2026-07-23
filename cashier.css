@@ -593,6 +593,41 @@ html, body {
   font-weight: 600;
 }
 
+.order-card-table.takeout {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--orange);
+  background: transparent;
+  border: 1.5px solid var(--orange);
+  padding: 5px 12px;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Takeout pill — used in detail panel and billing table wherever a table
+   number would normally appear */
+.takeout-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--orange);
+  background: transparent;
+  border: 1.5px solid var(--orange);
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+
+.takeout-pill i {
+  font-size: 12px;
+}
+
 .order-card-body {
   margin-bottom: 14px;
 }
@@ -1400,6 +1435,39 @@ html, body {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Print Order Slip Button (kitchen copy) */
+.btn-slip {
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px 20px;
+  background: var(--black-mid);
+  color: var(--gold-light);
+  border: 1px dashed rgba(201, 151, 58, 0.5);
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-slip:hover {
+  border-style: solid;
+  border-color: var(--gold);
+  background: var(--gold-dim);
+  color: var(--gold);
+}
+
+.btn-slip i {
+  font-size: 14px;
 }
 
 /* ══════════════════════════════════════════════════════════════

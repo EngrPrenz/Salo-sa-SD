@@ -42,6 +42,28 @@ const showToast = msg => {
   setTimeout(() => $('toast').classList.remove('show'), 3000);
 };
 
+// An order is Takeout if the waiter app tagged it orderType: 'takeout', or
+// (as a fallback for older records) it simply has no table number.
+const isTakeout = order => order.orderType === 'takeout' || !order.tableNumber;
+
+// Plain-text label used in printouts (order slip, receipt) where markup
+// doesn't apply.
+const orderLocationLabel = order => isTakeout(order) ? 'Takeout' : `Table ${order.tableNumber}`;
+
+// Inner content only (icon + text, no pill wrapper) — use this when the
+// parent element already provides the pill/oval styling itself, e.g. the
+// order-card's own ".order-card-table.takeout" container.
+const orderLocationInnerHtml = order => isTakeout(order)
+  ? '<i class="fa-solid fa-bag-shopping"></i> Takeout'
+  : `Table ${order.tableNumber}`;
+
+// Self-contained pill badge (adds its own oval styling) — use this when the
+// parent element (e.g. a plain detail-info-value or table cell) has no pill
+// styling of its own, so only one oval ever gets drawn.
+const orderLocationBadgeHtml = order => isTakeout(order)
+  ? '<span class="takeout-pill"><i class="fa-solid fa-bag-shopping"></i> Takeout</span>'
+  : `Table ${order.tableNumber}`;
+
 // ══════════════════════════════════════════════════════════════
 // AUTH & INITIALIZATION
 // ══════════════════════════════════════════════════════════════
@@ -236,7 +258,8 @@ function renderOrders() {
     orders = orders.filter(o =>
       String(o.tableNumber).includes(searchTerm) ||
       o.id.toLowerCase().includes(searchTerm) ||
-      (o.waiterName || '').toLowerCase().includes(searchTerm)
+      (o.waiterName || '').toLowerCase().includes(searchTerm) ||
+      (isTakeout(o) && 'takeout'.includes(searchTerm))
     );
   }
 
@@ -268,7 +291,7 @@ function renderOrders() {
       <div class="order-card ${isSelected ? 'selected' : ''}" onclick="selectOrder('${order.id}')">
         <div class="order-card-header">
           <div class="order-card-id">#${order.id.slice(-6).toUpperCase()}</div>
-          <div class="order-card-table">Table ${order.tableNumber || '?'}</div>
+          <div class="order-card-table ${isTakeout(order) ? 'takeout' : ''}">${orderLocationInnerHtml(order)}</div>
         </div>
         <div class="order-card-body">
           <div class="order-card-total">₱${(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
@@ -342,7 +365,7 @@ function renderOrderDetail(order) {
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Table</div>
-          <div class="detail-info-value">Table ${order.tableNumber || '?'}</div>
+          <div class="detail-info-value">${orderLocationBadgeHtml(order)}</div>
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Waiter</div>
@@ -354,6 +377,10 @@ function renderOrderDetail(order) {
         </div>
       </div>
       ${order.note ? `<div class="detail-note"><strong>Note:</strong> ${escapeHtml(order.note)}</div>` : ''}
+      <button class="btn-slip" onclick="printOrderSlip('${order.id}')">
+        <i class="fa-solid fa-kitchen-set"></i>
+        Print Order Slip
+      </button>
     </div>
 
     <div class="detail-section">
@@ -753,7 +780,7 @@ function renderBilling() {
     return `
       <tr>
         <td class="mono">#${order.id.slice(-5).toUpperCase()}</td>
-        <td>Table ${order.tableNumber || '—'}</td>
+        <td>${orderLocationBadgeHtml(order)}</td>
         <td>${escapeHtml(order.waiterName || '—')}</td>
         <td>${itemCount} item${itemCount !== 1 ? 's' : ''}</td>
         <td><strong>₱${financials.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
@@ -801,7 +828,7 @@ window.showBillingReceipt = function(orderId) {
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Table</div>
-          <div class="detail-info-value">Table ${order.tableNumber || '?'}</div>
+          <div class="detail-info-value">${orderLocationBadgeHtml(order)}</div>
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Waiter</div>
@@ -885,6 +912,133 @@ window.showBillingReceipt = function(orderId) {
   `;
 
   $('detailPanel').classList.add('active');
+};
+
+// ══════════════════════════════════════════════════════════════
+// ORDER SLIP PRINTING (kitchen copy — items & qty only, no prices)
+// ══════════════════════════════════════════════════════════════
+
+window.printOrderSlip = function(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) {
+    showToast('⚠ Order not found');
+    return;
+  }
+
+  const timestamp = order.createdAt?.toDate
+    ? order.createdAt.toDate().toLocaleString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })
+    : '—';
+
+  const itemsRows = (order.items || []).map(item => `
+    <tr>
+      <td class="qty-col">${item.qty}×</td>
+      <td>${escapeHtml(item.name)}</td>
+    </tr>
+  `).join('');
+
+  const printWindow = window.open('', '_blank', 'width=380,height=600');
+  if (!printWindow) {
+    showToast('❌ Allow popups to print order slips');
+    return;
+  }
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Order Slip - Salo sa Antipolo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #111;
+      background: #fff;
+      padding: 12mm 6mm;
+    }
+    .rh { text-align: center; margin-bottom: 10px; }
+    .rn { font-weight: 700; font-size: 15px; letter-spacing: 0.04em; }
+    .rs { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 3px; }
+    hr.s { border: none; border-top: 2px solid #111; margin: 8px 0; }
+    hr.d { border: none; border-top: 1px dashed #aaa; margin: 6px 0; }
+    .mr {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 2px 0;
+    }
+    .ml { color: #666; }
+    .mv { font-weight: 700; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+    td { padding: 7px 0; border-bottom: 1px dashed #ccc; }
+    tbody tr:last-child td { border-bottom: none; }
+    .qty-col {
+      width: 42px;
+      font-weight: 700;
+      color: #b8821e;
+    }
+    .ft {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 10px;
+      color: #777;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .takeout-banner {
+      text-align: center;
+      background: #e67e22;
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      padding: 6px 0;
+      margin-bottom: 8px;
+      border-radius: 4px;
+    }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="rh">
+    <div class="rn">Salo sa Antipolo</div>
+    <div class="rs">Order Slip · Kitchen Copy</div>
+  </div>
+  <hr class="s"/>
+  ${isTakeout(order) ? `<div class="takeout-banner">🥡 TAKEOUT ORDER</div>` : ''}
+  <div class="mr">
+    <span class="ml">Order:</span>
+    <span class="mv">#${order.id.slice(-5).toUpperCase()}</span>
+  </div>
+  <div class="mr"><span class="ml">${isTakeout(order) ? 'Type:' : 'Table:'}</span><span class="mv">${orderLocationLabel(order)}</span></div>
+  <div class="mr"><span class="ml">Waiter:</span><span class="mv">${escapeHtml(order.waiterName || '—')}</span></div>
+  <div class="mr"><span class="ml">Time:</span><span class="mv">${timestamp}</span></div>
+  ${order.note ? `<div class="mr" style="margin-top:4px"><span class="ml">Note:</span><span class="mv">${escapeHtml(order.note)}</span></div>` : ''}
+  <hr class="d"/>
+  <table>
+    <tbody>${itemsRows}</tbody>
+  </table>
+  <div class="ft">— End of Order —</div>
+</body>
+</html>`);
+
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1038,7 +1192,7 @@ window.printReceipt = async function(orderId) {
     <span style="font-weight:700;color:#b8821e">#${order.id.slice(-5).toUpperCase()}</span>
   </div>
   <div class="mr"><span class="ml">Date:</span><span>${timestamp}</span></div>
-  <div class="mr"><span class="ml">Table:</span><span>${order.tableNumber || '—'}</span></div>
+  <div class="mr"><span class="ml">${isTakeout(order) ? 'Type:' : 'Table:'}</span><span>${orderLocationLabel(order)}</span></div>
   <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(order.waiterName || '—')}</span></div>
   <div class="mr"><span class="ml">Payment:</span><span>Cash</span></div>
   <hr class="d"/>
