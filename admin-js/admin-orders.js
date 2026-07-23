@@ -6,6 +6,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { bootstrapAdmin } from './admin-auth.js';
 
+// ── Order status helper (self-contained) ──
+// Recognized status values; anything outside this set is bucketed as
+// 'unrecognized' so stray statuses surface in the UI instead of being hidden.
+const RECOGNIZED_STATUSES = ['pending', 'preparing', 'served_unpaid', 'paid_unserved', 'served_paid', 'completed', 'cancelled'];
+const adminGroupOf = o => RECOGNIZED_STATUSES.includes(o?.status) ? o.status : 'unrecognized';
+
 const app = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
 const auth = getAuth(app);
 const db   = getFirestore(app);
@@ -27,6 +33,11 @@ const RESTAURANT_ADDRESS   = 'Sumulong Highway, Siete Media, Antipolo City, Riza
 //
 // pending / preparing may also → cancelled.
 const STATUS_ACTIONS = {
+  // `pending` is a LEGACY status only. New orders now arrive already as
+  // `preparing`, so the "Start Preparing" control is keyed to `pending` and
+  // therefore only ever renders on legacy pending cards — never on the normal
+  // flow (Req 2.1/2.2/2.3). The preparing → served_unpaid / paid_unserved
+  // transitions below are preserved intact (Req 2.4).
   pending:       [{ to: 'preparing',     label: 'Start Preparing', btnClass: 'order-btn-primary' }],
   preparing:     [
     { to: 'served_unpaid', label: 'Mark as Served', btnClass: 'order-btn-primary' },
@@ -346,11 +357,15 @@ function statusIcon(status) {
 
 // Orders written with a status this app doesn't recognize (e.g. from a page
 // that's still on an older status vocabulary) fall in here so they're never
-// silently invisible in the "All" grouped view.
+// silently invisible in the "All" grouped view (Req 2.2 / 9.2). Grouping uses
+// the shared `adminGroupOf` helper so every portal agrees on what counts as
+// recognized. Each stray order also emits a diagnostic warning (Req 9.6).
 function unrecognizedStatusGroupHtml(filtered) {
-  const known = new Set(['pending','preparing','served_unpaid','served_paid','paid_unserved','cancelled']);
-  const stray = filtered.filter(o => !known.has(o.status));
+  const stray = filtered.filter(o => adminGroupOf(o) === 'unrecognized');
   if (!stray.length) return '';
+  for (const o of stray) {
+    console.warn(`⚠️ Order #${o.id} has an unrecognized status: "${o.status}" — grouped under "Unrecognized Status".`);
+  }
   return `
     <div class="orders-section-header">
       <div class="orders-section-icon" style="background:#88888822;">

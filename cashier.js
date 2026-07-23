@@ -6,6 +6,27 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { guardCashierPage } from './admin-js/rbac.js';
 
+// ── Order status helpers (self-contained; mirrors waiter.js / admin-orders.js) ──
+// Preparation and payment are independent axes combined into one `status` field:
+//   pending(legacy)/preparing → served_unpaid / paid_unserved → served_paid, or cancelled.
+const PAID_STATUSES   = ['paid_unserved', 'served_paid', 'completed'];
+const SERVED_STATUSES = ['served_unpaid', 'served_paid'];
+const isPaid      = o => PAID_STATUSES.includes(o?.status);
+const isServed    = o => SERVED_STATUSES.includes(o?.status) || !!o?.servedAt;
+const isCancelled = o => o?.status === 'cancelled';
+const isUnpaid    = o => !isPaid(o) && !isCancelled(o);
+// The cashier queue/badge shows every unpaid, non-cancelled order.
+const belongsInCashierQueue = o => isUnpaid(o);
+// Payment may only be finalized while an order is still unpaid.
+const canFinalizePayment = o => isUnpaid(o);
+// Payment outcome:
+//  - Takeout needs no serving step, so paying a takeout order completes it.
+//  - Dine-in: an already-served order becomes served_paid; otherwise paid_unserved.
+const nextStatusAfterPayment = o =>
+  (o?.orderType === 'takeout' || !o?.tableNumber) ? 'completed'
+    : isServed(o) ? 'served_paid'
+    : 'paid_unserved';
+
 // Firebase config
 const app = initializeApp({
   apiKey: "AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w",
@@ -237,7 +258,7 @@ function subscribeToOrders() {
 
 function updateOrdersBadge() {
   const readyForPayment = allOrders.filter(o =>
-    o.status === 'pending' // Only count orders that haven't been paid yet
+    belongsInCashierQueue(o) // Count every unpaid, non-cancelled order
   ).length;
   $('ordersCountBadge').textContent = readyForPayment;
 }
@@ -250,7 +271,7 @@ function renderOrders() {
   const searchTerm = $('orderSearch').value.toLowerCase().trim();
   
   let orders = allOrders.filter(o =>
-    o.status === 'pending' // Only show orders that haven't been paid yet
+    belongsInCashierQueue(o) // Show every unpaid, non-cancelled order
   );
 
   // Apply search filter
@@ -604,11 +625,11 @@ window.processPayment = async function() {
   }
 
   // Guard against a stale selection — e.g. someone else already processed or
-  // cancelled this order since it was selected. Payment should only ever move
-  // an order out of 'pending'; it should never touch 'cancelled' or anything
-  // else.
+  // cancelled this order since it was selected. Payment applies to any unpaid
+  // order (preparing, served_unpaid, or legacy pending); it must never touch an
+  // order that is already paid or cancelled.
   const liveOrder = allOrders.find(o => o.id === selectedOrder.id);
-  if (!liveOrder || liveOrder.status !== 'pending') {
+  if (!liveOrder || !canFinalizePayment(liveOrder)) {
     showToast('⚠ This order is no longer awaiting payment. Refreshing…');
     selectedOrder = null;
     renderOrders();
@@ -652,16 +673,12 @@ window.processPayment = async function() {
     await addDoc(collection(db, 'payments'), paymentData);
     console.log('Payment record created successfully');
 
-    // Update order status.
-    // NOTE: 'paid_unserved' — i.e. "Paid (Not Served)" — is the correct target
-    // status here, matching the status model used across the app (pending →
-    // preparing → served_unpaid / paid_unserved → served_paid, or cancelled).
-    // The old 'paid' status string is no longer recognized anywhere and was
-    // the cause of paid orders showing up incorrectly elsewhere (e.g. as
-    // Cancelled in Live Orders) — do not reintroduce it.
+    // Update order status based on the live order's prior serving state:
+    // paying an already-served (served_unpaid) order yields served_paid, while
+    // paying an unserved order yields paid_unserved. The status decision uses
+    // liveOrder (the re-read snapshot), not the possibly-stale selectedOrder.
     const orderUpdate = {
-      status: 'paid_unserved',
-      paidAt: serverTimestamp(),
+      status: nextStatusAfterPayment(liveOrder),
       paidBy: cashierData.uid,
       paymentMethod: 'Cash',
       discountType,
@@ -669,6 +686,10 @@ window.processPayment = async function() {
       cashTendered: cashTendered,
       changeGiven: changeAmount
     };
+
+    // First-write-wins: only stamp paidAt when the order isn't already paid, so
+    // an existing payment time is never overwritten.
+    if (!liveOrder.paidAt) orderUpdate.paidAt = serverTimestamp();
 
     console.log('Updating order status:', orderUpdate);
     await updateDoc(doc(db, 'orders', selectedOrder.id), orderUpdate);
@@ -723,28 +744,30 @@ window.processPayment = async function() {
 function renderBilling() {
   const searchTerm = $('billingSearch').value.toLowerCase().trim();
   
-  // Show orders that have been paid — whether or not they've been served yet
-  // — plus fully completed/archived orders.
-  let orders = allOrders.filter(o => ['paid_unserved', 'served_paid', 'completed'].includes(o.status));
-
-  // Apply search filter
-  if (searchTerm) {
-    orders = orders.filter(o =>
-      String(o.tableNumber).includes(searchTerm) ||
-      o.id.toLowerCase().includes(searchTerm) ||
-      (o.waiterName || '').toLowerCase().includes(searchTerm)
-    );
-  }
-
-  // Calculate today's revenue
+  // Billing is a full ledger: every order except cancelled ones, shown with a
+  // Paid / Not Paid / Completed status. (Today's Revenue below counts paid
+  // orders only, so it stays accurate.)
+  // Day boundaries for "today" [midnight, next midnight).
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const todayRevenue = orders
-    .filter(o => {
-      if (!o.createdAt) return false;
-      const ts = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-      return ts >= todayStart;
-    })
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const toDateSafe = raw => (raw && raw.toDate) ? raw.toDate() : (raw ? new Date(raw) : null);
+
+  // An order belongs to "today" if it was paid today, or (for unpaid/legacy
+  // orders with no paidAt) created today.
+  const isTodayOrder = o => {
+    const ts = toDateSafe(o.paidAt || o.createdAt);
+    return ts && ts >= todayStart && ts < tomorrowStart;
+  };
+
+  // Billing shows only today's orders (non-cancelled). Older days are excluded
+  // so the overview is a single-day view.
+  const ledger = allOrders.filter(o => !isCancelled(o) && isTodayOrder(o));
+
+  // Today's Total Revenue = grand totals of today's PAID orders. Computed over
+  // the whole day's ledger so the search box never changes the figure.
+  const todayRevenue = ledger
+    .filter(o => isPaid(o)) // only money actually collected counts
     .reduce((sum, o) => {
       const financials = calculateFinancials(o.total || 0, { type: o.discountType || 'none' });
       return sum + financials.grandTotal;
@@ -752,10 +775,20 @@ function renderBilling() {
 
   $('todayRevenue').textContent = `₱${todayRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
+  // Rows to display: today's ledger, optionally narrowed by the search box.
+  let orders = ledger;
+  if (searchTerm) {
+    orders = ledger.filter(o =>
+      String(o.tableNumber).includes(searchTerm) ||
+      o.id.toLowerCase().includes(searchTerm) ||
+      (o.waiterName || '').toLowerCase().includes(searchTerm)
+    );
+  }
+
   const tbody = $('billingTableBody');
 
   if (orders.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No transactions yet. Paid orders will appear here immediately.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No orders today yet. Today\'s orders will appear here as they come in.</td></tr>';
     return;
   }
 
@@ -767,14 +800,20 @@ function renderBilling() {
     
     const financials = calculateFinancials(order.total || 0, { type: order.discountType || 'none' });
     
-    // Status badge styling
+    // Billing status badge — the serving state is intentionally not shown here.
+    // Orders collapse to a simple Paid / Not Paid, plus Completed, so the column
+    // is easy to read at a glance.
     let statusBadge = '';
-    if (order.status === 'paid_unserved') {
-      statusBadge = '<span class="status-badge" style="color:#c9973a;background:rgba(201,151,58,0.15);border-color:rgba(201,151,58,0.3)">Paid (Not Served)</span>';
-    } else if (order.status === 'served_paid') {
-      statusBadge = '<span class="status-badge" style="color:#2ecc71;background:rgba(46,204,113,0.15);border-color:rgba(46,204,113,0.3)">Served (Paid)</span>';
-    } else if (order.status === 'completed') {
+    // Completed: archived orders, plus any PAID takeout order (takeout needs no
+    // serving step, so it's done once paid — covers legacy takeout orders that
+    // were paid before takeout auto-completion existed). Other paid orders show
+    // "Paid"; everything else "Not Paid".
+    if (order.status === 'completed' || (isPaid(order) && isTakeout(order))) {
       statusBadge = '<span class="status-badge completed" style="color:#27ae60;background:rgba(39,174,96,0.15);border-color:rgba(39,174,96,0.3)">Completed</span>';
+    } else if (isPaid(order)) {
+      statusBadge = '<span class="status-badge" style="color:#c9973a;background:rgba(201,151,58,0.15);border-color:rgba(201,151,58,0.3)">Paid</span>';
+    } else {
+      statusBadge = '<span class="status-badge" style="color:#c0392b;background:rgba(192,57,43,0.15);border-color:rgba(192,57,43,0.3)">Not Paid</span>';
     }
 
     return `

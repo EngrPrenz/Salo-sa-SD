@@ -119,11 +119,8 @@ const ROLE_PAGES = {
     'admin-reports.html',
   ],
   admin_cashier: [
-    'admin-overview.html',
-    'admin-orders.html',
-    // NO tables, menu, staff
-    'admin-billing.html',
-    // NO reports
+    // No embedded admin pages. admin_cashier reaches cashier.html
+    // via guardCashierPage, not via ROLE_PAGES.
   ],
   cashier: [
     'cashier.html',  // Dedicated cashier interface
@@ -135,7 +132,6 @@ const NAV_ITEMS = {
   admin_manager: ['overview','orders','tables','menu','billing','staff','reports'],
   admin:         ['overview','orders','tables','menu','billing','staff','reports'],
   admin_owner:   ['overview','tables','menu','billing','staff','reports'],
-  admin_cashier: ['overview','orders','billing'],
 };
 
 // Default landing page after login
@@ -230,15 +226,7 @@ export async function guardAdminPage(auth, db, fb, currentPage) {
         const data = snap.data();
         const role = data.role || '';
 
-        // Check if user wants cashier interface (from cashier login)
-        if (role === 'admin_cashier' && sessionStorage.getItem('useCashierInterface') === 'true') {
-          // Don't redirect admin_cashier away from admin pages if they came from admin login
-          // Only redirect if they're not on an allowed admin page
-          if (!currentPage || !canAccess(role, currentPage)) {
-            window.location.href = getDefaultPage(role);
-            return;
-          }
-        } else if (!isAdminRole(role)) {
+        if (!isAdminRole(role)) {
           await auth.signOut();
           window.location.href = '../admin-login.html';
           return;

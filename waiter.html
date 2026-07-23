@@ -60,6 +60,7 @@
 </header>
 
 <div class="main">
+ <div class="main-content">
   <!-- STEP 1 — TABLE GRID -->
   <div id="stepTables">
     <!-- Order Entry Screen -->
@@ -137,6 +138,28 @@
       </div>
     </div>
   </div>
+ </div>
+
+  <!-- ORDER-SLIP PANEL (right side) — lists the signed-in waiter's active
+       orders as clickable slips; selecting one shows its details (Req 6). -->
+  <aside class="order-slip-panel" id="orderSlipPanel">
+    <div class="slip-panel-header">
+      <span class="slip-panel-title"><i class="fa-solid fa-receipt"></i> My Orders</span>
+    </div>
+    <div class="slip-panel-list" id="orderSlipList">
+      <div class="slip-empty">
+        <div class="slip-empty-icon"><i class="fa-solid fa-receipt"></i></div>
+        No active orders yet.<br>
+        <span class="slip-empty-sub">Submitted orders appear here.</span>
+      </div>
+    </div>
+    <div class="slip-panel-detail" id="orderSlipDetail">
+      <div class="slip-detail-empty">
+        <i class="fa-solid fa-hand-pointer"></i>
+        Select an order slip to view its details.
+      </div>
+    </div>
+  </aside>
 </div>
 
 <!-- ORDER TYPE SELECTION MODAL -->

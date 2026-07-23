@@ -49,6 +49,12 @@ function orderGrandTotal(o) {
   return computeVat(Number(o.total)||0).grandTotal;
 }
 
+// Orders that represent collected revenue (paid). Uses the current status
+// vocabulary (paid_unserved / served_paid / completed) and tolerates the legacy
+// 'paid' / 'served' values so any pre-rework orders still count.
+const REVENUE_STATUSES = ['paid_unserved', 'served_paid', 'completed', 'paid', 'served'];
+const isRevenueOrder = o => REVENUE_STATUSES.includes(o?.status);
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let allOrders       = [];
 let selectedPeriod  = 'monthly';
@@ -97,7 +103,7 @@ function startListeners() {
 }
 
 function updateOrdersBadge() {
-  const active = allOrders.filter(o => ['pending','preparing'].includes(o.status)).length;
+  const active = allOrders.filter(o => ['pending','preparing','served_unpaid','paid_unserved'].includes(o.status)).length;
   const badge  = document.getElementById('ordersBadge');
   if (badge) { badge.textContent=active; badge.style.display=active>0?'inline-flex':'none'; }
 }
@@ -163,7 +169,7 @@ function renderDaily() {
   const end     = new Date(y, m-1, d, 23, 59, 59);
   const dayOrders = allOrders.filter(o => {
     const dt = o.createdAt?.toDate();
-    return dt && dt>=start && dt<=end && ['paid', 'served'].includes(o.status);
+    return dt && dt>=start && dt<=end && isRevenueOrder(o);
   });
 
   // Use grandTotal (subtotal + 7% service charge) for all revenue display
@@ -218,7 +224,7 @@ function renderWeekly() {
 
   const weekOrders = allOrders.filter(o => {
     const dt = o.createdAt?.toDate();
-    return dt && dt>=ws && dt<=weekEnd && ['paid', 'served'].includes(o.status);
+    return dt && dt>=ws && dt<=weekEnd && isRevenueOrder(o);
   });
 
   // Grand totals for the whole week
@@ -320,7 +326,7 @@ function renderMonthly() {
 
   const monthOrders = allOrders.filter(o => {
     const d = o.createdAt?.toDate();
-    return d && d>=startDate && d<=endDate && ['paid', 'served'].includes(o.status);
+    return d && d>=startDate && d<=endDate && isRevenueOrder(o);
   });
 
   // Use grandTotal (incl. 7% service charge) for revenue KPIs
@@ -463,23 +469,46 @@ function renderTopItems(orders, containerId) {
 }
 
 // ── Shared: status chart ──────────────────────────────────────────────────────
+// Status buckets for the distribution chart, using the current vocabulary.
+// Each has a readable label and an explicit colour (inline, so it renders
+// regardless of CSS class coverage).
+const STATUS_CHART = [
+  { key: 'preparing',     label: 'Preparing',       color: '#2980b9' },
+  { key: 'served_unpaid', label: 'Served (Unpaid)', color: '#9b59b6' },
+  { key: 'paid_unserved', label: 'Paid (Unserved)', color: '#c9973a' },
+  { key: 'served_paid',   label: 'Served (Paid)',   color: '#27ae60' },
+  { key: 'completed',     label: 'Completed',       color: '#1e8449' },
+  { key: 'cancelled',     label: 'Cancelled',       color: '#c0392b' },
+];
+
+// Fold legacy status values into the current buckets so pre-rework orders still
+// appear in the chart.
+function normalizeStatusKey(status) {
+  if (status === 'paid')    return 'paid_unserved';
+  if (status === 'served')  return 'served_paid';
+  if (status === 'pending') return 'preparing';
+  return status;
+}
+
 function renderStatusChart(orders, chartId) {
-  const statuses = ['pending','preparing','served','paid','cancelled'];
-  const counts   = {};
-  statuses.forEach(s => counts[s] = 0);
-  orders.forEach(o => { if (counts[o.status]!==undefined) counts[o.status]++; });
+  const counts = {};
+  STATUS_CHART.forEach(s => counts[s.key] = 0);
+  orders.forEach(o => {
+    const k = normalizeStatusKey(o.status);
+    if (counts[k] !== undefined) counts[k]++;
+  });
 
   const total  = orders.length || 1;
   const max    = Math.max(...Object.values(counts), 1);
   const chartEl = document.getElementById(chartId); if (!chartEl) return;
 
-  chartEl.innerHTML = statuses.map(s => {
-    const pct  = Math.round((counts[s]/total)*100);
-    const barW = (counts[s]/max) * 100;
+  chartEl.innerHTML = STATUS_CHART.map(({ key, label, color }) => {
+    const pct  = Math.round((counts[key]/total)*100);
+    const barW = (counts[key]/max) * 100;
     return `<div class="bar-row">
-      <span class="bar-label">${capitalize(s)}</span>
-      <div class="bar-track"><div class="bar-fill ${s}" style="width:0%" data-target="${barW}%"></div></div>
-      <span class="bar-count">${counts[s]}</span>
+      <span class="bar-label">${label}</span>
+      <div class="bar-track"><div class="bar-fill ${key}" style="width:0%;background:${color}" data-target="${barW}%"></div></div>
+      <span class="bar-count">${counts[key]}</span>
       <span class="bar-pct">${pct}%</span>
     </div>`;
   }).join('');

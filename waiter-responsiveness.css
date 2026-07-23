@@ -315,3 +315,42 @@
     max-width: 320px;
   }
 }
+
+
+/* ═══════════════════════════════════════════════
+   ORDER-SLIP PANEL — responsive rules (Req 6.1)
+═══════════════════════════════════════════════ */
+
+/* Medium tablet — trim the panel so the ordering area keeps room. */
+@media (max-width: 1024px) {
+  .order-slip-panel { width: 300px; }
+}
+
+@media (max-width: 864px) {
+  .order-slip-panel { width: 260px; }
+  .slip-panel-header { padding: 12px 14px; }
+  .slip-panel-list, .slip-panel-detail { padding: 10px 12px; }
+}
+
+/* Small tablet / phone — stack the panel below the ordering area as a bottom
+   strip, and lay its slips out horizontally so it stays usable. */
+@media (max-width: 768px) {
+  .main { flex-direction: column; }
+  .main-content { flex: 1 1 auto; min-height: 0; }
+  .order-slip-panel {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 42vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .slip-panel-list {
+    flex: 0 0 auto;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+  }
+  .order-slip { width: 180px; flex: 0 0 auto; }
+  .slip-panel-detail { flex: 1 1 auto; }
+}

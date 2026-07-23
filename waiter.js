@@ -4,6 +4,42 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc,
   onSnapshot, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// ── Order status helpers (self-contained; mirrors cashier.js / admin-orders.js) ──
+// Preparation and payment are independent axes combined into one `status` field.
+// Legacy `pending` is tolerated for pre-existing orders.
+const STATUS = Object.freeze({
+  PENDING: 'pending',
+  PREPARING: 'preparing',
+  SERVED_UNPAID: 'served_unpaid',
+  PAID_UNSERVED: 'paid_unserved',
+  SERVED_PAID: 'served_paid',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+});
+const PAID_STATUSES   = ['paid_unserved', 'served_paid', 'completed'];
+const SERVED_STATUSES = ['served_unpaid', 'served_paid'];
+const isPaid      = o => PAID_STATUSES.includes(o?.status);
+const isServed    = o => SERVED_STATUSES.includes(o?.status) || !!o?.servedAt;
+const isCancelled = o => o?.status === 'cancelled';
+const isUnpaid    = o => !isPaid(o) && !isCancelled(o);
+// A waiter's order-slip panel lists only their own orders that still need to be
+// served — i.e. not yet served (excludes served_unpaid / served_paid), and not
+// completed or cancelled. So it shows preparing/pending and paid-but-unserved
+// (paid_unserved) orders only.
+const belongsInWaiterSlips = (o, wId) =>
+  o?.waiterId === wId &&
+  !isServed(o) &&
+  o?.status !== 'completed' &&
+  o?.status !== 'cancelled';
+// The Served button shows for any order still awaiting serving — not yet served
+// and not completed/cancelled. Covers preparing/legacy pending (→ served_unpaid)
+// and paid_unserved (→ served_paid).
+const shouldShowServedButton = o =>
+  !isServed(o) && o?.status !== 'completed' && o?.status !== 'cancelled';
+// Marking served completes a paid order; otherwise it's served but still unpaid.
+const nextStatusAfterServed = o => isPaid(o) ? STATUS.SERVED_PAID : STATUS.SERVED_UNPAID;
+// First-write-wins: never overwrite an existing servedAt timestamp.
+const servedAtUpdate = (order, ts) => order?.servedAt ? {} : { servedAt: ts };
 
 const app  = initializeApp({ apiKey:"AIzaSyCKQneulIrm9KWuOg69f29nFo6TGz2PF4w", authDomain:"salo-sa-antipolo.firebaseapp.com", projectId:"salo-sa-antipolo", storageBucket:"salo-sa-antipolo.firebasestorage.app", messagingSenderId:"60032898501", appId:"1:60032898501:web:3a4e663fee4ccd2adae7ac" });
 const auth = getAuth(app);
@@ -25,6 +61,7 @@ $('themeToggle').onclick = () => {
 // ── State ──
 let waiterName = '', waiterId = '', menuItems = [], cart = {}, selectedTable = null, activeCat = 'all';
 let allOrders = [];
+let selectedSlipOrderId = null; // id of the order slip currently shown in the detail view
 let menuOrderCounts = {};
 let tablesData = {};
 let pendingOccupyTable = null;
@@ -145,6 +182,10 @@ onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap =
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     calculateMenuOrderCounts();
     renderTables();
+    // The order-slip panel derives entirely from the live snapshot, so a new
+    // order (Req 6.3) or a status change on an existing one (Req 6.4) refreshes
+    // the panel automatically on the next callback.
+    renderOrderSlips();
   });
 
   onSnapshot(collection(db, 'tables'), snap => {
@@ -172,7 +213,7 @@ function calculateMenuOrderCounts() {
   menuOrderCounts = {};
   const todayStr = new Date().toISOString().slice(0, 10);
   allOrders.filter(o => {
-    if (!['pending', 'preparing', 'served', 'paid'].includes(o.status)) return false;
+    if (!['pending', 'preparing', 'served_unpaid', 'paid_unserved', 'served_paid'].includes(o.status)) return false;
     const orderDate = o.createdAt?.toDate
       ? o.createdAt.toDate().toISOString().slice(0, 10)
       : null;
@@ -199,7 +240,9 @@ let tablesList = [];
 
 function renderTables() {
   const orderOccupied = {};
-  allOrders.filter(o => ['pending','preparing','served'].includes(o.status)).forEach(o => {
+  // A table stays occupied while its order is live — anything not completed or
+  // cancelled (preparing, served_unpaid, paid_unserved, served_paid).
+  allOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').forEach(o => {
     if (o.tableNumber) orderOccupied[o.tableNumber] = { 
       status: o.status, 
       waiterName: o.waiterName, 
@@ -226,7 +269,7 @@ function renderTables() {
     const isOccupiedYours   = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
     const isYours           = orderInfo && orderInfo.waiterId === waiterId;
     const isTakenOrder      = orderInfo && !isYours;
-    const isServed          = isYours && orderInfo && orderInfo.status === 'served';
+    const tileServed        = isYours && orderInfo && isServed(orderInfo);
 
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
     const now = new Date();
@@ -243,7 +286,7 @@ function renderTables() {
     let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
 
     if (isYours) {
-      if (isServed) {
+      if (tileServed) {
         stClass = 'yours'; badge = 'served'; badgeLbl = '✓ Served';
         icon = '✓'; meta = 'Food delivered · Awaiting payment';
       } else {
@@ -284,7 +327,7 @@ function renderTables() {
       }
     }
 
-    return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn}, ${isServed})">
+    return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn}, ${tileServed})">
       ${yoursInd}
       <div class="table-num">${displayLabel}</div>
       ${capInfo}
@@ -474,7 +517,7 @@ $('customerLeftBtn').onclick = async () => {
     // Find all served orders for this table
     const servedOrders = allOrders.filter(o => 
       o.tableNumber === pendingServedTable && 
-      o.status === 'served' &&
+      isServed(o) &&
       o.waiterId === waiterId
     );
     
@@ -1005,6 +1048,34 @@ $('confirmModalClose').onclick = $('confirmModalCancel').onclick = () => {
   pill2Active(); pill3Reset();
 };
 
+// ── buildOrderDocument ──
+// Pure helper that constructs the Firestore order document for a brand-new
+// order from the current cart and order context (Req 1.1, 1.3, 1.4, 1.5).
+// New orders enter preparation automatically (status = STATUS.PREPARING); the
+// manual "Start Preparing" admin step is gone. The document intentionally
+// omits the server timestamps (createdAt/updatedAt) — those are attached at
+// write time via serverTimestamp() — so this helper stays pure and testable.
+// tableNumber is the selected table for dine-in and null for takeout.
+function buildOrderDocument(cartItems, { orderType, waiterId, waiterName, selectedTable }) {
+  const items = Object.values(cartItems).map(i => ({
+    id: i.id,
+    name: i.name,
+    price: i.price,
+    qty: Math.min(i.qty, 20),
+    category: i.category || 'Other'
+  }));
+  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+  return {
+    orderType,
+    waiterId,
+    waiterName,
+    items,
+    total,
+    status: STATUS.PREPARING,
+    tableNumber: orderType === 'takeout' ? null : selectedTable
+  };
+}
+
 $('confirmOrderBtn').onclick = async () => {
   const btn = $('confirmOrderBtn');
   btn.disabled = true; btn.classList.add('loading');
@@ -1107,20 +1178,20 @@ $('confirmOrderBtn').onclick = async () => {
     }
 
     // ── No served_unpaid ticket for this table — create a brand-new order ──
+    // buildOrderDocument sets status = STATUS.PREPARING and resolves tableNumber
+    // (selected table for dine-in, null for takeout). The note and server
+    // timestamps are attached here at write time (Req 1.1, 1.2, 1.3, 1.4, 1.5).
     const orderData = {
-      orderType: currentOrderType,
-      waiterId, waiterName,
-      items: itemsForOrder,
-      total, note, status: 'pending',
-      createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      ...buildOrderDocument(cart, {
+        orderType: currentOrderType,
+        waiterId,
+        waiterName,
+        selectedTable
+      }),
+      note,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     };
-
-    // Dine-in orders carry the table number; takeout orders set it to null (Req 6.3, 6.4).
-    if (currentOrderType === 'takeout') {
-      orderData.tableNumber = null;
-    } else {
-      orderData.tableNumber = selectedTable;
-    }
 
     await addDoc(collection(db,'orders'), orderData);
 
@@ -1214,3 +1285,279 @@ function setupCatScrollBtns() {
 
   catScrollWired = true;
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// ORDER-SLIP PANEL (Req 6)
+// A panel on the right of the waiter interface that lists the signed-in
+// waiter's active orders as clickable slips. It renders straight from the live
+// `allOrders` snapshot filtered by `belongsInWaiterSlips(order, waiterId)`, so
+// new orders (6.3) and status changes (6.4) refresh automatically whenever the
+// orders `onSnapshot` callback re-runs `renderOrderSlips()`. Selecting a slip
+// sets `selectedSlipOrderId` and shows a detail view of that order (6.5). All
+// order-derived text is escaped before injection (6.6).
+//
+// NOTE: the Served action button is intentionally NOT implemented here — task
+// 5.6 owns it. The detail view leaves a clearly-marked placeholder container
+// (`#orderSlipServedSlot`) where that control will be wired.
+// ════════════════════════════════════════════════════════════════════════
+
+// Escape order-derived text before injecting into HTML (Req 6.6). Mirrors the
+// cashier portal's helper: uses the DOM to encode &, <, >, and quotes safely.
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text == null ? '' : String(text);
+  return div.innerHTML;
+}
+
+// Human-readable label for an order status, covering the full recognized set
+// plus the legacy `pending` value.
+function slipStatusLabel(status) {
+  switch (status) {
+    case STATUS.PREPARING:     return 'Preparing';
+    case STATUS.SERVED_UNPAID: return 'Served · Unpaid';
+    case STATUS.PAID_UNSERVED: return 'Paid · Preparing';
+    case STATUS.SERVED_PAID:   return 'Served · Paid';
+    case STATUS.COMPLETED:     return 'Completed';
+    case STATUS.CANCELLED:     return 'Cancelled';
+    case STATUS.PENDING:       return 'Pending';
+    default:                   return status ? String(status) : 'Unknown';
+  }
+}
+
+// A short, readable status token used for the slip's coloured badge class.
+function slipStatusClass(status) {
+  switch (status) {
+    case STATUS.SERVED_UNPAID:
+    case STATUS.SERVED_PAID:   return 'served';
+    case STATUS.PAID_UNSERVED: return 'paid';
+    case STATUS.PREPARING:
+    case STATUS.PENDING:       return 'preparing';
+    default:                   return 'other';
+  }
+}
+
+// Location label: `Table N` for dine-in, `Takeout` for takeout, with safe
+// fallbacks for malformed orders.
+function slipLocationLabel(order) {
+  if (order?.orderType === 'takeout') return 'Takeout';
+  if (order?.tableNumber != null)     return `Table ${order.tableNumber}`;
+  return 'Table —';
+}
+
+// Short display form of the order id.
+function slipShortId(id) {
+  return id ? `#${String(id).slice(-5).toUpperCase()}` : '#—';
+}
+
+// Render the list of order slips belonging to the signed-in waiter (Req 6.1,
+// 6.2). Orders that are completed or cancelled are excluded by
+// `belongsInWaiterSlips`.
+function renderOrderSlips() {
+  const list = $('orderSlipList');
+  if (!list) return;
+
+  const slips = allOrders.filter(o => belongsInWaiterSlips(o, waiterId));
+
+  if (!slips.length) {
+    selectedSlipOrderId = null;
+    list.innerHTML = `<div class="slip-empty">
+      <div class="slip-empty-icon"><i class="fa-solid fa-receipt"></i></div>
+      No active orders yet.<br>
+      <span class="slip-empty-sub">Submitted orders appear here.</span>
+    </div>`;
+    renderOrderSlipDetail();
+    return;
+  }
+
+  // Drop a stale selection if the selected order is no longer in the list.
+  if (selectedSlipOrderId && !slips.some(o => o.id === selectedSlipOrderId)) {
+    selectedSlipOrderId = null;
+  }
+
+  list.innerHTML = slips.map(o => {
+    const itemCount = (o.items || []).length;
+    const selected  = o.id === selectedSlipOrderId ? ' selected' : '';
+    return `<button type="button" class="order-slip${selected}" onclick="window._selectSlip('${o.id}')">
+      <div class="slip-top">
+        <span class="slip-id">${escapeHtml(slipShortId(o.id))}</span>
+        <span class="slip-badge ${slipStatusClass(o.status)}">${escapeHtml(slipStatusLabel(o.status))}</span>
+      </div>
+      <div class="slip-loc">${escapeHtml(slipLocationLabel(o))}</div>
+      <div class="slip-meta">${itemCount} item${itemCount !== 1 ? 's' : ''}</div>
+    </button>`;
+  }).join('');
+
+  renderOrderSlipDetail();
+}
+
+// Render the detail view for the currently-selected slip (Req 6.5): items,
+// note, totals, and status. Leaves a clearly-marked placeholder container for
+// the Served button (task 5.6).
+function renderOrderSlipDetail() {
+  const detail = $('orderSlipDetail');
+  if (!detail) return;
+
+  const order = selectedSlipOrderId
+    ? allOrders.find(o => o.id === selectedSlipOrderId)
+    : null;
+
+  if (!order) {
+    detail.innerHTML = `<div class="slip-detail-empty">
+      <i class="fa-solid fa-hand-pointer"></i>
+      Select an order slip to view its details.
+    </div>`;
+    return;
+  }
+
+  const items = order.items || [];
+  const itemsHtml = items.length
+    ? items.map(i => `<div class="slip-detail-item">
+        <span class="sdi-qty">${Number(i.qty) || 0}×</span>
+        <span class="sdi-name">${escapeHtml(i.name || '—')}</span>
+        <span class="sdi-price">₱${((Number(i.price) || 0) * (Number(i.qty) || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+      </div>`).join('')
+    : '<div class="slip-detail-item"><span class="sdi-name">No items.</span></div>';
+
+  const total = Number(order.total)
+    || items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
+
+  const noteHtml = order.note
+    ? `<div class="slip-detail-note"><strong>Note:</strong> ${escapeHtml(order.note)}</div>`
+    : '';
+
+  // Served action (Req 7): offered only for unpaid, not-yet-served orders.
+  const servedBtnHtml = shouldShowServedButton(order)
+    ? `<button type="button" class="slip-served-btn" onclick="window._markSlipServed('${order.id}')"><i class="fa-solid fa-utensils"></i> Mark as Served</button>`
+    : '';
+
+  // Print a kitchen order slip (items & qty, no prices). Use the browser print
+  // dialog's "Save as PDF" to export a PDF.
+  const printBtnHtml = `<button type="button" class="slip-print-btn" onclick="window._printSlip('${order.id}')"><i class="fa-solid fa-print"></i> Print Order Slip</button>`;
+
+  detail.innerHTML = `
+    <div class="slip-detail-head">
+      <div class="slip-detail-title">${escapeHtml(slipShortId(order.id))}</div>
+      <span class="slip-badge ${slipStatusClass(order.status)}">${escapeHtml(slipStatusLabel(order.status))}</span>
+    </div>
+    <div class="slip-detail-loc">${escapeHtml(slipLocationLabel(order))}</div>
+    <div class="slip-detail-items">${itemsHtml}</div>
+    ${noteHtml}
+    <div class="slip-detail-total">
+      <span class="sdt-label">Total</span>
+      <span class="sdt-val">₱${total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>
+    <div id="orderSlipServedSlot" class="slip-detail-served-slot">${servedBtnHtml}${printBtnHtml}</div>
+  `;
+}
+
+// Select (or re-select) an order slip and render its detail view (Req 6.5).
+window._selectSlip = (id) => {
+  selectedSlipOrderId = id;
+  renderOrderSlips();
+};
+
+// Mark the selected order served (Req 7). An unpaid order becomes served_unpaid
+// (never 'completed' — Req 8.5); a paid_unserved order becomes served_paid.
+// servedAt is first-write-wins (Req 9.4). The live onSnapshot re-renders the
+// panel automatically after the write.
+window._markSlipServed = async (id) => {
+  const order = allOrders.find(o => o.id === id);
+  if (!order || !shouldShowServedButton(order)) {
+    showToast('⚠ This order can no longer be marked served.');
+    return;
+  }
+  try {
+    await updateDoc(doc(db, 'orders', id), {
+      status: nextStatusAfterServed(order),
+      ...servedAtUpdate(order, serverTimestamp()),
+      updatedAt: serverTimestamp(),
+    });
+    showToast('✓ Order marked as served.');
+  } catch (e) {
+    console.error('markSlipServed:', e);
+    showToast('❌ Failed to mark served. Please retry.');
+  }
+};
+
+// Print a kitchen order slip for the selected order — items and quantities only,
+// no prices (that's the cashier's receipt). Opens a print window; the browser's
+// print dialog offers "Save as PDF" to export a PDF. Mirrors the cashier
+// portal's printOrderSlip format for a consistent kitchen copy.
+window._printSlip = (id) => {
+  const order = allOrders.find(o => o.id === id);
+  if (!order) { showToast('⚠ Order not found.'); return; }
+
+  const takeout = order.orderType === 'takeout' || !order.tableNumber;
+  const timestamp = order.createdAt?.toDate
+    ? order.createdAt.toDate().toLocaleString('en-PH', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      })
+    : '—';
+
+  const itemsRows = (order.items || []).map(item => `
+    <tr>
+      <td class="qty-col">${Number(item.qty) || 0}×</td>
+      <td>${escapeHtml(item.name || '—')}</td>
+    </tr>
+  `).join('');
+
+  const printWindow = window.open('', '_blank', 'width=380,height=600');
+  if (!printWindow) { showToast('❌ Allow popups to print order slips.'); return; }
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Order Slip - Salo sa Antipolo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #111;
+      background: #fff;
+      padding: 12mm 6mm;
+    }
+    .rh { text-align: center; margin-bottom: 10px; }
+    .rn { font-weight: 700; font-size: 15px; letter-spacing: 0.04em; }
+    .rs { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 3px; }
+    hr.s { border: none; border-top: 2px solid #111; margin: 8px 0; }
+    hr.d { border: none; border-top: 1px dashed #aaa; margin: 6px 0; }
+    .mr { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+    .ml { color: #666; }
+    .mv { font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+    td { padding: 7px 0; border-bottom: 1px dashed #ccc; }
+    tbody tr:last-child td { border-bottom: none; }
+    .qty-col { width: 42px; font-weight: 700; color: #b8821e; }
+    .ft { text-align: center; margin-top: 16px; font-size: 10px; color: #777; letter-spacing: 0.08em; text-transform: uppercase; }
+    .takeout-banner {
+      text-align: center; background: #e67e22; color: #fff; font-weight: 700;
+      font-size: 13px; letter-spacing: 0.06em; padding: 6px 0; margin-bottom: 8px; border-radius: 4px;
+    }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="rh">
+    <div class="rn">Salo sa Antipolo</div>
+    <div class="rs">Order Slip · Kitchen Copy</div>
+  </div>
+  <hr class="s"/>
+  ${takeout ? `<div class="takeout-banner">🥡 TAKEOUT ORDER</div>` : ''}
+  <div class="mr"><span class="ml">Order:</span><span class="mv">#${String(order.id).slice(-5).toUpperCase()}</span></div>
+  <div class="mr"><span class="ml">${takeout ? 'Type:' : 'Table:'}</span><span class="mv">${escapeHtml(slipLocationLabel(order))}</span></div>
+  <div class="mr"><span class="ml">Waiter:</span><span class="mv">${escapeHtml(order.waiterName || '—')}</span></div>
+  <div class="mr"><span class="ml">Time:</span><span class="mv">${timestamp}</span></div>
+  ${order.note ? `<div class="mr" style="margin-top:4px"><span class="ml">Note:</span><span class="mv">${escapeHtml(order.note)}</span></div>` : ''}
+  <hr class="d"/>
+  <table><tbody>${itemsRows}</tbody></table>
+  <div class="ft">— End of Order —</div>
+</body>
+</html>`);
+
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+};
