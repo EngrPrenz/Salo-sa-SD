@@ -531,10 +531,16 @@ function renderOrderDetail(group) {
         ${slipIdsHtml}
       </div>
       ${group.orders.some(o => o.note) ? `<div class="detail-note"><strong>Note:</strong> ${group.orders.filter(o => o.note).map(o => escapeHtml(o.note)).join(' | ')}</div>` : ''}
-      <button class="btn-slip" onclick="printOrderSlip('${group.key}')">
-        <i class="fa-solid fa-kitchen-set"></i>
-        Print Order Slip
-      </button>
+      <div class="slip-btn-row">
+        <button class="btn-slip" onclick="printGroupReceiptPreview('${group.key}')">
+          <i class="fa-solid fa-receipt"></i>
+          Print Receipt
+        </button>
+        <button class="btn-slip btn-slip-kitchen" onclick="printOrderSlip('${group.key}')">
+          <i class="fa-solid fa-kitchen-set"></i>
+          Kitchen Slip
+        </button>
+      </div>
     </div>
 
     <div class="detail-section">
@@ -827,9 +833,12 @@ window.processPayment = async function() {
 
     showToast('✅ Payment processed successfully');
     
-    // Hold onto the group for receipt printing before clearing state
+    // Hold onto the group and payment details for receipt printing before clearing state
     const paidGroup = selectedGroup;
-    
+    const paidDiscountType = discountType;
+    const paidCashTendered = cashTendered;
+    const paidChangeAmount = changeAmount;
+
     // Reset to empty state
     selectedGroup = null;
     discountType = 'none';
@@ -848,7 +857,7 @@ window.processPayment = async function() {
     
     // Auto-print receipt for the paid group
     setTimeout(() => {
-      printGroupReceipt(paidGroup, discountType, financials, cashTendered, changeAmount);
+      printGroupReceipt(paidGroup, paidDiscountType, financials, paidCashTendered, paidChangeAmount);
     }, 500);
 
   } catch (error) {
@@ -1081,15 +1090,226 @@ window.showBillingReceipt = function(orderId) {
 };
 
 // ══════════════════════════════════════════════════════════════
+// GROUP RECEIPT PRINTING (full payment receipt — admin style)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Called from the "Print Receipt" button in the detail panel (before payment).
+ * Builds a preview receipt using the current discount selection and no cash info.
+ */
+window.printGroupReceiptPreview = function(groupKey) {
+  const queueOrders = allOrders.filter(belongsInCashierQueue);
+  const groups = groupOrdersByTable(queueOrders);
+  const group = groups.find(g => g.key === groupKey);
+  if (!group) { showToast('⚠ Order not found'); return; }
+  const financials = calculateGroupFinancials(group, discountType);
+  printGroupReceipt(group, discountType, financials, 0, 0);
+};
+
+window.printGroupReceipt = async function(group, discountType, financials, cashTendered, changeAmount) {
+  if (!group) return;
+
+  const order = group.orders[0];
+  const combinedItems = group.combinedItems;
+
+  // Load logo as base64 so it works in the detached print window
+  let logo = null;
+  try {
+    const res = await fetch('image/logo.png');
+    const blob = await res.blob();
+    logo = await new Promise(r => {
+      const reader = new FileReader();
+      reader.onload = () => r(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) { /* logo is optional */ }
+
+  const timestamp = order.createdAt?.toDate
+    ? order.createdAt.toDate().toLocaleString('en-PH', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      })
+    : '—';
+
+  const waiterNames = [...new Set(group.orders.map(o => o.waiterName).filter(Boolean))].join(', ') || '—';
+
+  const itemRows = combinedItems.map(item => `
+    <tr>
+      <td>${escapeHtml(item.name)}</td>
+      <td style="text-align:center">${item.qty}</td>
+      <td style="text-align:right">₱${((item.price || 0) * (item.qty || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+    </tr>
+  `).join('');
+
+  const printWindow = window.open('', '_blank', 'width=400,height=750');
+  if (!printWindow) { showToast('❌ Allow popups to print receipts'); return; }
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Receipt - Salo sa Antipolo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #111;
+      background: #fff;
+      padding: 12mm 6mm;
+    }
+    .rh { text-align: center; margin-bottom: 10px; }
+    .logo {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      display: block;
+      margin: 0 auto 6px;
+    }
+    .rn { font-weight: 700; font-size: 14px; letter-spacing: 0.03em; }
+    .ri { font-style: italic; color: #b8821e; }
+    .ra { font-size: 9px; color: #666; margin-top: 4px; line-height: 1.5; }
+    hr.s { border: none; border-top: 1px solid #111; margin: 7px 0; }
+    hr.d { border: none; border-top: 1px dashed #aaa; margin: 5px 0; }
+    .mr {
+      display: flex; justify-content: space-between;
+      font-size: 10px; padding: 2px 0;
+    }
+    .ml { color: #888; }
+    .mv { font-weight: 700; }
+    .order-id { font-weight: 700; color: #b8821e; }
+    .takeout-banner {
+      text-align: center;
+      background: #e67e22; color: #fff;
+      font-weight: 700; font-size: 11px;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 5px 0; margin: 6px 0; border-radius: 3px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 2px; }
+    th {
+      text-align: left; font-size: 8px;
+      letter-spacing: .07em; text-transform: uppercase;
+      color: #555; border-bottom: 1px solid #ccc; padding: 3px 0;
+    }
+    th:not(:first-child) { text-align: right; }
+    td { padding: 4px 0; }
+    tbody tr:last-child td { border-bottom: 1px dashed #ccc; }
+    .tr { display: flex; justify-content: space-between; font-size: 10px; padding: 2px 0; }
+    .discount-row { color: #27ae60; font-weight: 600; }
+    .vat-exempt-row { color: #e67e22; font-style: italic; }
+    .tg {
+      display: flex; justify-content: space-between;
+      font-size: 14px; font-weight: 700;
+      border-top: 1.5px solid #111;
+      margin-top: 6px; padding-top: 5px;
+    }
+    .tg span:last-child { color: #b8821e; }
+    .cash-section { margin-top: 8px; }
+    .ft {
+      text-align: center; margin-top: 14px;
+      font-size: 9px; color: #777; line-height: 1.9;
+    }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="rh">
+    ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
+    <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
+    <div class="ra">Sumulong Highway, Siete Media,<br/>Antipolo City, Rizal, Philippines, 1870</div>
+  </div>
+  <hr class="s"/>
+  <div class="mr">
+    <span class="ml">Order:</span>
+    <span class="order-id">#${order.id.slice(-5).toUpperCase()}</span>
+  </div>
+  <div class="mr"><span class="ml">Date:</span><span>${timestamp}</span></div>
+  <div class="mr">
+    <span class="ml">Type:</span>
+    <span style="font-weight:700${isTakeout(order) ? ';color:#b8821e' : ''}">
+      ${isTakeout(order) ? '🥡 Takeout' : '🍽️ Dine-In'}
+    </span>
+  </div>
+  ${!isTakeout(order) ? `
+  <div class="mr"><span class="ml">Table:</span><span>${group.tableNumber}</span></div>` : ''}
+  <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(waiterNames)}</span></div>
+  ${group.orders.some(o => o.note) ? `<div class="mr" style="margin-top:3px;"><span class="ml">Note:</span><span style="font-weight:700">${group.orders.filter(o => o.note).map(o => escapeHtml(o.note)).join(' | ')}</span></div>` : ''}
+  <hr class="d"/>
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th style="text-align:center">Qty</th>
+        <th style="text-align:right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+  <div style="margin-top:6px;">
+    <div class="tr">
+      <span>VAT-Excl.</span>
+      <span>₱${financials.subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>
+    ${financials.discountAmount > 0 ? `
+    <div class="tr discount-row">
+      <span>Discount (${discountType === 'senior' ? 'Senior' : 'PWD'} 20%)</span>
+      <span>-₱${financials.discountAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>` : ''}
+    ${financials.vatExempt ? `
+    <div class="tr vat-exempt-row"><span>VAT Exempt</span><span>₱0.00</span></div>
+    ` : `
+    <div class="tr"><span>VAT (12%)</span><span>₱${financials.vatAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></div>
+    `}
+    <div class="tr">
+      <span>Service Charge (7%)</span>
+      <span>₱${financials.serviceCharge.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>
+    <div class="tg">
+      <span>TOTAL</span>
+      <span>₱${financials.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>
+  </div>
+  ${cashTendered > 0 ? `
+  <hr class="d" style="margin:8px 0;"/>
+  <div class="cash-section">
+    <div class="tr">
+      <span>Cash Tendered</span>
+      <span>₱${cashTendered.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>
+    <div class="tr" style="font-weight:700;font-size:12px;margin-top:3px;">
+      <span>Change</span>
+      <span>₱${(changeAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+    </div>
+  </div>` : ''}
+  <hr class="d" style="margin-top:12px;"/>
+  <div class="ft">
+    Thank you for dining with us!<br/>
+    Please come again 🍽️<br/>
+    @salosantipolo
+  </div>
+</body>
+</html>`);
+
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 300);
+};
+
+// ══════════════════════════════════════════════════════════════
 // ORDER SLIP PRINTING (kitchen copy — items & qty only, no prices)
 // ══════════════════════════════════════════════════════════════
 
-window.printOrderSlip = function(orderId) {
-  const order = allOrders.find(o => o.id === orderId);
-  if (!order) {
+window.printOrderSlip = function(groupKey) {
+  // groupKey is order.id for takeout, tableNumber string for dine-in
+  const groups = groupOrdersByTable(allOrders.filter(o => belongsInCashierQueue(o)));
+  const group = groups.find(g => g.key === groupKey);
+  if (!group) {
     showToast('⚠ Order not found');
     return;
   }
+  // Use the earliest slip as the representative order for header info,
+  // but combine all items from every slip in the group.
+  const order = group.orders[0];
+  const combinedItems = group.combinedItems;
 
   const timestamp = order.createdAt?.toDate
     ? order.createdAt.toDate().toLocaleString('en-PH', {
@@ -1102,7 +1322,7 @@ window.printOrderSlip = function(orderId) {
       })
     : '—';
 
-  const itemsRows = (order.items || []).map(item => `
+  const itemsRows = combinedItems.map(item => `
     <tr>
       <td class="qty-col">${item.qty}×</td>
       <td>${escapeHtml(item.name)}</td>
@@ -1361,6 +1581,7 @@ window.printReceipt = async function(orderId) {
   <div class="mr"><span class="ml">${isTakeout(order) ? 'Type:' : 'Table:'}</span><span>${orderLocationLabel(order)}</span></div>
   <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(order.waiterName || '—')}</span></div>
   <div class="mr"><span class="ml">Payment:</span><span>Cash</span></div>
+  ${order.note ? `<div class="mr" style="margin-top:3px;"><span class="ml">Note:</span><span style="font-weight:700">${escapeHtml(order.note)}</span></div>` : ''}
   <hr class="d"/>
   <table>
     <thead>

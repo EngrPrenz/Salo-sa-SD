@@ -1437,6 +1437,26 @@ html, body {
   transform: none;
 }
 
+/* Print / Slip Buttons */
+.slip-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.slip-btn-row .btn-slip {
+  flex: 1;
+  margin-top: 0;
+}
+
+.btn-slip-kitchen {
+  opacity: 0.75;
+}
+
+.btn-slip-kitchen:hover {
+  opacity: 1;
+}
+
 /* Print Order Slip Button (kitchen copy) */
 .btn-slip {
   width: 100%;

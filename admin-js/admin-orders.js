@@ -40,9 +40,7 @@ const STATUS_ACTIONS = {
   // preserved intact (Req 2.4). "Mark as Paid" is removed from admin cards —
   // payment is processed exclusively on the Cashier page.
   pending:       [{ to: 'preparing',     label: 'Start Preparing', btnClass: 'order-btn-primary' }],
-  preparing:     [
-    { to: 'served_unpaid', label: 'Mark as Served', btnClass: 'order-btn-primary' },
-  ],
+  preparing:     [],
   served_unpaid: [],
   paid_unserved: [{ to: 'served_paid',   label: 'Mark as Served', btnClass: 'order-btn-primary' }],
   served_paid:   [],
