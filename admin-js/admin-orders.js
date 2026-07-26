@@ -453,14 +453,14 @@ function orderCardHtml(o) {
     actionButtons += `<button class="${action.btnClass}" onclick="window._updateStatus('${o.id}','${action.to}')">${action.label}</button>`;
   }
 
-  // Secondary row: receipt is always available (except once cancelled); cancel
+  // Secondary row: kitchen slip is always available (except once cancelled); cancel
   // is only offered while the order hasn't started preparing yet.
   // "Send to Cashier" appears on served_unpaid cards (and preparing as a hint)
   // so payment is always handled on the Cashier page.
   let secondaryButtons = '';
   if (o.status !== 'cancelled') {
     const canCancel = CANCELLABLE_STATUSES.includes(o.status);
-    secondaryButtons += `<button class="order-btn-secondary${canCancel ? '' : ' full'}" onclick="window._showReceipt('${o.id}')">Receipt</button>`;
+    secondaryButtons += `<button class="order-btn-secondary${canCancel ? '' : ' full'}" onclick="window._showKitchenSlip('${o.id}')">Kitchen Slip</button>`;
     if (canCancel) {
       secondaryButtons += `<button class="order-btn-danger" onclick="window._cancelOrder('${o.id}')">Cancel</button>`;
     }
@@ -583,164 +583,268 @@ function orderCardHtml(o) {
     </div>`;
 }
 
-// ── Receipt modal ──────────────────────────────────────────────────────────────
-window._showReceipt = id => {
-  const o = allOrders.find(x => x.id===id); if (!o) { showToast('Order not found'); return; }
-  const modal = document.getElementById('receiptModal');
-  const body  = document.getElementById('receiptModalBody');
-  if (!modal||!body) return;
+// ── Kitchen Slip modal body renderer ──────────────────────────────────────────
+// Pure render helper — takes an order object, returns an HTML string for the
+// kitchen-slip modal body. No monetary values, no calculateFinancials() call.
+function kitchenSlipModalBodyHtml(o) {
+  const ts = o.createdAt?.toDate
+    ? o.createdAt.toDate().toLocaleString('en-PH')
+    : '—';
 
-  const discountType = o.discountType || 'none';
-  const { discountAmount, vatExempt, netAmount, vatAmount, serviceCharge, grandTotal } = calculateFinancials(Number(o.total)||0, discountType);
+  const newItems   = Array.isArray(o.newItems) ? o.newItems : [];
+  const hasNewItems = newItems.length > 0
+    && o.status !== 'served_paid'
+    && o.status !== 'cancelled';
+  const newItemIdSet = new Set(newItems.map(i => i.id));
 
-  const items = (o.items||[]).map(it => `
-    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-        ${escapeHtml(it.name)} <span style="color:var(--text-muted)">× ${it.qty}</span>
+  // Items list — name ≥ 16px, qty ≥ 14px, dot marker on rows whose id is in newItems, no price
+  const itemsHtml = (o.items || []).map(it => {
+    const isNew = hasNewItems && newItemIdSet.has(it.id);
+    return `
+    <div style="display:flex;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      ${isNew ? `<span style="color:var(--green);font-size:14px;flex-shrink:0;" title="New item">•</span>` : ''}
+      <span style="font-size:16px;flex:1;min-width:0;word-break:break-word;">${escapeHtml(it.name)}</span>
+      <span style="font-size:14px;color:var(--text-muted);flex-shrink:0;">× ${it.qty}</span>
+    </div>`;
+  }).join('');
+
+  // New-items badge + announcement block — only when applicable
+  const newItemsAnnouncementHtml = hasNewItems ? `
+    <div style="background:rgba(46,213,115,0.12);border:1px solid rgba(46,213,115,0.35);border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px;">
+      <span class="new-order-badge" style="flex-shrink:0;animation:pulse 1.4s infinite;"><span class="new-order-dot"></span>New items</span>
+      <div style="font-size:13px;color:var(--green);">
+        ${newItems.map(i => `<div>${escapeHtml(i.name)} × ${i.qty}</div>`).join('')}
       </div>
-      <div style="flex-shrink:0;margin-left:12px;font-weight:600;">
-        ₱${((Number(it.price)||0)*(Number(it.qty)||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}
-      </div>
-    </div>`).join('');
+    </div>` : '';
 
-  const ts = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('en-PH') : '—';
+  // Note block — only when o.note is a non-empty string
+  const noteHtml = (typeof o.note === 'string' && o.note.trim())
+    ? `<div style="margin-top:12px;padding:10px 12px;background:rgba(255,255,255,0.05);border-left:3px solid var(--gold);border-radius:0 6px 6px 0;">
+        <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold);">Note:</span>
+        <span style="font-size:14px;color:var(--text-muted);margin-left:6px;">${escapeHtml(o.note)}</span>
+      </div>`
+    : '';
 
-  body.innerHTML = `
+  return `
     <div style="margin-bottom:12px;">
-      <div style="font-size:15px;font-weight:700;color:var(--white)">Order #${o.id.slice(-5).toUpperCase()}</div>
+      <div style="font-size:15px;font-weight:700;color:var(--white);">Order #${escapeHtml(o.id.slice(-5).toUpperCase())}</div>
       <div style="color:var(--text-muted);font-size:12px;margin-top:3px;">${ts}</div>
-      <div style="color:var(--text-muted);font-size:11px;margin-top:2px;">${escapeHtml(RESTAURANT_ADDRESS)}</div>
       <div style="color:var(--text-muted);font-size:12px;margin-top:6px;">
-        Table ${escapeHtml(String(o.tableNumber||'—'))} · ${escapeHtml(o.waiterName||'—')}
+        Table <strong>${escapeHtml(String(o.tableNumber ?? '—'))}</strong>
+        &nbsp;·&nbsp;
+        ${escapeHtml(o.waiterName || '—')}
       </div>
     </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:0 0 10px;">
-    ${items}
-    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0 8px;">
-    ${discountAmount > 0 ? `
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--green);padding:3px 0;">
-      <span>Discount (${discountType === 'senior' ? 'Senior Citizen' : 'PWD'} 20%)</span><span>-₱${discountAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-    </div>` : ''}
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
-      <span>VAT-excl. Amount</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-    </div>
-    ${!vatExempt ? `
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
-      <span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-    </div>` : `
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--orange);font-style:italic;padding:3px 0;">
-      <span>VAT Exempt</span><span>₱0.00</span>
-    </div>`}
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:3px 0;">
-      <span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-    </div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)">Total</span>
-      <span style="font-size:20px;font-weight:700;color:var(--gold-light);font-family:'Cormorant Garamond',serif;">
-        ₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}
-      </span>
-    </div>`;
+    ${newItemsAnnouncementHtml}
+    <div>${itemsHtml || '<div style="color:var(--text-muted);font-size:14px;padding:6px 0;">No items</div>'}</div>
+    ${noteHtml}`;
+}
 
+// ── Kitchen Slip modal ─────────────────────────────────────────────────────────
+// Requirements: 1.1, 1.2, 6.1
+window._showKitchenSlip = id => {
+  const o = allOrders.find(x => x.id === id); if (!o) { showToast('Order not found'); return; }
+  const modal = document.getElementById('kitchenSlipModal');
+  const body  = document.getElementById('kitchenSlipModalBody');
+  if (!modal || !body) return;
+  body.innerHTML = kitchenSlipModalBodyHtml(o);
   body.dataset.orderId = id;
   modal.classList.add('show');
 };
 
-document.getElementById('receiptModalClose')?.addEventListener('click',  () => document.getElementById('receiptModal')?.classList.remove('show'));
-document.getElementById('receiptModalClose2')?.addEventListener('click', () => document.getElementById('receiptModal')?.classList.remove('show'));
-document.getElementById('receiptModal')?.addEventListener('click', e => {
-  if (e.target === document.getElementById('receiptModal')) document.getElementById('receiptModal').classList.remove('show');
+// Requirements: 1.5, 3.1
+document.getElementById('kitchenSlipModalClose')?.addEventListener('click', () => document.getElementById('kitchenSlipModal')?.classList.remove('show'));
+document.getElementById('kitchenSlipModalClose2')?.addEventListener('click', () => document.getElementById('kitchenSlipModal')?.classList.remove('show'));
+document.getElementById('kitchenSlipModal')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('kitchenSlipModal')) document.getElementById('kitchenSlipModal').classList.remove('show');
 });
-
-// ── Print receipt ──────────────────────────────────────────────────────────────
-document.getElementById('receiptModalPrint')?.addEventListener('click', async () => {
-  const body = document.getElementById('receiptModalBody');
+document.getElementById('kitchenSlipModalPrint')?.addEventListener('click', () => {
+  const body = document.getElementById('kitchenSlipModalBody');
   const id   = body?.dataset.orderId;
   const o    = id ? allOrders.find(x => x.id === id) : null;
   if (!o) { showToast('Could not find order for printing'); return; }
+  printKitchenSlip(o);
+});
 
-  let logo = null;
-  try {
-    const res  = await fetch('../image/logo.png');
-    const blob = await res.blob();
-    logo = await new Promise(r => { const rd=new FileReader(); rd.onload=()=>r(rd.result); rd.readAsDataURL(blob); });
-  } catch(_) {}
 
-  const discountType = o.discountType || 'none';
-  const { discountAmount, vatExempt, netAmount, vatAmount, serviceCharge, grandTotal } = calculateFinancials(o.total||0, discountType);
+// ── Kitchen Slip print HTML ────────────────────────────────────────────────────
+// Pure render helper — takes an order object and returns a complete HTML
+// document string for the kitchen-slip print pop-up window.
+// No monetary values are emitted: no ₱, no VAT, no service charge, no totals.
+function kitchenSlipPrintHtml(o) {
+  const shortId = escapeHtml(o.id.slice(-5).toUpperCase());
+
   const ts = o.createdAt?.toDate
-    ? o.createdAt.toDate().toLocaleString('en-PH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})
+    ? o.createdAt.toDate().toLocaleString('en-PH', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+      })
     : '—';
 
-  const rows = (o.items||[]).map(it =>
-    `<tr>
-      <td>${escapeHtml(it.name)}</td>
-      <td style="text-align:center">${it.qty}</td>
-      <td style="text-align:right">₱${((it.price||0)*(it.qty||0)).toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
-    </tr>`
-  ).join('');
+  const tableNum  = escapeHtml(String(o.tableNumber || '—'));
+  const waiterName = escapeHtml(o.waiterName || '—');
 
-  const pw = window.open('','_blank','width=400,height=700');
-  if (!pw) { showToast('Allow popups to print.'); return; }
+  const newItemIdSet = new Set((o.newItems || []).map(i => i.id));
 
-  pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css"/>
+  const rows = (o.items || []).map(it => {
+    const isNew = newItemIdSet.has(it.id);
+    return `
+    <tr>
+      <td>${isNew ? '<span class="new-label">[NEW]</span> ' : ''}${escapeHtml(it.name)}</td>
+      <td class="qty-col">${escapeHtml(String(it.qty))}</td>
+    </tr>`;
+  }).join('');
+
+  const noteBlock = (o.note || '').trim()
+    ? `<div class="note-block"><span class="note-label">Note:</span> ${escapeHtml(o.note)}</div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kitchen Slip</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Courier New',monospace;font-size:11px;color:#111;background:#fff;padding:12mm 6mm;}
-    .rh{text-align:center;margin-bottom:10px;}
-    .logo{width:52px;height:52px;border-radius:50%;display:block;margin:0 auto 6px;}
-    .rn{font-weight:700;font-size:13px;}.ri{font-style:italic;color:#b8821e;}
-    .ra{font-size:9px;color:#777;margin-top:3px;line-height:1.5;}
-    hr.s{border:none;border-top:1px solid #111;margin:7px 0;}
-    hr.d{border:none;border-top:1px dashed #aaa;margin:5px 0;}
-    .mr{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
-    .ml{color:#888;}
-    table{width:100%;border-collapse:collapse;font-size:10px;}
-    th{text-align:left;font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#555;border-bottom:1px solid #ddd;padding:3px 0;}
-    th:not(:first-child){text-align:right;}
-    td{padding:4px 0;}
-    tbody tr:last-child td{border-bottom:1px dashed #ccc;}
-    .tr{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;}
-    .discount-row{color:#27ae60;font-weight:600;}
-    .vat-exempt-row{color:#e67e22;font-style:italic;}
-    .tg{display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1.5px solid #111;margin-top:6px;padding-top:5px;}
-    .tg span:last-child{color:#b8821e;}
-    .ft{text-align:center;margin-top:14px;font-size:9px;color:#777;line-height:1.8;}
-    .social{display:flex;justify-content:center;gap:12px;margin-top:8px;}
-    .social i{font-size:14px;color:#999;}
-    .handle{text-align:center;font-size:9px;color:#aaa;margin-top:4px;}
-    @media print{body{padding:0;}}
-  </style></head><body>
-  <div class="rh">
-    ${logo ? `<img class="logo" src="${logo}" alt=""/>` : ''}
-    <div class="rn">Salo sa <span class="ri">Antipolo</span></div>
-    <div class="ra">Sumulong Highway, Siete Media,<br>Antipolo City, Rizal, Philippines, 1870</div>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      color: #000;
+      background: #fff;
+      padding: 14mm 8mm;
+    }
+    h1 {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #000;
+      margin-bottom: 2px;
+    }
+    .restaurant-name {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #000;
+      margin-bottom: 10px;
+    }
+    hr.solid  { border: none; border-top: 1.5px solid #000; margin: 7px 0; }
+    hr.dashed { border: none; border-top: 1px dashed #555;  margin: 5px 0; }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 2px 0;
+      color: #000;
+    }
+    .meta-label { color: #444; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #000;
+    }
+    thead th {
+      text-align: left;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #000;
+      border-bottom: 1px solid #000;
+      padding: 3px 0;
+    }
+    thead th.qty-col { text-align: center; width: 40px; }
+    tbody td {
+      padding: 5px 0;
+      border-bottom: 1px dashed #aaa;
+      vertical-align: top;
+      color: #000;
+    }
+    tbody td.qty-col { text-align: center; width: 40px; }
+    .new-label {
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      color: #000;
+    }
+    .note-block {
+      margin-top: 10px;
+      padding: 6px 8px;
+      border: 1px solid #000;
+      font-size: 11px;
+      color: #000;
+      line-height: 1.5;
+    }
+    .note-label { font-weight: 700; }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <h1>KITCHEN SLIP</h1>
+  <div class="restaurant-name">Salo sa Antipolo</div>
+
+  <hr class="solid"/>
+
+  <div class="meta-row">
+    <span class="meta-label">Order:</span>
+    <span><strong>#${shortId}</strong></span>
   </div>
-  <hr class="s"/>
-  <div class="mr"><span class="ml">Order:</span><span style="font-weight:700;color:#b8821e">#${o.id.slice(-5).toUpperCase()}</span></div>
-  <div class="mr"><span class="ml">Date:</span><span>${ts}</span></div>
-  <div class="mr"><span class="ml">Table:</span><span>${o.tableNumber||'—'}</span></div>
-  <div class="mr"><span class="ml">Waiter:</span><span>${escapeHtml(o.waiterName||'—')}</span></div>
-  <hr class="d"/>
+  <div class="meta-row">
+    <span class="meta-label">Date:</span>
+    <span>${ts}</span>
+  </div>
+  <div class="meta-row">
+    <span class="meta-label">Table:</span>
+    <span>${tableNum}</span>
+  </div>
+  <div class="meta-row">
+    <span class="meta-label">Waiter:</span>
+    <span>${waiterName}</span>
+  </div>
+
+  <hr class="dashed"/>
+
   <table>
-    <thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead>
-    <tbody>${rows}</tbody>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="qty-col">Qty</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="2">No items</td></tr>'}
+    </tbody>
   </table>
-  <div style="margin-top:6px;">
-    ${discountAmount > 0 ? `<div class="tr discount-row"><span>Discount (${discountType === 'senior' ? 'Senior' : 'PWD'} 20%)</span><span>-₱${discountAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>` : ''}
-    <div class="tr"><span>VAT-Excl.</span><span>₱${netAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    ${!vatExempt ? `<div class="tr"><span>VAT (12%)</span><span>₱${vatAmount.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>` : `<div class="tr vat-exempt-row"><span>VAT Exempt</span><span>₱0.00</span></div>`}
-    <div class="tr"><span>Service Charge (7%)</span><span>₱${serviceCharge.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-    <div class="tg"><span>TOTAL</span><span>₱${grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-  </div>
-  <hr class="d" style="margin-top:12px;"/>
-  <div class="ft"><strong>Thank you for dining with us!</strong><br>Please come again 😊</div>
-  <div class="social">
-    <i class="ti ti-brand-instagram"></i><i class="ti ti-brand-tiktok"></i><i class="ti ti-brand-facebook"></i><i class="ti ti-phone"></i><i class="ti ti-mail"></i>
-  </div>
-  <div class="handle">@salosaantipolo</div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
-  </body></html>`);
+
+  ${noteBlock}
+
+  <script>window.onload = () => setTimeout(() => window.print(), 400);<\/script>
+</body>
+</html>`;
+}
+
+// ── Print kitchen slip ─────────────────────────────────────────────────────────
+// Opens a pop-up window and writes the kitchen-slip print document into it.
+// Guards against malformed orders (Req 3.6) and blocked pop-ups (Req 3.5).
+function printKitchenSlip(o) {
+  // Validation guard — order must have id, tableNumber, and at least one item
+  if (!o.id || !o.tableNumber || !(o.items?.length)) {
+    showToast('Cannot print: order is missing required fields', 'error');
+    return;
+  }
+
+  // Pop-up blocked guard
+  const pw = window.open('', '_blank', 'width=400,height=600');
+  if (!pw) { showToast('Allow pop-ups to print the kitchen slip.'); return; }
+
+  // Success path — generate and write the print document
+  pw.document.write(kitchenSlipPrintHtml(o));
   pw.document.close();
-});
+}
