@@ -273,8 +273,9 @@ export async function guardCashierPage(auth, db, fb, currentPage) {
         const data = snap.data();
         const role = data.role || '';
 
-        // Only allow admin_cashier role
-        if (role !== 'admin_cashier') {
+        // Allow admin_cashier and all admin-tier roles
+        const CASHIER_ALLOWED_ROLES = ['admin_cashier', 'admin_manager', 'admin_owner', 'admin'];
+        if (!CASHIER_ALLOWED_ROLES.includes(role)) {
           await auth.signOut();
           window.location.href = 'cashier-login.html';
           return;

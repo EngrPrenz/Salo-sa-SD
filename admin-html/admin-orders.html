@@ -110,8 +110,8 @@
       border-radius: 8px;
       border: 1px solid var(--border);
     }
-    .modal-content-receipt {
-      max-width: 420px;
+    .modal-content-kitchen-slip {
+      max-width: 440px;
     }
     .orders-grid {
       flex: 1; overflow-y: auto;
@@ -464,18 +464,18 @@
   <!-- ── Toast ─────────────────────────────────────────────────────────── -->
   <div class="toast" id="toast"><div class="toast-dot"></div><span id="toastMsg">Done.</span></div>
 
-  <!-- ── Receipt Modal ─────────────────────────────────────────────────── -->
-  <div class="modal" id="receiptModal">
+  <!-- ── Kitchen Slip Modal ───────────────────────────────────────────── -->
+  <div class="modal" id="kitchenSlipModal">
     <div class="modal-backdrop"></div>
-    <div class="modal-content modal-content-receipt">
+    <div class="modal-content modal-content-kitchen-slip">
       <div class="modal-head">
-        <h3>Receipt</h3>
-        <button class="modal-close" id="receiptModalClose">×</button>
+        <h3>Kitchen Slip</h3>
+        <button class="modal-close" id="kitchenSlipModalClose">×</button>
       </div>
-      <div class="modal-body" id="receiptModalBody"></div>
+      <div class="modal-body" id="kitchenSlipModalBody"></div>
       <div class="modal-foot">
-        <button class="btn-sm gold" id="receiptModalPrint">Print</button>
-        <button class="btn-sm" id="receiptModalClose2">Close</button>
+        <button class="btn-sm gold" id="kitchenSlipModalPrint">Print</button>
+        <button class="btn-sm" id="kitchenSlipModalClose2">Close</button>
       </div>
     </div>
   </div>

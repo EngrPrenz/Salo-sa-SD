@@ -28,20 +28,50 @@ const togglePw = document.getElementById('togglePw');
 const toast    = document.getElementById('toast');
 const toastMsg = document.getElementById('toastMsg');
 
-// Auto-redirect if already authenticated as cashier
+// Admin roles that bypass the cashier login form entirely
+const ADMIN_BYPASS_ROLES = ['admin_manager', 'admin_owner', 'admin'];
+
+// Auto-redirect if already authenticated as cashier or eligible admin
 onAuthStateChanged(auth, async user => {
   if (!user) return;
+
+  let docSnap;
   try {
-    const snap = await getDoc(doc(db, 'Users', user.uid));
-    if (!snap.exists()) return;
-    const data = snap.data();
-    if (data.role === 'admin_cashier') {
-      sessionStorage.setItem('userRole', 'admin_cashier');
-      sessionStorage.setItem('userName', data.name || user.email);
-      sessionStorage.setItem('userId', user.uid);
-      window.location.href = 'cashier.html';
-    }
-  } catch (_) {}
+    // 10-second timeout: if Firestore is slow, fall through to login form
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), 10_000)
+    );
+    docSnap = await Promise.race([
+      getDoc(doc(db, 'Users', user.uid)),
+      timeoutPromise,
+    ]);
+  } catch (_) {
+    return; // Firestore unavailable or timed out → show login form
+  }
+
+  if (!docSnap.exists()) return;
+  const data = docSnap.data();
+  const role = data.role || '';
+
+  if (role === 'admin_cashier') {
+    // Existing behaviour — unchanged
+    sessionStorage.setItem('userRole', 'admin_cashier');
+    sessionStorage.setItem('userName', data.name || user.email);
+    sessionStorage.setItem('userId', user.uid);
+    window.location.href = 'cashier.html';
+    return;
+  }
+
+  if (ADMIN_BYPASS_ROLES.includes(role)) {
+    // Admin bypass: write sessionStorage and skip the login form
+    sessionStorage.setItem('userRole', role);
+    sessionStorage.setItem('userName', data.name || user.email);
+    sessionStorage.setItem('userId', user.uid);
+    window.location.href = 'cashier.html';
+    return;
+  }
+
+  // waiter, cashier, unknown, null → fall through, login form stays visible
 });
 
 togglePw.onclick = () => {
