@@ -140,13 +140,14 @@ function init() {
     // Check if clicked element or its parent is the close button
     const closeBtn = e.target.closest('#detailClose');
     if (closeBtn) {
-      console.log('Close button clicked!');
-      // Reset to empty state instead of closing
+      // Reset to empty state and close mobile panel
       selectedGroup = null;
       discountType = 'none';
       paymentMethod = null;
       cashTendered = 0;
       
+      $('detailPanel')?.classList.remove('active', 'open');
+
       // Show empty state in detail panel
       $('detailBody').innerHTML = `
         <div class="empty-detail">
@@ -165,11 +166,30 @@ function init() {
 // ══════════════════════════════════════════════════════════════
 
 function setupNavigation() {
+  const menuToggle = $('cashierMenuToggle');
+  const navSidebar = document.querySelector('.nav-sidebar');
+  const cashierOverlay = $('cashierOverlay');
+
+  if (menuToggle && navSidebar) {
+    menuToggle.onclick = () => {
+      navSidebar.classList.toggle('open');
+      if (cashierOverlay) cashierOverlay.classList.toggle('show');
+    };
+  }
+  if (cashierOverlay && navSidebar) {
+    cashierOverlay.onclick = () => {
+      navSidebar.classList.remove('open');
+      cashierOverlay.classList.remove('show');
+    };
+  }
+
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
       const viewName = item.dataset.view;
       switchView(viewName);
+      if (navSidebar) navSidebar.classList.remove('open');
+      if (cashierOverlay) cashierOverlay.classList.remove('show');
     });
   });
 }

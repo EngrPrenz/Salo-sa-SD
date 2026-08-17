@@ -2,6 +2,7 @@
    waiter-responsiveness.css
    Scrollbar styling & responsive breakpoints
    for Salo sa Antipolo — Waiter
+   Elevated for Tablet, Phone, & Phone Landscape
 ═══════════════════════════════════════════════ */
 
 /* ── SCROLLBAR ── */
@@ -58,29 +59,12 @@
   border-top: 1px solid var(--border);
 }
 
-/* ── RESPONSIVE ── */
+/* ═══════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+═══════════════════════════════════════════════ */
 
-/* Small desktop / large tablet — 864px and below */
-@media (max-width: 864px) {
-  /* Shrink topbar to prevent overflow */
-  .topbar { padding: 0 14px; gap: 10px; }
-  .brand-name { font-size: 18px; }
-  .brand-logo { width: 36px; height: 36px; }
-
-  /* Compact the persistent order-type tabs so they fit alongside the pills */
-  .ots-tab { padding: 7px 12px; font-size: 12px; gap: 5px; }
-
-  /* Compress step pills text */
-  .step-pill { padding: 6px 12px; font-size: 12px; gap: 5px; }
-
-  /* Shrink logout button */
-  .logout-btn { padding: 6px 10px; font-size: 12px; }
-  .waiter-avatar { width: 32px; height: 32px; font-size: 13px; }
-}
-
-/* Medium tablet — 1024px and below */
+/* ── 1. MEDIUM TABLET & SMALL DESKTOP (<= 1024px) ── */
 @media (max-width: 1024px) {
-  /* Horizontal card layout — same as 768px but keeping 14 items/page */
   .menu-items { grid-template-columns: 1fr; padding: 10px 14px; }
 
   .menu-item-card {
@@ -132,21 +116,41 @@
     flex-shrink: 0;
   }
   .mic-price { font-size: 13px; }
-  .mic-add { width: 24px; height: 24px; font-size: 15px; }
+  .mic-add { width: 28px; height: 28px; font-size: 15px; }
 
-  /* Cart narrower */
   .cart-panel { width: 260px; }
+  .order-slip-panel { width: 280px; }
 }
 
+/* ── 2. TABLET (<= 864px) ── */
+@media (max-width: 864px) {
+  .topbar { padding: 0 14px; gap: 10px; }
+  .brand-name { font-size: 18px; }
+  .brand-logo { width: 36px; height: 36px; }
 
+  .ots-tab { padding: 7px 12px; font-size: 12px; gap: 5px; }
+  .step-pill { padding: 6px 12px; font-size: 12px; gap: 5px; }
+
+  .logout-btn { padding: 6px 10px; font-size: 12px; }
+  .waiter-avatar { width: 32px; height: 32px; font-size: 13px; }
+
+  .order-slip-panel { width: 260px; }
+  .slip-panel-header { padding: 12px 14px; }
+  .slip-panel-list, .slip-panel-detail { padding: 10px 12px; }
+}
+
+/* ── 3. TABLET PORTRAIT (<= 768px) ── */
 @media (max-width: 768px) {
-  /* Cart panel — narrower to give menu more room */
+  .main { flex-direction: column; }
+  .main-content { flex: 1 1 auto; min-height: 0; }
+
+  /* Cart panel */
   .cart-panel { width: 240px; }
 
   /* Menu items — single column */
   .menu-items { grid-template-columns: 1fr; padding: 10px 12px; }
 
-  /* Card: fixed height horizontal row */
+  /* Card */
   .menu-item-card {
     flex-direction: row;
     align-items: stretch;
@@ -154,7 +158,6 @@
     overflow: hidden;
   }
 
-  /* Both image and placeholder: fixed 88px square on the left */
   .mic-img,
   .mic-img-placeholder {
     width: 88px;
@@ -168,7 +171,6 @@
     border-right: 1px solid var(--border);
   }
 
-  /* Body: flex-column filling remaining width */
   .mic-body {
     flex: 1;
     min-width: 0;
@@ -181,7 +183,6 @@
   .mic-cat { font-size: 9px; }
   .mic-name { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  /* Description: 1 line only */
   .mic-desc {
     font-size: 11px;
     display: -webkit-box;
@@ -191,7 +192,6 @@
     flex: 1;
   }
 
-  /* Footer: always at bottom, price + add button */
   .mic-footer {
     margin-top: 4px;
     padding-top: 4px;
@@ -202,16 +202,10 @@
     flex-shrink: 0;
   }
   .mic-price { font-size: 13px; }
-  .mic-add { width: 24px; height: 24px; font-size: 15px; }
+  .mic-add { width: 28px; height: 28px; font-size: 15px; }
 
-  /* Category tab font */
   .cat-btn { font-size: 11px; padding: 6px 8px; }
-
-  /* Table label */
   .table-label { font-size: 16px; padding: 0 10px; }
-
-  /* Order-taking topbar — keep the new back button compact and non-shrinking
-     so its "‹ Back" text never clips; the cat-scroll absorbs the width. */
   .btn-back-table { padding: 10px 12px; flex-shrink: 0; }
 
   /* Cart */
@@ -221,7 +215,7 @@
   .cart-footer { padding: 10px; }
   .total-val { font-size: 22px; }
 
-  /* ── Pagination: ‹Prev  [1][2][3]  Next› all on one row ── */
+  /* Pagination */
   .menu-pagination {
     flex-wrap: nowrap;
     padding: 10px 12px;
@@ -259,84 +253,8 @@
     flex-shrink: 0;
   }
   .pg-count { display: none; }
-}
 
-/* Mobile — 560px and below */
-@media (max-width: 560px) {
-  .order-layout { flex-direction: column; }
-  .menu-panel { border-right: none; border-bottom: 1px solid var(--border); flex: none; height: 55%; }
-  .cart-panel { width: 100%; flex: none; height: 45%; }
-
-  /* Back to grid on small mobile */
-  .menu-item-card { flex-direction: column; }
-  .mic-img,
-  .mic-img-placeholder { width: 100%; aspect-ratio: 16 / 9; border-right: none; border-bottom: 1px solid var(--border); }
-  .menu-items { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding: 10px; }
-
-  .step-pills { display: none; }
-  .step-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-
-  /* Hide brand name on very small screens */
-  .brand-name { display: none; }
-
-  /* On phones, show only the tab icons to save navbar space */
-  .ots-tab { padding: 8px 10px; font-size: 0; gap: 0; }
-  .ots-tab i { font-size: 14px; }
-
-  /* Order-taking topbar on small mobile — shrink the back button, table label
-     and takeout badge so the back button and badge don't break the horizontal
-     .menu-topbar layout and the category scroller still has room. */
-  .btn-back-table { padding: 8px 10px; font-size: 11px; }
-  .table-label { font-size: 15px; padding: 0 8px; }
-  .order-type-badge { font-size: 10px; padding: 4px 8px; letter-spacing: 0.06em; }
-
-  /* Order Entry Screen — mobile adjustments */
-  .order-entry-content {
-    padding: 24px 20px;
-    max-width: 100%;
-  }
-
-  .entry-icon {
-    font-size: 64px;
-  }
-
-  .entry-title {
-    font-size: 28px;
-  }
-
-  .entry-subtitle {
-    font-size: 14px;
-  }
-
-  .btn-order-now {
-    padding: 14px 32px;
-    font-size: 15px;
-    width: 100%;
-    max-width: 320px;
-  }
-}
-
-
-/* ═══════════════════════════════════════════════
-   ORDER-SLIP PANEL — responsive rules (Req 6.1)
-═══════════════════════════════════════════════ */
-
-/* Medium tablet — trim the panel so the ordering area keeps room. */
-@media (max-width: 1024px) {
-  .order-slip-panel { width: 300px; }
-}
-
-@media (max-width: 864px) {
-  .order-slip-panel { width: 260px; }
-  .slip-panel-header { padding: 12px 14px; }
-  .slip-panel-list, .slip-panel-detail { padding: 10px 12px; }
-}
-
-/* Small tablet / phone — stack the panel below the ordering area as a bottom
-   strip, and lay its slips out horizontally so it stays usable. */
-@media (max-width: 768px) {
-  .main { flex-direction: column; }
-  .main-content { flex: 1 1 auto; min-height: 0; }
+  /* Order-slip panel bottom strip */
   .order-slip-panel {
     width: 100%;
     flex: 0 0 auto;
@@ -353,4 +271,333 @@
   }
   .order-slip { width: 180px; flex: 0 0 auto; }
   .slip-panel-detail { flex: 1 1 auto; }
+}
+
+/* ── 4. PHONES PORTRAIT (<= 560px) ── */
+@media (max-width: 560px) {
+  .topbar { padding: 0 10px; height: 54px; gap: 8px; }
+  .brand-name { display: none; }
+  .brand-logo { width: 32px; height: 32px; }
+
+  .order-layout { flex-direction: column; }
+  .menu-panel { border-right: none; border-bottom: 1px solid var(--border); flex: 1; min-height: 52%; }
+  .cart-panel { width: 100%; flex: none; height: 48%; }
+
+  /* Card layout */
+  .menu-item-card { flex-direction: row; height: 80px; }
+  .mic-img,
+  .mic-img-placeholder {
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    height: 80px;
+    aspect-ratio: unset;
+    border-right: 1px solid var(--border);
+    border-bottom: none;
+  }
+  .menu-items { grid-template-columns: 1fr; padding: 8px; gap: 8px; }
+
+  /* Touch targets minimum 44px for primary actions */
+  .mic-add {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 18px;
+  }
+  .ci-step-btn {
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 16px;
+  }
+  .btn-send-order {
+    min-height: 46px;
+    font-size: 14px;
+  }
+
+  .step-pills { display: none; }
+  .step-header { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+  .step-heading-icon { width: 38px; height: 38px; font-size: 16px; }
+  .step-title { font-size: 22px; }
+
+  .tables-area { padding: 8px 14px 16px; }
+  .tables-grid { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 10px; }
+  .table-tile { padding: 16px 12px; border-radius: 12px; }
+  .table-num { font-size: 22px; }
+  .table-icon { font-size: 28px; }
+
+  /* On phones, show only tab icons for compact header */
+  .ots-tab { padding: 6px 10px; font-size: 0; gap: 0; }
+  .ots-tab i { font-size: 14px; }
+
+  .btn-back-table { padding: 8px 10px; font-size: 11px; }
+  .table-label { font-size: 15px; padding: 0 8px; }
+  .order-type-badge { font-size: 10px; padding: 4px 8px; letter-spacing: 0.06em; }
+
+  /* Order Entry Screen — mobile adjustments */
+  .order-entry-content {
+    padding: 24px 20px;
+    max-width: 100%;
+  }
+  .entry-icon { font-size: 54px; }
+  .entry-title { font-size: 26px; }
+  .entry-subtitle { font-size: 13px; }
+  .btn-order-now {
+    padding: 14px 28px;
+    font-size: 14px;
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+/* ── 5. PHONE LANDSCAPE (max-height: 520px and orientation: landscape) ── */
+@media (max-height: 520px) and (orientation: landscape) {
+  .topbar {
+    height: 44px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .brand-logo {
+    width: 26px;
+    height: 26px;
+  }
+  .brand-name {
+    font-size: 14px;
+  }
+  .ots-tab {
+    padding: 4px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  .ots-tab i {
+    font-size: 11px;
+  }
+  .step-pills {
+    display: none;
+  }
+  .waiter-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  .logout-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .main {
+    top: 44px;
+    flex-direction: row !important;
+  }
+
+  /* Table selection screen */
+  .step-header {
+    padding: 6px 14px;
+    flex-direction: row;
+    align-items: center;
+  }
+  .step-heading-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+  .step-title {
+    font-size: 18px;
+  }
+  .step-subtitle {
+    display: none;
+  }
+  .legend {
+    gap: 8px;
+  }
+  .legend-item {
+    font-size: 10px;
+  }
+  .tables-area {
+    padding: 6px 14px 14px;
+  }
+  .tables-grid {
+    grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+    gap: 8px;
+  }
+  .table-tile {
+    padding: 10px 8px;
+    border-radius: 10px;
+    gap: 4px;
+  }
+  .table-num {
+    font-size: 18px;
+  }
+  .table-icon {
+    font-size: 22px;
+  }
+  .table-meta {
+    font-size: 10px;
+  }
+
+  /* Order Taking Screen — Side-by-side in landscape */
+  .order-layout {
+    flex-direction: row !important;
+    overflow: hidden;
+  }
+  .menu-panel {
+    flex: 1 !important;
+    height: 100% !important;
+    border-right: 1px solid var(--border) !important;
+    border-bottom: none !important;
+    overflow: hidden;
+  }
+  .cart-panel {
+    width: 240px !important;
+    height: 100% !important;
+    flex: none !important;
+    overflow: hidden;
+  }
+
+  .menu-topbar {
+    height: 40px;
+  }
+  .btn-back-table {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  .cat-btn {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .table-label {
+    font-size: 15px;
+    padding: 0 8px;
+  }
+
+  .menu-items {
+    grid-template-columns: 1fr;
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .menu-item-card {
+    height: 68px;
+    flex-direction: row;
+  }
+  .mic-img,
+  .mic-img-placeholder {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    height: 68px;
+    border-right: 1px solid var(--border);
+    border-bottom: none;
+  }
+  .mic-body {
+    padding: 4px 8px;
+  }
+  .mic-name {
+    font-size: 12px;
+  }
+  .mic-desc {
+    display: none;
+  }
+  .mic-footer {
+    margin-top: 2px;
+    padding-top: 2px;
+  }
+  .mic-price {
+    font-size: 12px;
+  }
+  .mic-add {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
+  .menu-pagination {
+    padding: 4px 10px;
+    gap: 4px;
+  }
+  .pg-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .pg-pill {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+
+  .cart-header {
+    padding: 8px 10px;
+  }
+  .cart-title {
+    font-size: 15px;
+  }
+  .cart-items {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .cart-item {
+    padding: 6px 8px;
+  }
+  .ci-name {
+    font-size: 12px;
+  }
+  .cart-footer {
+    padding: 6px 10px;
+  }
+  .total-val {
+    font-size: 18px;
+  }
+  .btn-send-order {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* Order slip panel in landscape */
+  .order-slip-panel {
+    width: 240px;
+    max-height: none;
+    border-top: none;
+    border-left: 1px solid var(--border);
+  }
+  .slip-panel-header {
+    padding: 8px 10px;
+  }
+  .slip-panel-list {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .order-slip {
+    width: 100%;
+  }
+
+  /* Entry screen in landscape */
+  .order-entry-content {
+    padding: 16px 20px;
+    max-width: 360px;
+  }
+  .entry-icon {
+    font-size: 36px;
+    margin-bottom: 6px;
+  }
+  .entry-title {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+  .entry-subtitle {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+  .btn-order-now {
+    padding: 8px 20px;
+    font-size: 13px;
+  }
+}
+
+/* ── 6. GENERAL SHORT VIEWPORTS (max-height: 520px) ── */
+@media (max-height: 520px) {
+  .confirm-modal,
+  .cancel-modal,
+  .modal-overlay .modal {
+    max-height: 94vh;
+    overflow-y: auto;
+  }
 }

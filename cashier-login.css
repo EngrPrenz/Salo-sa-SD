@@ -211,3 +211,31 @@ input:focus {
 }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 .toast-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+
+/* ═══════ RESPONSIVE ═══════ */
+@media (max-width: 480px) {
+  .page { padding: 16px 12px; }
+  .card { border-radius: 16px; }
+  .card-header { padding: 24px 20px 20px; }
+  .card-title { font-size: 32px; }
+  .card-body { padding: 20px 20px 24px; }
+  .form-group { margin-bottom: 14px; }
+  input { padding: 12px 14px; font-size: 14px; }
+  .btn-login { padding: 13px; font-size: 13px; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  body { overflow-y: auto; height: auto; }
+  .page { min-height: 100vh; height: auto; padding: 12px; }
+  .card { max-width: 420px; border-radius: 14px; }
+  .card-header { padding: 16px 24px 12px; }
+  .role-badge { margin-bottom: 8px; padding: 3px 10px; font-size: 9px; }
+  .card-title { font-size: 24px; margin-bottom: 2px; }
+  .card-subtitle { font-size: 11px; }
+  .card-body { padding: 16px 24px 18px; }
+  .form-group { margin-bottom: 10px; }
+  label { margin-bottom: 4px; font-size: 10px; }
+  input { padding: 8px 12px; font-size: 13px; }
+  .btn-login { padding: 10px; font-size: 12px; margin-top: 2px; }
+  .card-footer { margin-top: 14px; padding-top: 10px; }
+}

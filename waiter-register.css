@@ -90,7 +90,26 @@ input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0
 .toast-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
 
 @media (max-width: 520px) {
-  .card-header, .card-body { padding-left: 24px; padding-right: 24px; }
+  .page { padding: 16px 12px; }
+  .card-header, .card-body { padding-left: 20px; padding-right: 20px; }
+  .card-title { font-size: 32px; }
   .form-row { grid-template-columns: 1fr; }
-  .success-state { padding: 32px 24px 36px; }
+  .success-state { padding: 28px 20px 32px; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  body { overflow-y: auto; height: auto; }
+  .page { min-height: 100vh; height: auto; padding: 12px; }
+  .card { max-width: 440px; border-radius: 14px; }
+  .card-header { padding: 14px 20px 10px; }
+  .role-badge { margin-bottom: 6px; padding: 3px 10px; font-size: 9px; }
+  .card-title { font-size: 22px; margin-bottom: 2px; }
+  .card-subtitle { font-size: 11px; }
+  .card-body { padding: 12px 20px 16px; }
+  .form-group { margin-bottom: 8px; }
+  label { margin-bottom: 3px; font-size: 10px; }
+  input, select { padding: 7px 10px; font-size: 13px; }
+  .info-box { padding: 8px 10px; font-size: 11px; margin-bottom: 12px; }
+  .btn-register { padding: 9px; font-size: 12px; margin-top: 2px; }
+  .card-footer { margin-top: 12px; padding-top: 8px; }
 }
