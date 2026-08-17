@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "cleanup-duplicate-tables.js",
+      "fix-tables-assignedto.html",
+      "firebase-debug.log"
+    ],
+    "rewrites": [
+      {
+        "source": "/",
+        "destination": "/waiter-login.html"
+      }
+    ]
+  }
+}
