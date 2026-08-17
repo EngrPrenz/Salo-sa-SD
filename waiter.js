@@ -140,6 +140,13 @@ if (orderNowBtn) {
   console.error('Order Now button element not found');
 }
 
+const brandLogoBtn = $('brandLogoBtn');
+if (brandLogoBtn) {
+  brandLogoBtn.onclick = () => {
+    resetOrderFlow();
+  };
+}
+
 // Close the modal without selecting an order type. Guards against a missing
 // modal node so the interaction logs an error and shows a toast instead of
 // throwing, leaving the entry screen usable for a retry.
@@ -173,6 +180,8 @@ function ensureEntryScreenState() {
   const entry = $('orderEntry');
   const tables = $('stepTables');
   const order = $('stepOrder');
+  const slipPanel = $('orderSlipPanel');
+  if (slipPanel) slipPanel.classList.remove('hidden-during-order');
   if (entry)  entry.classList.remove('hidden');
   if (tables) tables.classList.remove('hidden', 'out-left');
   if (order)  order.classList.remove('visible', 'in');
@@ -301,7 +310,7 @@ function renderTables() {
     const hasSoonReservation = minsUntilNext !== null && minsUntilNext <= 31 && minsUntilNext > 0;
     const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
 
-    let stClass, badge, badgeLbl, meta, icon, yoursInd = '';
+    let stClass, badge, badgeLbl, meta, icon;
 
     if (isYours) {
       if (tileServed) {
@@ -311,7 +320,6 @@ function renderTables() {
         stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
         icon = '🍽️'; meta = 'Active order';
       }
-      yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else if (isReserved) {
       stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
       icon = '📅';
@@ -324,14 +332,12 @@ function renderTables() {
       stClass = 'walk-in'; badge = 'walk-in'; badgeLbl = '🚶 Walk-in';
       icon = '👥';
       meta = (isWalkInYours ? '(You) · ' : (tableDoc.waiterName ? tableDoc.waiterName + ' · ' : '')) + 'Guests seated';
-      if (isWalkInYours) yoursInd = `<div class="yours-indicator" style="color:var(--orange)">YOURS</div>`;
     } else if (isOccupiedNoOrder) {
       stClass = isOccupiedYours ? 'yours' : 'occupied';
       badge   = isOccupiedYours ? 'yours' : 'occupied';
       badgeLbl = isOccupiedYours ? '✦ Your Table' : 'Occupied';
       icon = isOccupiedYours ? '🍽️' : '🚫';
       meta = isOccupiedYours ? 'Guest arrived · Taking order' : tableDoc.waiterName || 'Another waiter';
-      if (isOccupiedYours) yoursInd = `<div class="yours-indicator">YOURS</div>`;
     } else {
       stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
       icon = '🪑';
@@ -346,7 +352,6 @@ function renderTables() {
     }
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn}, ${tileServed})">
-      ${yoursInd}
       <div class="table-num">${displayLabel}</div>
       ${capInfo}
       <div class="table-icon">${icon}</div>
@@ -634,6 +639,8 @@ function goToOrder(num) {
   updateOrderTypeTabs();
   pill1Done(); pill2Active();
   const st = $('stepTables'), so = $('stepOrder');
+  const slipPanel = $('orderSlipPanel');
+  if (slipPanel) slipPanel.classList.add('hidden-during-order');
   st.classList.add('out-left');
   so.classList.add('visible');
   requestAnimationFrame(() => so.classList.add('in'));
@@ -717,6 +724,8 @@ function goToOrderDirect() {
   pill2Active();
   
   const so = $('stepOrder');
+  const slipPanel = $('orderSlipPanel');
+  if (slipPanel) slipPanel.classList.add('hidden-during-order');
   so.classList.add('visible');
   requestAnimationFrame(() => so.classList.add('in'));
   
@@ -727,6 +736,8 @@ function goToOrderDirect() {
 // ── BACK TO TABLES ──
 function goBackToTables() {
   const st = $('stepTables'), so = $('stepOrder');
+  const slipPanel = $('orderSlipPanel');
+  if (slipPanel) slipPanel.classList.remove('hidden-during-order');
   st.classList.remove('hidden', 'out-left');
   so.classList.remove('in');
   setTimeout(() => so.classList.remove('visible'), 400);
@@ -770,6 +781,8 @@ function resetOrderFlow() {
   // NOTE: #orderEntry is a CHILD of #stepTables and overlays the table grid
   // (via z-index). So #stepTables must stay VISIBLE for the entry overlay to
   // show — hiding #stepTables would hide the entry screen too (black screen).
+  const slipPanel = $('orderSlipPanel');
+  if (slipPanel) slipPanel.classList.remove('hidden-during-order');
   $('stepTables').classList.remove('hidden', 'out-left');
   $('orderEntry').classList.remove('hidden');
   $('stepOrder').classList.remove('visible', 'in');
@@ -910,17 +923,14 @@ const remainingHtml = remaining !== null
       ${tagHtml}
       <div class="mic-img-placeholder" id="wimg-${m.id}" style="display:flex;"></div>
       <div class="mic-body">
-        <div class="mic-cat">${safeCat}</div>
         <div class="mic-name">${safeName}</div>
-        <div class="mic-desc">${safeDesc}</div>
-${bentoBlocked ? `<div class="bento-window-hint">Available 11:00 AM – 3:00 PM only</div>` : ''}
-<div class="mic-footer">
-  <div class="mic-price-wrap">
-    <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
-    ${remainingHtml}
-  </div>
-  ${!unavail ? `<button class="mic-add${atMax?' mic-add-disabled':''}" onclick="event.stopPropagation();window._addToCart('${m.id}')" ${atMax?'title="Maximum 20 reached"':''}>+</button>` : ''}
-</div>
+        <div class="mic-footer">
+          <div class="mic-price-wrap">
+            <span class="mic-price">₱${(m.price||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+            ${remainingHtml}
+          </div>
+          ${!unavail ? `<button class="mic-add${atMax?' mic-add-disabled':''}" onclick="event.stopPropagation();window._addToCart('${m.id}')" ${atMax?'title="Maximum 20 reached"':''}>+</button>` : ''}
+        </div>
       </div>
     </div>`;
   }).join('');
