@@ -17,26 +17,27 @@
   --red-text:    #e07070;
 }
 
-html, body { height: 100%; font-family: 'Outfit', sans-serif; }
+html, body { min-height: 100%; font-family: 'Outfit', sans-serif; }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--black);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .bg {
-  position: fixed; inset: 0; z-index: 0;
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
     radial-gradient(ellipse at 15% 60%, rgba(201,151,58,0.06) 0%, transparent 55%),
     radial-gradient(ellipse at 85% 30%, rgba(201,151,58,0.04) 0%, transparent 45%),
     var(--black);
 }
 
-.corner { position: fixed; z-index: 0; width: 160px; height: 160px; }
+.corner { position: fixed; z-index: 0; width: 160px; height: 160px; pointer-events: none; }
 .corner-tl { top: 0; left: 0; border-top: 1px solid rgba(201,151,58,0.18); border-left: 1px solid rgba(201,151,58,0.18); border-radius: 0 0 4px 0; }
 .corner-tr { top: 0; right: 0; border-top: 1px solid rgba(201,151,58,0.18); border-right: 1px solid rgba(201,151,58,0.18); border-radius: 0 0 0 4px; }
 .corner-bl { bottom: 0; left: 0; border-bottom: 1px solid rgba(201,151,58,0.18); border-left: 1px solid rgba(201,151,58,0.18); border-radius: 0 4px 0 0; }
@@ -44,13 +45,15 @@ body {
 
 .page {
   position: relative; z-index: 1;
-  width: 100%; min-height: 100vh;
+  width: 100%; min-height: 100vh; min-height: 100dvh;
   display: flex; align-items: center; justify-content: center;
-  padding: 32px 20px;
+  padding: 24px 16px;
+  flex: 1;
 }
 
 .card {
   width: 100%; max-width: 420px;
+  margin: auto;
   background: var(--black-card);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -217,6 +220,7 @@ input:focus {
   .page { padding: 16px 12px; }
   .card { border-radius: 16px; }
   .card-header { padding: 24px 20px 20px; }
+  .card-header::after { right: 20px; top: 22px; font-size: 28px; }
   .card-title { font-size: 32px; }
   .card-body { padding: 20px 20px 24px; }
   .form-group { margin-bottom: 14px; }
@@ -224,18 +228,20 @@ input:focus {
   .btn-login { padding: 13px; font-size: 13px; }
 }
 
-@media (max-height: 520px) and (orientation: landscape) {
-  body { overflow-y: auto; height: auto; }
-  .page { min-height: 100vh; height: auto; padding: 12px; }
-  .card { max-width: 420px; border-radius: 14px; }
-  .card-header { padding: 16px 24px 12px; }
-  .role-badge { margin-bottom: 8px; padding: 3px 10px; font-size: 9px; }
-  .card-title { font-size: 24px; margin-bottom: 2px; }
+@media (max-height: 600px) and (orientation: landscape), (max-height: 520px) {
+  .page { padding: 12px; }
+  .card { max-width: 420px; border-radius: 14px; margin: 8px auto; }
+  .card-header { padding: 14px 20px 10px; }
+  .card-header::after { right: 18px; top: 14px; font-size: 22px; }
+  .role-badge { margin-bottom: 6px; padding: 3px 8px; font-size: 9px; }
+  .card-title { font-size: 22px; margin-bottom: 2px; line-height: 1.1; }
   .card-subtitle { font-size: 11px; }
-  .card-body { padding: 16px 24px 18px; }
-  .form-group { margin-bottom: 10px; }
-  label { margin-bottom: 4px; font-size: 10px; }
-  input { padding: 8px 12px; font-size: 13px; }
-  .btn-login { padding: 10px; font-size: 12px; margin-top: 2px; }
-  .card-footer { margin-top: 14px; padding-top: 10px; }
+  .card-body { padding: 12px 20px 16px; }
+  .form-group { margin-bottom: 8px; }
+  label { margin-bottom: 3px; font-size: 10px; }
+  input { padding: 7px 10px; font-size: 13px; }
+  .toggle-pw { font-size: 13px; right: 10px; }
+  .btn-login { padding: 9px; font-size: 12px; margin-top: 2px; }
+  .card-footer { margin-top: 10px; padding-top: 8px; }
+  .corner { width: 60px; height: 60px; }
 }

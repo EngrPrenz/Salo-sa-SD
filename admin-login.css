@@ -14,17 +14,20 @@
       --text-muted:  #ffffff;
     }
 
-    html, body { height: 100%; font-family: 'Outfit', sans-serif; }
+    html, body { min-height: 100%; font-family: 'Outfit', sans-serif; }
 
     body {
       min-height: 100vh;
+      min-height: 100dvh;
       background: var(--black);
       display: flex;
-      overflow: hidden;
+      flex-direction: column;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .bg {
-      position: fixed; inset: 0; z-index: 0;
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background:
         radial-gradient(ellipse at 25% 40%, rgba(201,151,58,0.07) 0%, transparent 55%),
         radial-gradient(ellipse at 75% 70%, rgba(201,151,58,0.04) 0%, transparent 45%),
@@ -33,12 +36,12 @@
 
     /* Subtle dot grid */
     .bg-dots {
-      position: fixed; inset: 0; z-index: 0; opacity: 0.06;
+      position: fixed; inset: 0; z-index: 0; opacity: 0.06; pointer-events: none;
       background-image: radial-gradient(circle, var(--gold) 1px, transparent 1px);
       background-size: 32px 32px;
     }
 
-    .corner { position: fixed; z-index: 0; width: 160px; height: 160px; }
+    .corner { position: fixed; z-index: 0; width: 160px; height: 160px; pointer-events: none; }
     .corner-tl { top:0;left:0; border-top:1px solid rgba(201,151,58,0.18); border-left:1px solid rgba(201,151,58,0.18); }
     .corner-tr { top:0;right:0; border-top:1px solid rgba(201,151,58,0.18); border-right:1px solid rgba(201,151,58,0.18); }
     .corner-bl { bottom:0;left:0; border-bottom:1px solid rgba(201,151,58,0.18); border-left:1px solid rgba(201,151,58,0.18); }
@@ -46,9 +49,10 @@
 
     .page {
       position: relative; z-index: 1;
-      width: 100%; min-height: 100vh;
+      width: 100%; min-height: 100vh; min-height: 100dvh;
       display: grid;
       grid-template-columns: 1fr 460px;
+      flex: 1;
     }
 
     /* Left branding panel */
@@ -276,8 +280,8 @@
     @media (max-width: 860px) {
       .page { grid-template-columns: 1fr; }
       .left-panel { display: none; }
-      .right-panel { border-left: none; padding: 40px 24px; }
-      .form-box { max-width: 100%; }
+      .right-panel { border-left: none; padding: 40px 24px; min-height: 100vh; min-height: 100dvh; }
+      .form-box { max-width: 100%; margin: auto; }
     }
 
     @media (max-width: 480px) {
@@ -289,19 +293,20 @@
       .btn-login { padding: 13px; font-size: 13px; }
     }
 
-    @media (max-height: 520px) and (orientation: landscape) {
-      body { overflow-y: auto; height: auto; }
-      .page { min-height: 100vh; height: auto; grid-template-columns: 1fr; }
+    @media (max-height: 600px) and (orientation: landscape), (max-height: 520px) {
+      .page { min-height: 100vh; min-height: 100dvh; grid-template-columns: 1fr; }
       .left-panel { display: none; }
-      .right-panel { border-left: none; padding: 20px 24px; }
-      .form-box { max-width: 420px; }
-      .form-strip { margin-bottom: 12px; }
-      .form-eyebrow { margin-bottom: 4px; }
-      .form-title { font-size: 22px; margin-bottom: 2px; }
-      .form-desc { font-size: 11px; margin-bottom: 14px; }
-      .form-group { margin-bottom: 10px; }
-      label { margin-bottom: 4px; font-size: 10px; }
-      input { padding: 8px 12px; font-size: 13px; }
-      .btn-login { padding: 10px; font-size: 12px; margin-top: 2px; }
-      .form-footer { margin-top: 14px; padding-top: 10px; }
+      .right-panel { border-left: none; padding: 16px 24px; min-height: 100vh; min-height: 100dvh; }
+      .form-box { max-width: 420px; margin: 8px auto; }
+      .form-strip { margin-bottom: 10px; }
+      .form-eyebrow { margin-bottom: 4px; font-size: 9px; }
+      .form-title { font-size: 22px; margin-bottom: 2px; line-height: 1.1; }
+      .form-desc { font-size: 11px; margin-bottom: 12px; }
+      .form-group { margin-bottom: 8px; }
+      label { margin-bottom: 3px; font-size: 10px; }
+      input { padding: 7px 10px; font-size: 13px; }
+      .toggle-pw { font-size: 13px; right: 10px; }
+      .btn-login { padding: 9px; font-size: 12px; margin-top: 2px; }
+      .form-footer { margin-top: 10px; padding-top: 8px; }
+      .corner { width: 60px; height: 60px; }
     }

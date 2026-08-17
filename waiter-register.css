@@ -4,19 +4,19 @@
   --border: #2a2a2a; --gold: #c9973a; --gold-light: #e8c07a; --gold-dim: rgba(201,151,58,0.12);
   --white: #ffffff; --text-muted: #ffffff;
 }
-html, body { height: 100%; font-family: 'Outfit', sans-serif; }
-body { min-height: 100vh; background: var(--black); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.bg { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at 20% 50%, rgba(201,151,58,0.07) 0%, transparent 55%), radial-gradient(ellipse at 80% 30%, rgba(201,151,58,0.04) 0%, transparent 45%), var(--black); }
-.bg-dots { position: fixed; inset: 0; z-index: 0; opacity: 0.05; background-image: radial-gradient(circle, var(--gold) 1px, transparent 1px); background-size: 32px 32px; }
-.corner { position: fixed; z-index: 0; width: 160px; height: 160px; }
+html, body { min-height: 100%; font-family: 'Outfit', sans-serif; }
+body { min-height: 100vh; min-height: 100dvh; background: var(--black); display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+.bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse at 20% 50%, rgba(201,151,58,0.07) 0%, transparent 55%), radial-gradient(ellipse at 80% 30%, rgba(201,151,58,0.04) 0%, transparent 45%), var(--black); }
+.bg-dots { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.05; background-image: radial-gradient(circle, var(--gold) 1px, transparent 1px); background-size: 32px 32px; }
+.corner { position: fixed; z-index: 0; width: 160px; height: 160px; pointer-events: none; }
 .corner-tl { top:0;left:0; border-top:1px solid rgba(201,151,58,0.18); border-left:1px solid rgba(201,151,58,0.18); }
 .corner-tr { top:0;right:0; border-top:1px solid rgba(201,151,58,0.18); border-right:1px solid rgba(201,151,58,0.18); }
 .corner-bl { bottom:0;left:0; border-bottom:1px solid rgba(201,151,58,0.18); border-left:1px solid rgba(201,151,58,0.18); }
 .corner-br { bottom:0;right:0; border-bottom:1px solid rgba(201,151,58,0.18); border-right:1px solid rgba(201,151,58,0.18); }
 
-.page { position: relative; z-index: 1; width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+.page { position: relative; z-index: 1; width: 100%; min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; flex: 1; }
 
-.card { width: 100%; max-width: 480px; background: var(--black-card); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; box-shadow: 0 0 0 1px rgba(201,151,58,0.06), 0 40px 80px rgba(0,0,0,0.7); animation: cardIn 0.65s cubic-bezier(0.16,1,0.3,1) both; }
+.card { width: 100%; max-width: 480px; margin: auto; background: var(--black-card); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; box-shadow: 0 0 0 1px rgba(201,151,58,0.06), 0 40px 80px rgba(0,0,0,0.7); animation: cardIn 0.65s cubic-bezier(0.16,1,0.3,1) both; }
 @keyframes cardIn { from{opacity:0;transform:translateY(32px) scale(0.97)} to{opacity:1;transform:none} }
 .card-strip { height: 3px; background: linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-light) 60%, var(--gold) 80%, transparent); }
 .card-header { padding: 30px 40px 24px; border-bottom: 1px solid var(--border); }
@@ -97,10 +97,9 @@ input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0
   .success-state { padding: 28px 20px 32px; }
 }
 
-@media (max-height: 520px) and (orientation: landscape) {
-  body { overflow-y: auto; height: auto; }
-  .page { min-height: 100vh; height: auto; padding: 12px; }
-  .card { max-width: 440px; border-radius: 14px; }
+@media (max-height: 600px) and (orientation: landscape), (max-height: 520px) {
+  .page { padding: 12px; }
+  .card { max-width: 440px; border-radius: 14px; margin: 8px auto; }
   .card-header { padding: 14px 20px 10px; }
   .role-badge { margin-bottom: 6px; padding: 3px 10px; font-size: 9px; }
   .card-title { font-size: 22px; margin-bottom: 2px; }
@@ -111,5 +110,6 @@ input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0
   input, select { padding: 7px 10px; font-size: 13px; }
   .info-box { padding: 8px 10px; font-size: 11px; margin-bottom: 12px; }
   .btn-register { padding: 9px; font-size: 12px; margin-top: 2px; }
-  .card-footer { margin-top: 12px; padding-top: 8px; }
+  .card-footer { margin-top: 10px; padding-top: 8px; }
+  .corner { width: 60px; height: 60px; }
 }
