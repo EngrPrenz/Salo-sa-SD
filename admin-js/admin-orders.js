@@ -153,6 +153,14 @@ bootstrapAdmin(auth, db, { doc, getDoc, signOut }, 'admin-orders.html')
   .then(() => startListeners());
 
 function startListeners() {
+  // Show skeleton cards while waiting for first snapshot
+  const grid = document.getElementById('ordersGrid');
+  if (grid) {
+    grid.innerHTML = Array(6).fill(null).map((_,i) =>
+      `<div style="border-radius:16px;aspect-ratio:1/1;background:linear-gradient(90deg,var(--black-card) 25%,var(--black-mid) 50%,var(--black-card) 75%);background-size:600px 100%;animation:shimmer 1.4s ${i*0.1}s infinite linear;border:1px solid var(--border);"></div>`
+    ).join('');
+  }
+
   onSnapshot(
     query(collection(db, 'orders'), orderBy('createdAt', 'desc')),
     snap => {

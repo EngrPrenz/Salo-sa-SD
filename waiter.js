@@ -114,6 +114,9 @@ onAuthStateChanged(auth, async user => {
   waiterName = data.name || user.email;
   waiterId   = user.uid;
   $('waiterAvatar').textContent = waiterName[0].toUpperCase();
+  // Auth resolved — hide the page loader then start the app
+  const loader = document.getElementById('pageLoader');
+  if (loader) loader.classList.add('hidden');
   init();
 });
 
@@ -181,6 +184,15 @@ function ensureEntryScreenState() {
 
 async function init() {
   ensureEntryScreenState();
+
+  // Show skeleton table cards while waiting for the first tables snapshot
+  const tablesGrid = document.getElementById('tablesGrid');
+  if (tablesGrid) {
+    tablesGrid.innerHTML = Array(8).fill(null).map((_,i) =>
+      `<div style="border-radius:12px;height:90px;background:linear-gradient(90deg,var(--black-card) 25%,var(--black-mid) 50%,var(--black-card) 75%);background-size:600px 100%;animation:shimmer 1.4s ${i*0.08}s infinite linear;border:1px solid var(--border);"></div>`
+    ).join('');
+  }
+
   loadMenu();
 
 onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {

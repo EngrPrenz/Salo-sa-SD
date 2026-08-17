@@ -13,6 +13,21 @@ const db   = getFirestore(app);
 function escapeHtml(s) { return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s)  { return s ? s[0].toUpperCase()+s.slice(1) : ''; }
 
+/** Generate N skeleton <tr> rows with shimmer cells of given widths (px). */
+function skeletonRows(n, widths) {
+  return Array(n).fill(null).map(() =>
+    `<tr class="skeleton-row">${widths.map((w,i)=>`<td><div class="sk-cell" style="width:${w}px;animation-delay:${i*0.06}s"></div></td>`).join('')}</tr>`
+  ).join('');
+}
+
+/** Replace a stat card value element with a shimmer placeholder. */
+function skeletonStat(valueId, subId) {
+  const v = document.getElementById(valueId);
+  const s = document.getElementById(subId);
+  if (v) v.innerHTML = '<div class="sk-val"></div>';
+  if (s) s.innerHTML = '<div class="sk-sub"></div>';
+}
+
 let allOrders     = [];
 let tableStatuses = {};
 let tableDocsList = [];
@@ -56,6 +71,13 @@ function applyCashierRestrictions(role) {
 
 // ── Data listeners ────────────────────────────────────────────────────────────
 function startListeners() {
+  // Show skeleton placeholders while waiting for first snapshot
+  skeletonStat('statActiveOrders', 'statOrdersSub');
+  skeletonStat('statTablesOcc', 'statTablesSub');
+  skeletonStat('statRevenue', 'statRevSub');
+  const tbody = document.getElementById('recentOrdersBody');
+  if (tbody) tbody.innerHTML = skeletonRows(6, [80, 70, 90, 60, 90, 70]);
+
   // Orders
   onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
     allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));

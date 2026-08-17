@@ -1,4 +1,70 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ═══════ PAGE LOADER OVERLAY ═══════ */
+.page-loader {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--black);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px;
+  transition: opacity 0.35s cubic-bezier(0.16,1,0.3,1), visibility 0.35s;
+}
+.page-loader.hidden {
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.page-loader-spinner {
+  width: 48px; height: 48px; position: relative;
+}
+.page-loader-spinner::before,
+.page-loader-spinner::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+.page-loader-spinner::before {
+  border-top-color: var(--gold);
+  border-right-color: var(--gold);
+  animation: loaderSpin 0.9s cubic-bezier(0.5,0,0.5,1) infinite;
+}
+.page-loader-spinner::after {
+  border-bottom-color: rgba(201,151,58,0.25);
+  border-left-color: rgba(201,151,58,0.25);
+  animation: loaderSpin 0.9s cubic-bezier(0.5,0,0.5,1) infinite reverse;
+  animation-delay: -0.15s;
+}
+.page-loader-logo {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 22px; height: 22px; border-radius: 50%; object-fit: cover;
+  opacity: 0.7;
+}
+.page-loader-label {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--gold); opacity: 0.6;
+  animation: loaderPulse 1.5s ease-in-out infinite;
+}
+@keyframes loaderSpin  { to { transform: rotate(360deg); } }
+@keyframes loaderPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+
+/* ═══════ SKELETON SHIMMER ═══════ */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+.sk-block {
+  border-radius: 8px;
+  background: linear-gradient(90deg,
+    var(--black-mid) 25%,
+    var(--black-light) 50%,
+    var(--black-mid) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+[data-theme="light"] .page-loader { background: var(--black); }
+[data-theme="light"] .sk-block {
+  background: linear-gradient(90deg, #e8e8e8 25%, #f2f2f2 50%, #e8e8e8 75%);
+  background-size: 600px 100%;
+}
 :root {
   --black: #0a0a0a; --black-card: #141414; --black-mid: #1c1c1c; --black-light: #242424;
   --border: #2a2a2a; --gold: #c9973a; --gold-light: #e8c07a; --gold-dim: rgba(201,151,58,0.12);

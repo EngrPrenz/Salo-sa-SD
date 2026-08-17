@@ -91,6 +91,9 @@ guardCashierPage(auth, db, fb, 'cashier.html').then(user => {
   cashierData = user;
   $('userName').textContent = user.name;
   $('userAvatar').textContent = user.name[0].toUpperCase();
+  // Auth resolved — hide the page loader then start the app
+  const loader = document.getElementById('pageLoader');
+  if (loader) loader.classList.add('hidden');
   init();
 });
 
@@ -336,6 +339,15 @@ function calculateGroupFinancials(group, discountType) {
 
 function subscribeToOrders() {
   let firstLoad = true;
+
+  // Show skeleton order cards while waiting for first snapshot
+  const orderList = document.getElementById('ordersList');
+  if (orderList) {
+    orderList.innerHTML = Array(4).fill(null).map((_,i) =>
+      `<div class="sk-block" style="height:88px;border-radius:12px;margin-bottom:10px;animation-delay:${i*0.1}s;"></div>`
+    ).join('');
+  }
+
   onSnapshot(
     query(collection(db, 'orders'), orderBy('createdAt', 'desc')),
     snapshot => {
@@ -857,7 +869,7 @@ window.processPayment = async function() {
     
     // Auto-print receipt for the paid group
     setTimeout(() => {
-      printGroupReceipt(paidGroup, paidDiscountType, financials, paidCashTendered, paidChangeAmount);
+      window.printGroupReceipt(paidGroup, paidDiscountType, financials, paidCashTendered, paidChangeAmount);
     }, 500);
 
   } catch (error) {
@@ -1103,7 +1115,7 @@ window.printGroupReceiptPreview = function(groupKey) {
   const group = groups.find(g => g.key === groupKey);
   if (!group) { showToast('⚠ Order not found'); return; }
   const financials = calculateGroupFinancials(group, discountType);
-  printGroupReceipt(group, discountType, financials, 0, 0);
+  window.printGroupReceipt(group, discountType, financials, 0, 0);
 };
 
 window.printGroupReceipt = async function(group, discountType, financials, cashTendered, changeAmount) {

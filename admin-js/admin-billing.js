@@ -18,6 +18,12 @@ let billingPage             = 1;
 function escapeHtml(s) { return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function capitalize(s)  { return s ? s[0].toUpperCase()+s.slice(1) : ''; }
 
+/** Generate N skeleton <tr> rows with shimmer cells of given widths (px). */
+function skeletonRows(n, widths) {
+  const row = `<tr class="skeleton-row">${widths.map(w=>`<td><div class="sk-cell" style="width:${w}px;animation-delay:${Math.random()*0.4}s"></div></td>`).join('')}</tr>`;
+  return Array(n).fill(row).join('');
+}
+
 function computeVat(total) {
   const vatAmount     = total * VAT_RATE / (1 + VAT_RATE);
   const netAmount     = total - vatAmount;
@@ -41,6 +47,10 @@ bootstrapAdmin(auth, db, { doc, getDoc, signOut }, 'admin-billing.html')
   .then(() => startListeners());
 
 function startListeners() {
+  // Show skeleton rows while first snapshot is pending
+  const tbody = document.getElementById('billingTableBody');
+  if (tbody) tbody.innerHTML = skeletonRows(8, [100, 60, 80, 60, 80, 120, 70, 60]);
+
   onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
     allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     renderBilling();

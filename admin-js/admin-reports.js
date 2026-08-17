@@ -94,6 +94,14 @@ bootstrapAdmin(auth, db, { doc, getDoc, signOut }, 'admin-reports.html')
   });
 
 function startListeners() {
+  // Show skeleton in KPI cards while waiting for first snapshot
+  ['dayKpiRev','dayKpiOrders','dayKpiAvg',
+   'weekKpiRev','weekKpiOrders','weekKpiAvg',
+   'monthKpiRev','monthKpiOrders','monthKpiAvg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div style="height:28px;border-radius:6px;background:linear-gradient(90deg,var(--black-mid) 25%,var(--black-light) 50%,var(--black-mid) 75%);background-size:600px 100%;animation:shimmer 1.4s infinite linear;"></div>';
+  });
+
   onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
     allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     if (!reportsReady) { reportsReady = true; }

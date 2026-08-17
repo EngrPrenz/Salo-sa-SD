@@ -69,6 +69,14 @@ if (toastEl && toastMsg) {
 
 // ── Data listeners ────────────────────────────────────────────────────────────
 function startListeners() {
+  // Show skeleton while waiting for first snapshot
+  const grid = document.getElementById('staffGrid');
+  if (grid) grid.innerHTML = `<div class="empty-state"><div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:40px 0;">${
+    Array(4).fill(null).map((_,i) =>
+      `<div style="width:100%;max-width:480px;height:64px;border-radius:12px;background:linear-gradient(90deg,var(--black-mid) 25%,var(--black-light) 50%,var(--black-mid) 75%);background-size:600px 100%;animation:shimmer 1.4s ${i*0.12}s infinite linear;"></div>`
+    ).join('')
+  }</div></div>`;
+
   onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
     allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     updateOrdersBadge();

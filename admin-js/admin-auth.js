@@ -10,6 +10,12 @@
  */
 import { guardAdminPage } from './rbac.js';
 
+/** Hide the full-page loader overlay after auth resolves. */
+function hidePageLoader() {
+  const loader = document.getElementById('pageLoader');
+  if (loader) loader.classList.add('hidden');
+}
+
 export async function bootstrapAdmin(auth, db, fb, currentPage) {
   // Logout button
   const logoutBtn = document.getElementById('logoutBtn');
@@ -35,6 +41,14 @@ export async function bootstrapAdmin(auth, db, fb, currentPage) {
   if (hamburger) hamburger.onclick = () => { sidebar?.classList.toggle('open'); overlay?.classList.toggle('show'); };
   if (overlay)   overlay.onclick   = () => { sidebar?.classList.remove('open'); overlay.classList.remove('show'); };
 
-  // Guard + nav filter + resolve user
-  return guardAdminPage(auth, db, { doc: fb.doc, getDoc: fb.getDoc }, currentPage);
+  // Guard + nav filter + resolve user, then dismiss loader
+  try {
+    const user = await guardAdminPage(auth, db, { doc: fb.doc, getDoc: fb.getDoc }, currentPage);
+    hidePageLoader();
+    return user;
+  } catch (err) {
+    // guardAdminPage redirects on auth failure — loader stays shown during redirect
+    hidePageLoader();
+    throw err;
+  }
 }

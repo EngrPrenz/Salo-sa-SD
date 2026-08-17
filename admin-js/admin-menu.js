@@ -47,11 +47,19 @@ bootstrapAdmin(auth, db, { doc, getDoc, signOut }, 'admin-menu.html')
   .then(() => startListeners());
 
 function startListeners() {
+  // Show skeleton tiles in menu grid while waiting for first snapshot
+  const menuGrid = document.getElementById('menuGrid');
+  if (menuGrid) {
+    menuGrid.innerHTML = Array(8).fill(null).map((_,i) =>
+      `<div style="border-radius:14px;height:120px;background:linear-gradient(90deg,var(--black-card) 25%,var(--black-mid) 50%,var(--black-card) 75%);background-size:600px 100%;animation:shimmer 1.4s ${i*0.09}s infinite linear;border:1px solid var(--border);"></div>`
+    ).join('');
+  }
+
   onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap => {
     allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     calculateMenuOrderCounts();
     updateOrdersBadge();
-    autoDisableLimitReached(); // ← add this
+    autoDisableLimitReached();
     renderMenuGrid();
   });
 
@@ -59,7 +67,7 @@ onSnapshot(collection(db, 'menu'), snap => {
   menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   calculateMenuOrderCounts();
   autoDisableLimitReached();
-  checkDailyReset(); // ← add this
+  checkDailyReset();
   buildMenuCategoryTabs();
   renderMenuGrid();
 });
