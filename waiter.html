@@ -44,6 +44,13 @@
     </div>
   </div>
   <div class="topbar-right">
+    <!-- Phone-only trigger for the "My Orders" slide-in drawer. Hidden on
+         tablet/desktop where the panel is docked inline. -->
+    <button class="slip-drawer-toggle" id="slipDrawerToggle" aria-label="My Orders" aria-expanded="false" aria-controls="orderSlipPanel">
+      <i class="fa-solid fa-receipt"></i>
+      <span class="slip-drawer-toggle-label">My Orders</span>
+      <span class="slip-drawer-badge" id="slipDrawerBadge" hidden>0</span>
+    </button>
     <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
       <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
@@ -153,6 +160,8 @@
   <aside class="order-slip-panel" id="orderSlipPanel">
     <div class="slip-panel-header">
       <span class="slip-panel-title"><i class="fa-solid fa-receipt"></i> My Orders</span>
+      <!-- Phone-only close control for the slide-in drawer. -->
+      <button class="slip-drawer-close" id="slipDrawerClose" aria-label="Close My Orders">✕</button>
     </div>
     <div class="slip-panel-list" id="orderSlipList">
       <div class="slip-empty">
@@ -168,6 +177,9 @@
       </div>
     </div>
   </aside>
+
+  <!-- Phone-only dimmed backdrop behind the "My Orders" drawer. -->
+  <div class="slip-drawer-backdrop" id="slipDrawerBackdrop" hidden></div>
 </div>
 
 <!-- ORDER TYPE SELECTION MODAL -->

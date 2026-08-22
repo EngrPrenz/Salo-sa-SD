@@ -43,6 +43,21 @@
   display: none !important;
 }
 
+/* ── "MY ORDERS" DRAWER CONTROLS ──
+   The topbar trigger, in-panel close button, and backdrop only exist for the
+   phone off-canvas drawer. Hidden everywhere else; the ≤700px block re-shows
+   them. */
+.slip-drawer-toggle,
+.slip-drawer-close,
+.slip-drawer-backdrop {
+  display: none;
+}
+
+/* Respect users who prefer reduced motion — snap the drawer instead of sliding. */
+@media (prefers-reduced-motion: reduce) {
+  .order-slip-panel { transition: none !important; }
+}
+
 /* 4. Category tabs bar — modern scrollable pill navigation */
 .menu-topbar {
   display: flex !important;
@@ -716,46 +731,136 @@
   .table-icon { font-size: 22px; }
   .table-meta { font-size: 10px; }
 
-  /* Order-Slip Panel ("My Orders") — Bottom horizontal dock in phone portrait */
+  /* Order-Slip Panel ("My Orders") — Off-canvas slide-in drawer from the right.
+     Frees the table/menu screen from the old always-on bottom dock; opened via
+     the topbar trigger, dismissed by the close button, backdrop, or Escape. */
+  .slip-drawer-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--black-mid);
+    color: var(--gold-light);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .slip-drawer-toggle.slip-drawer-toggle-hidden { display: none !important; }
+  .slip-drawer-toggle i { font-size: 14px; }
+  .slip-drawer-toggle .slip-drawer-toggle-label { white-space: nowrap; }
+  .slip-drawer-toggle .slip-drawer-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--gold, #c9973a);
+    color: #1a1205;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .slip-drawer-toggle .slip-drawer-badge[hidden] { display: none; }
+
+  /* Backdrop — sits below the drawer, above page content, leaving the topbar
+     tappable so the trigger can toggle the drawer closed. */
+  .slip-drawer-backdrop {
+    display: block;
+    position: fixed;
+    top: var(--topbar-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 90;
+  }
+  .slip-drawer-backdrop[hidden] { display: none; }
+
   .order-slip-panel {
-    width: 100% !important;
+    position: fixed;
+    top: var(--topbar-h);
+    right: 0;
+    height: calc(100% - var(--topbar-h));
+    width: min(86%, 360px) !important;
+    max-height: none !important;
     flex: 0 0 auto !important;
-    max-height: 190px !important;
-    border-left: none !important;
-    border-top: 1px solid var(--border) !important;
+    border-left: 1px solid var(--border) !important;
+    border-top: none !important;
     background: var(--black-card);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    z-index: 95;
+    transform: translateX(105%);
+    transition: transform 0.24s ease;
+    box-shadow: -8px 0 28px rgba(0, 0, 0, 0.45);
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
+  .order-slip-panel.drawer-open { transform: translateX(0); }
+
   .slip-panel-header {
-    padding: 8px 12px;
+    padding: 12px 14px;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border);
-  }
-  .slip-panel-title { font-size: 15px; gap: 6px; }
-  .slip-panel-list {
-    flex: 1 1 auto;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 8px 10px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
-    border-bottom: none;
+  }
+  .slip-panel-title { font-size: 17px; gap: 8px; }
+  .slip-drawer-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .slip-drawer-close:hover { background: var(--black-mid); color: var(--gold-light); }
+
+  .slip-panel-list {
+    flex: 1 1 55%;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px 12px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
     -webkit-overflow-scrolling: touch;
   }
   .order-slip {
-    width: 150px;
-    min-width: 150px;
+    width: 100%;
+    min-width: 0;
     flex: 0 0 auto;
-    padding: 8px 10px;
-    gap: 4px;
-    border-radius: 10px;
+    padding: 12px 14px;
+    gap: 6px;
+    border-radius: 12px;
+    min-height: 44px;
+    overflow: hidden;
   }
-  .slip-id { font-size: 12px; }
-  .slip-loc { font-size: 13px; }
-  .slip-meta { font-size: 10px; }
-  .slip-badge { font-size: 9px; padding: 2px 6px; }
+  /* Let the id + status badge wrap instead of the badge overflowing the card. */
+  .slip-top { flex-wrap: wrap; gap: 6px; }
+  .slip-badge { max-width: 100%; }
+  .slip-id { font-size: 13px; }
+  .slip-loc { font-size: 15px; }
+  .slip-meta { font-size: 11px; }
+  .slip-badge { font-size: 10px; padding: 2px 7px; }
+  .slip-panel-detail { flex: 1 1 45%; overflow-y: auto; }
 
   /* Step 2: Menu Ordering Layout in Phone Portrait */
   .order-layout {
@@ -1024,8 +1129,17 @@
   .btn-submit { padding: 6px 8px; font-size: 11px; min-height: 32px; }
   .btn-clear { padding: 2px; font-size: 9px; }
 
-  /* Order slip panel in landscape */
+  /* Order slip panel in landscape — stays a docked inline column. Reset the
+     off-canvas drawer props in case a small landscape phone also matches the
+     ≤700px block above. */
   .order-slip-panel {
+    position: static !important;
+    transform: none !important;
+    top: auto !important;
+    right: auto !important;
+    height: auto !important;
+    z-index: auto !important;
+    box-shadow: none !important;
     width: 230px !important;
     max-height: none !important;
     border-top: none !important;

@@ -122,6 +122,64 @@ onAuthStateChanged(auth, async user => {
 
 $('logoutBtn').onclick = async () => { await signOut(auth); window.location.href = 'waiter-login.html'; };
 
+// ── PHONE "MY ORDERS" DRAWER ──
+// On phones the slip panel becomes an off-canvas drawer opened from a topbar
+// button; on tablet/desktop it stays docked inline and these controls are
+// hidden via CSS. The panel keeps rendering from the live snapshot regardless.
+function updateSlipDrawerBadge(count) {
+  const badge = $('slipDrawerBadge');
+  if (!badge) return;
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.hidden = count <= 0;
+}
+
+function openSlipDrawer() {
+  const panel = $('orderSlipPanel');
+  if (!panel || panel.classList.contains('hidden-during-order')) return;
+  panel.classList.add('drawer-open');
+  const backdrop = $('slipDrawerBackdrop');
+  if (backdrop) backdrop.hidden = false;
+  const toggle = $('slipDrawerToggle');
+  if (toggle) toggle.setAttribute('aria-expanded', 'true');
+}
+
+function closeSlipDrawer() {
+  const panel = $('orderSlipPanel');
+  if (panel) panel.classList.remove('drawer-open');
+  const backdrop = $('slipDrawerBackdrop');
+  if (backdrop) backdrop.hidden = true;
+  const toggle = $('slipDrawerToggle');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+}
+
+function toggleSlipDrawer() {
+  const panel = $('orderSlipPanel');
+  if (!panel) return;
+  if (panel.classList.contains('drawer-open')) closeSlipDrawer();
+  else openSlipDrawer();
+}
+
+(function initSlipDrawer() {
+  const toggle = $('slipDrawerToggle');
+  const closeBtn = $('slipDrawerClose');
+  const backdrop = $('slipDrawerBackdrop');
+  if (toggle)   toggle.addEventListener('click', toggleSlipDrawer);
+  if (closeBtn) closeBtn.addEventListener('click', closeSlipDrawer);
+  if (backdrop) backdrop.addEventListener('click', closeSlipDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSlipDrawer(); });
+
+  // The order-taking step hides the panel (hidden-during-order). Mirror that
+  // on the topbar trigger and dismiss the drawer so it can't open over the menu.
+  const panel = $('orderSlipPanel');
+  if (panel && 'MutationObserver' in window) {
+    new MutationObserver(() => {
+      const hidden = panel.classList.contains('hidden-during-order');
+      if (toggle) toggle.classList.toggle('slip-drawer-toggle-hidden', hidden);
+      if (hidden) closeSlipDrawer();
+    }).observe(panel, { attributes: true, attributeFilter: ['class'] });
+  }
+})();
+
 // ── ORDER NOW BUTTON & ORDER TYPE SELECTION ──
 function showOrderTypeModal() {
   const modal = $('orderTypeModal');
@@ -1420,6 +1478,7 @@ function renderOrderSlips() {
   if (!list) return;
 
   const slips = allOrders.filter(o => belongsInWaiterSlips(o, waiterId));
+  updateSlipDrawerBadge(slips.length);
 
   if (!slips.length) {
     selectedSlipOrderId = null;
