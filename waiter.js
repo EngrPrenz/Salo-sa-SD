@@ -145,7 +145,12 @@ function openSlipDrawer() {
 
 function closeSlipDrawer() {
   const panel = $('orderSlipPanel');
-  if (panel) panel.classList.remove('drawer-open');
+  // Only touch the class list when the drawer is actually open. Calling
+  // classList.remove() unconditionally re-writes the `class` attribute even
+  // when 'drawer-open' is absent, which re-fires the MutationObserver below
+  // (it watches `class`) and spins into an infinite loop — freezing the page
+  // the moment the order-taking step adds `hidden-during-order`.
+  if (panel && panel.classList.contains('drawer-open')) panel.classList.remove('drawer-open');
   const backdrop = $('slipDrawerBackdrop');
   if (backdrop) backdrop.hidden = true;
   const toggle = $('slipDrawerToggle');
@@ -175,7 +180,10 @@ function toggleSlipDrawer() {
     new MutationObserver(() => {
       const hidden = panel.classList.contains('hidden-during-order');
       if (toggle) toggle.classList.toggle('slip-drawer-toggle-hidden', hidden);
-      if (hidden) closeSlipDrawer();
+      // Only close when the drawer is actually open; closeSlipDrawer mutates
+      // the panel's class, and this observer watches `class`, so calling it
+      // needlessly would re-trigger this callback forever.
+      if (hidden && panel.classList.contains('drawer-open')) closeSlipDrawer();
     }).observe(panel, { attributes: true, attributeFilter: ['class'] });
   }
 })();
