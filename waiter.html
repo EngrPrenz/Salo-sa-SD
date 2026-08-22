@@ -131,6 +131,14 @@
         <div class="menu-items" id="menuGrid"></div>
       </div>
       <div class="cart-panel">
+        <!-- Phone-only collapsed summary bar. Tapping it expands the cart into a
+             bottom sheet; hidden on tablet/desktop where the panel is docked. -->
+        <button class="cart-sheet-handle" id="cartSheetHandle" aria-expanded="false" aria-controls="cartItems">
+          <span class="csh-grip" aria-hidden="true"></span>
+          <span class="csh-summary"><i class="fa-solid fa-cart-shopping"></i> <span id="cartSheetCount">0 items</span></span>
+          <span class="csh-total" id="cartSheetTotal">₱0.00</span>
+          <i class="fa-solid fa-chevron-up csh-chevron" aria-hidden="true"></i>
+        </button>
         <div class="cart-header">
           <span class="cart-title">Order Summary</span>
           <span class="cart-count" id="cartCount">0 items</span>
@@ -151,6 +159,10 @@
           <button class="btn-clear" id="clearCartBtn">Clear Cart</button>
         </div>
       </div>
+      <!-- Phone-only dimmed backdrop behind the cart bottom sheet. Kept inside
+           #stepOrder so it shares the same stacking context as .cart-panel
+           (#stepOrder has a transform), otherwise it would paint over the cart. -->
+      <div class="cart-sheet-backdrop" id="cartSheetBackdrop" hidden></div>
     </div>
   </div>
  </div>

@@ -869,22 +869,23 @@
     height: 100%;
     overflow: hidden;
   }
+  /* Menu panel now owns the full height; the cart is a bottom sheet. */
   .menu-panel {
-    flex: 1 1 54% !important;
+    flex: 1 1 auto !important;
     min-height: 0 !important;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     border-right: none !important;
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: none !important;
   }
   .search-box { padding: 4px 10px; }
   .search-inp { height: 34px; font-size: 12px; }
 
-  /* Menu Items list */
+  /* Menu Items list — bottom padding clears the collapsed cart bar. */
   .menu-items {
     grid-template-columns: 1fr;
-    padding: 6px 10px;
+    padding: 6px 10px 68px;
     gap: 6px;
     overflow-y: auto;
     flex: 1;
@@ -915,19 +916,89 @@
   .mic-price { font-size: 13px; }
   .mic-add { width: 28px; height: 28px; min-width: 28px; font-size: 15px; }
 
-  /* Cart Panel in Phone Portrait */
+  /* Cart Panel in Phone Portrait — collapsible bottom sheet.
+     Collapsed it shows only the 56px summary handle; tapping slides it up. */
   .cart-panel {
-    flex: 1 1 46% !important;
-    min-height: 0 !important;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
     width: 100% !important;
+    flex: none !important;
+    height: auto !important;
+    max-height: 82vh;
+    z-index: 60;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     background: var(--black-card);
+    border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.45);
+    transform: translateY(calc(100% - 56px));
+    transition: transform 0.28s ease;
   }
-  .cart-header { padding: 6px 10px; flex-shrink: 0; }
+  .cart-panel.cart-sheet-open { transform: translateY(0); }
+
+  /* Collapsed summary bar */
+  .cart-sheet-handle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    height: 56px;
+    flex-shrink: 0;
+    padding: 0 16px;
+    background: none;
+    border: none;
+    color: var(--white);
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+  }
+  .csh-grip {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 100px;
+    background: var(--border);
+  }
+  .csh-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .csh-summary i { color: var(--gold); }
+  .csh-total {
+    margin-left: auto;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--gold-light);
+  }
+  .csh-chevron { color: var(--text-muted); font-size: 13px; transition: transform 0.28s ease; }
+  .cart-panel.cart-sheet-open .csh-chevron { transform: rotate(180deg); }
+
+  /* Header is redundant with the handle on phone */
+  .cart-header { display: none; }
   .cart-title { font-size: 14px; }
   .cart-count { font-size: 11px; }
+
+  /* Backdrop behind the expanded sheet */
+  .cart-sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .cart-sheet-backdrop[hidden] { display: none; }
   .cart-items { flex: 1; overflow-y: auto; padding: 6px 10px; gap: 4px; }
   .cart-item { padding: 5px 8px; border-radius: 8px; font-size: 12px; }
   .ci-name { font-size: 12px; }
@@ -1052,7 +1123,15 @@
     display: flex;
     flex-direction: column;
   }
+  /* Undo the portrait bottom-sheet styling — landscape docks the cart column. */
   .cart-panel {
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-height: none !important;
+    z-index: auto !important;
     width: 240px !important;
     height: 100% !important;
     min-height: 0 !important;
@@ -1060,7 +1139,12 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    border-left: 1px solid var(--border);
   }
+  .cart-sheet-handle { display: none !important; }
+  .cart-sheet-backdrop { display: none !important; }
+  .cart-header { display: flex !important; }
+  .menu-items { padding-bottom: 4px !important; }
 
   .menu-topbar {
     height: 36px !important;

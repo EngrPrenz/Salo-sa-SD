@@ -75,10 +75,14 @@ let menuPage = 1;
 let currentOrderType = null; // 'dine-in' | 'takeout' | null
 const ITEMS_PER_PAGE_DESKTOP = 14;
 const ITEMS_PER_PAGE_MEDIUM  = 10;
-const ITEMS_PER_PAGE_TABLET  = 6;
+// Phones scroll the menu list instead of paginating — a large value keeps
+// everything on a single page so the pager never renders (see renderMenuGrid).
+const ITEMS_PER_PAGE_PHONE   = 9999;
 const getItemsPerPage = () => {
   const w = window.innerWidth;
-  if (w <= 768)  return ITEMS_PER_PAGE_TABLET;
+  // <= 700px is the phone-portrait breakpoint (matches waiter-responsiveness.css),
+  // where the layout stacks and the menu list scrolls instead of paginating.
+  if (w <= 700)  return ITEMS_PER_PAGE_PHONE;
   if (w <= 1024) return ITEMS_PER_PAGE_MEDIUM;
   return ITEMS_PER_PAGE_DESKTOP;
 };
@@ -363,6 +367,10 @@ function renderTables() {
     const isYours           = orderInfo && orderInfo.waiterId === waiterId;
     const isTakenOrder      = orderInfo && !isYours;
     const tileServed        = isYours && orderInfo && isServed(orderInfo);
+    // A served table is "paid" once every live order on it is paid — the same
+    // condition that lets the customer leave. Used to update the tile so it no
+    // longer says "Awaiting payment" once the cashier has settled the bill.
+    const tilePaid          = tileServed && getActiveTableOrders(n).every(isPaid);
 
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
     const now = new Date();
@@ -380,8 +388,9 @@ function renderTables() {
 
     if (isYours) {
       if (tileServed) {
-        stClass = 'yours'; badge = 'served'; badgeLbl = '✓ Served';
-        icon = '✓'; meta = 'Food delivered · Awaiting payment';
+        stClass = 'yours'; badge = 'served'; icon = '✓';
+        badgeLbl = tilePaid ? '✓ Paid' : '✓ Served';
+        meta = tilePaid ? 'Paid · Tap to clear table' : 'Food delivered · Awaiting payment';
       } else {
         stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
         icon = '🍽️'; meta = 'Active order';
@@ -1122,15 +1131,50 @@ window._removeFromCart = id => {
 
 $('clearCartBtn').onclick = () => { cart = {}; updateCart(); renderMenuGrid(); };
 
+// ── PHONE CART BOTTOM SHEET ──
+// On phone the cart panel is a collapsed summary bar; tapping it slides the
+// full sheet up over a backdrop. Docked inline on tablet/desktop (CSS-gated).
+(() => {
+  const panel = document.querySelector('.cart-panel');
+  const handle = $('cartSheetHandle');
+  const backdrop = $('cartSheetBackdrop');
+  if (!panel || !handle || !backdrop) return;
+  const closeSheet = () => {
+    panel.classList.remove('cart-sheet-open');
+    handle.setAttribute('aria-expanded', 'false');
+    backdrop.hidden = true;
+  };
+  const openSheet = () => {
+    panel.classList.add('cart-sheet-open');
+    handle.setAttribute('aria-expanded', 'true');
+    backdrop.hidden = false;
+  };
+  handle.addEventListener('click', () =>
+    panel.classList.contains('cart-sheet-open') ? closeSheet() : openSheet());
+  backdrop.addEventListener('click', closeSheet);
+  // Always reveal the docked panel when leaving the phone breakpoint.
+  window.addEventListener('resize', () => { if (window.innerWidth > 700) closeSheet(); });
+  window._closeCartSheet = closeSheet;
+})();
+
 function updateCart() {
   const items = Object.values(cart);
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  $('cartCount').textContent = `${items.reduce((s,i)=>s+i.qty,0)} items`;
-  $('cartTotal').textContent = `₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+  const qtyTotal = items.reduce((s,i)=>s+i.qty,0);
+  const totalStr = `₱${total.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+  $('cartCount').textContent = `${qtyTotal} items`;
+  $('cartTotal').textContent = totalStr;
   $('submitOrderBtn').disabled = items.length === 0;
+  // Keep the phone collapsed summary bar in sync with the docked panel.
+  const sheetCount = $('cartSheetCount');
+  const sheetTotal = $('cartSheetTotal');
+  if (sheetCount) sheetCount.textContent = qtyTotal === 1 ? '1 item' : `${qtyTotal} items`;
+  if (sheetTotal) sheetTotal.textContent = totalStr;
   const ci = $('cartItems');
   if (!items.length) {
     ci.innerHTML = '<div class="cart-empty"><div class="cart-empty-icon">🛒</div>No items yet.<br><span style="font-size:12px">Tap menu items to add.</span></div>';
+    // Collapse the phone sheet once the cart empties (clear / order sent).
+    if (window._closeCartSheet) window._closeCartSheet();
     return;
   }
   ci.innerHTML = items.map(i => {

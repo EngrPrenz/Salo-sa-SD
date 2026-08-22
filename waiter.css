@@ -471,6 +471,12 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .btn-submit span { position:relative; z-index:1; }
 .btn-clear { width: 100%; padding: 10px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
 .btn-clear:hover { border-color: var(--red); color: var(--red); }
+
+/* Phone cart bottom-sheet controls — hidden by default; the cart is a docked
+   column on tablet/desktop. Phone rules live in waiter-responsiveness.css. */
+.cart-sheet-handle { display: none; }
+.cart-sheet-backdrop { display: none; }
+.cart-sheet-backdrop[hidden] { display: none; }
 .btn-back-table { padding: 10px 18px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .btn-back-table:hover { border-color: var(--gold); color: var(--gold); }
 
