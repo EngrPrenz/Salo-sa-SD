@@ -1,0 +1,1181 @@
+/* ═══════════════════════════════════════════════════════════════
+   cashier-responsiveness.css
+   Full responsive system for Salo sa Antipolo — Cashier Portal
+   Covers: cashier.html & cashier-login.html
+   Breakpoints:
+     1. Wide Desktop (≥ 1440px)
+     2. Medium Desktop (1025px – 1439px)  — mostly fine, minor tweaks
+     3. Tablet Portrait & Landscape (601px – 1024px)
+     4. Phone Portrait (≤ 600px)
+     5. Very Narrow Phone (≤ 400px)
+     6. Phone Landscape (max-height: 520px)
+     7. Reduced Motion
+     8. Print
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+
+/* ═══════════════════════════════════════════════
+   1. WIDE DESKTOP (≥ 1440px)
+   ═══════════════════════════════════════════════ */
+@media (min-width: 1440px) {
+  :root {
+    --nav-width: 260px;
+    --detail-width: 420px;
+  }
+
+  .orders-list {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+  }
+
+  .view-body {
+    padding: 24px 36px;
+  }
+
+  .view-header {
+    padding: 28px 36px;
+  }
+
+  .search-input {
+    width: 320px;
+  }
+
+  .summary-value {
+    font-size: 40px;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   2. MEDIUM DESKTOP (1025px – 1439px)
+   ═══════════════════════════════════════════════ */
+@media (min-width: 1025px) and (max-width: 1439px) {
+  :root {
+    --nav-width: 220px;
+    --detail-width: 380px;
+  }
+
+  .orders-list {
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   3. TABLET  (601px – 1024px)
+   ═══════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  /* Show hamburger; hide it again if already not needed */
+  .hamburger-btn {
+    display: inline-flex !important;
+  }
+
+  .header {
+    height: 58px !important;
+    padding: 0 18px !important;
+    gap: 12px !important;
+  }
+
+  .main {
+    top: 58px !important;
+  }
+
+  /* Brand: keep name but slightly smaller */
+  .brand-logo {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .brand-name {
+    font-size: 17px !important;
+  }
+
+  .brand-italic {
+    font-size: 10px !important;
+  }
+
+  /* Header center: hide page title to save space */
+  .header-center {
+    display: none !important;
+  }
+
+  /* User: hide text label */
+  .user-details {
+    display: none !important;
+  }
+
+  .user-avatar {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 14px !important;
+  }
+
+  .theme-toggle {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .logout-btn {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* Nav sidebar: off-canvas drawer — always display:flex so it can slide in */
+  .nav-sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+    position: fixed !important;
+    top: var(--header-height) !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    z-index: 200 !important;
+    width: 260px !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1) !important;
+    padding-top: 16px !important;
+  }
+
+  .nav-sidebar.open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 40px rgba(0,0,0,0.6) !important;
+  }
+
+  /* Detail panel: slide-over from right */
+  .detail-panel {
+    position: fixed !important;
+    top: var(--header-height) !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 200 !important;
+    width: min(440px, 100vw) !important;
+    transform: translateX(100%) !important;
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+
+  .detail-panel.active,
+  .detail-panel.open {
+    transform: translateX(0) !important;
+    box-shadow: -10px 0 60px rgba(0,0,0,0.85) !important;
+  }
+
+  .view-header {
+    padding: 16px 20px !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+
+  .view-title {
+    font-size: 24px !important;
+  }
+
+  .view-actions {
+    width: 100% !important;
+  }
+
+  .search-input {
+    width: 100% !important;
+  }
+
+  .view-body {
+    padding: 16px 20px !important;
+  }
+
+  .orders-list {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  /* Billing table: allow horizontal scroll on tablet */
+  .billing-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .billing-table th,
+  .billing-table td {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  .summary-card {
+    padding: 16px !important;
+  }
+
+  .summary-value {
+    font-size: 30px !important;
+  }
+}
+
+/* ── Tablet: tighter at 768px ── */
+@media (max-width: 768px) {
+  .view-title {
+    font-size: 22px !important;
+  }
+
+  .order-card {
+    padding: 14px 16px !important;
+  }
+
+  .order-card-total {
+    font-size: 26px !important;
+  }
+
+  .orders-list {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+  }
+
+  /* Detail panel full-width when sliding over on smaller tablets */
+  .detail-panel {
+    width: min(400px, 100vw) !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   4. PHONE PORTRAIT  (≤ 600px)
+   ═══════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  :root {
+    --header-height: 52px !important;
+  }
+
+  .header {
+    height: 52px !important;
+    padding: 0 12px !important;
+    gap: 8px !important;
+  }
+
+  .main {
+    top: 52px !important;
+  }
+
+  /* Brand: hide text completely on small phones */
+  .brand-text {
+    display: none !important;
+  }
+
+  .brand-logo {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  /* Header right: icon-only mode */
+  .user-details {
+    display: none !important;
+  }
+
+  .user-avatar {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 12px !important;
+  }
+
+  .theme-toggle {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* Logout: icon-only pill */
+  .logout-btn {
+    padding: 0 !important;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 50% !important;
+    justify-content: center !important;
+  }
+
+  .logout-btn span {
+    display: none !important;
+  }
+
+  /* View header: stack vertically */
+  .view-header {
+    padding: 12px 14px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .view-title {
+    font-size: 20px !important;
+  }
+
+  .view-subtitle {
+    font-size: 12px !important;
+  }
+
+  .view-actions {
+    width: 100% !important;
+  }
+
+  .search-wrap {
+    width: 100% !important;
+  }
+
+  .search-input {
+    width: 100% !important;
+    font-size: 13px !important;
+  }
+
+  .view-body {
+    padding: 12px 14px !important;
+  }
+
+  /* Orders: single column */
+  .orders-list {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .order-card {
+    padding: 14px 16px !important;
+  }
+
+  .order-card-total {
+    font-size: 24px !important;
+  }
+
+  .order-card-table {
+    font-size: 20px !important;
+  }
+
+  /* Billing summary: single column */
+  .billing-summary {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .summary-card {
+    padding: 14px !important;
+  }
+
+  .summary-value {
+    font-size: 28px !important;
+  }
+
+  /* Billing table: horizontal scroll, compact */
+  .billing-table th,
+  .billing-table td {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Detail panel: full width slide-over */
+  .detail-panel {
+    width: 100vw !important;
+    top: var(--header-height) !important;
+    z-index: 300 !important;
+  }
+
+  .detail-header {
+    padding: 14px 16px !important;
+  }
+
+  .detail-body {
+    padding: 16px 14px !important;
+  }
+
+  .detail-section {
+    margin-bottom: 20px !important;
+  }
+
+  /* Discount buttons: tighter */
+  .discount-options {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .discount-btn {
+    padding: 12px 6px !important;
+    font-size: 11px !important;
+    gap: 6px !important;
+  }
+
+  .discount-btn i {
+    font-size: 20px !important;
+  }
+
+  /* Payment methods: 2-column */
+  .payment-methods {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .payment-method-btn {
+    padding: 12px 8px !important;
+    font-size: 12px !important;
+    gap: 6px !important;
+  }
+
+  .payment-method-btn i {
+    font-size: 20px !important;
+  }
+
+  /* Cash input */
+  .cash-input {
+    font-size: 20px !important;
+    padding: 12px 14px 12px 34px !important;
+  }
+
+  .cash-input-currency {
+    font-size: 16px !important;
+  }
+
+  .cash-quick-amounts {
+    gap: 6px !important;
+  }
+
+  .cash-quick-btn {
+    padding: 8px 6px !important;
+    font-size: 12px !important;
+  }
+
+  .cash-change-display {
+    padding: 12px !important;
+  }
+
+  .cash-change-amount {
+    font-size: 22px !important;
+  }
+
+  /* Financial breakdown */
+  .financial-breakdown {
+    padding: 12px !important;
+  }
+
+  .financial-row {
+    font-size: 12px !important;
+    padding: 6px 0 !important;
+  }
+
+  .financial-row.total {
+    font-size: 14px !important;
+  }
+
+  .financial-row.total span:last-child {
+    font-size: 18px !important;
+  }
+
+  /* Detail info grid: stack */
+  .detail-info-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Nav sidebar: already off-canvas; just adjust width for small screens */
+  .nav-sidebar {
+    width: 80vw !important;
+    max-width: 280px !important;
+  }
+
+  /* Overlay: stay to the right of the nav so nav items remain clickable */
+  .sidebar-overlay {
+    left: min(80vw, 280px) !important;
+  }
+
+  /* Toast snaps to screen edges */
+  .toast {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 14px !important;
+    width: auto !important;
+    white-space: normal !important;
+    justify-content: center !important;
+  }
+
+  /* Empty states: more compact */
+  .empty-state,
+  .empty-detail {
+    min-height: 180px !important;
+    padding: 24px 16px !important;
+  }
+
+  .empty-icon,
+  .empty-detail-icon {
+    font-size: 36px !important;
+    margin-bottom: 10px !important;
+  }
+
+  /* Process payment button */
+  .btn-primary {
+    padding: 12px 16px !important;
+    font-size: 13px !important;
+  }
+
+  /* Slip / print buttons */
+  .btn-slip {
+    padding: 9px 14px !important;
+    font-size: 12px !important;
+  }
+
+  /* Payment badge */
+  .payment-method-badge {
+    padding: 12px 14px !important;
+    font-size: 13px !important;
+    gap: 8px !important;
+  }
+
+  .payment-method-badge i {
+    font-size: 20px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   5. VERY NARROW PHONES (≤ 400px)
+   ═══════════════════════════════════════════════ */
+@media (max-width: 400px) {
+  .header {
+    padding: 0 8px !important;
+    gap: 6px !important;
+  }
+
+  .hamburger-btn {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 14px !important;
+  }
+
+  .view-title {
+    font-size: 18px !important;
+  }
+
+  .order-card-total {
+    font-size: 20px !important;
+  }
+
+  .order-card-table {
+    font-size: 18px !important;
+  }
+
+  /* Discount / payment: even tighter */
+  .discount-options {
+    gap: 6px !important;
+  }
+
+  .discount-btn {
+    padding: 10px 4px !important;
+    font-size: 10px !important;
+  }
+
+  .discount-btn i {
+    font-size: 18px !important;
+  }
+
+  .payment-methods {
+    gap: 6px !important;
+  }
+
+  .payment-method-btn {
+    padding: 10px 6px !important;
+    font-size: 11px !important;
+  }
+
+  .cash-input {
+    font-size: 18px !important;
+  }
+
+  .cash-quick-btn {
+    font-size: 11px !important;
+  }
+
+  .summary-value {
+    font-size: 24px !important;
+  }
+
+  .billing-table th,
+  .billing-table td {
+    padding: 7px 8px !important;
+    font-size: 10px !important;
+  }
+
+  /* Corner decorations: smaller on very small screens */
+  .corner {
+    width: 80px !important;
+    height: 80px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   6. PHONE LANDSCAPE  (max-height: 520px)
+   ═══════════════════════════════════════════════ */
+@media (max-height: 520px) {
+  :root {
+    --header-height: 44px !important;
+  }
+
+  .header {
+    height: 44px !important;
+    padding: 0 10px !important;
+    gap: 8px !important;
+  }
+
+  .main {
+    top: 44px !important;
+  }
+
+  /* Brand: micro mode */
+  .brand-logo {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .brand-name {
+    font-size: 14px !important;
+  }
+
+  .brand-italic {
+    display: none !important;
+  }
+
+  .page-title {
+    font-size: 15px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .page-subtitle {
+    display: none !important;
+  }
+
+  .theme-toggle {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .user-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+
+  .user-details {
+    display: none !important;
+  }
+
+  .logout-btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Nav sidebar: narrower in landscape */
+  .nav-sidebar {
+    width: 200px !important;
+    padding: 10px 8px !important;
+  }
+
+  .nav-item {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    margin-bottom: 3px !important;
+  }
+
+  .nav-icon {
+    font-size: 14px !important;
+  }
+
+  /* View: compact headers */
+  .view-header {
+    padding: 8px 14px !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .view-title {
+    font-size: 16px !important;
+  }
+
+  .view-subtitle {
+    display: none !important;
+  }
+
+  .search-input {
+    height: 32px !important;
+    font-size: 12px !important;
+    padding: 6px 12px 6px 34px !important;
+  }
+
+  .view-body {
+    padding: 8px 14px !important;
+  }
+
+  /* Orders: 2-column in landscape */
+  .orders-list {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .order-card {
+    padding: 10px 12px !important;
+    border-radius: 10px !important;
+  }
+
+  .order-card-total {
+    font-size: 20px !important;
+  }
+
+  .order-card-table {
+    font-size: 18px !important;
+  }
+
+  .order-card-header {
+    margin-bottom: 6px !important;
+  }
+
+  .order-card-body {
+    margin-bottom: 8px !important;
+  }
+
+  /* Detail panel: narrower in landscape */
+  .detail-panel {
+    width: min(340px, 100vw) !important;
+  }
+
+  .detail-header {
+    padding: 8px 12px !important;
+  }
+
+  .detail-body {
+    padding: 10px 12px !important;
+  }
+
+  .detail-section {
+    margin-bottom: 12px !important;
+  }
+
+  .detail-section-title {
+    font-size: 10px !important;
+    margin-bottom: 8px !important;
+    padding-bottom: 4px !important;
+  }
+
+  /* Discount: compact */
+  .discount-options {
+    gap: 6px !important;
+  }
+
+  .discount-btn {
+    padding: 8px 4px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+  }
+
+  .discount-btn i {
+    font-size: 16px !important;
+  }
+
+  /* Financial: compact */
+  .financial-breakdown {
+    padding: 8px 10px !important;
+  }
+
+  .financial-row {
+    padding: 4px 0 !important;
+    font-size: 11px !important;
+  }
+
+  .financial-row.total {
+    font-size: 13px !important;
+  }
+
+  .financial-row.total span:last-child {
+    font-size: 16px !important;
+  }
+
+  /* Cash input in landscape */
+  .cash-input {
+    font-size: 18px !important;
+    padding: 8px 12px 8px 30px !important;
+  }
+
+  .cash-input-group {
+    margin-bottom: 8px !important;
+  }
+
+  .cash-quick-amounts {
+    gap: 4px !important;
+    margin-top: 6px !important;
+  }
+
+  .cash-quick-btn {
+    padding: 6px 4px !important;
+    font-size: 11px !important;
+  }
+
+  .cash-change-display {
+    margin-top: 8px !important;
+    padding: 8px 12px !important;
+  }
+
+  .cash-change-amount {
+    font-size: 18px !important;
+  }
+
+  /* Summary card in landscape */
+  .summary-card {
+    padding: 12px !important;
+  }
+
+  .summary-value {
+    font-size: 24px !important;
+  }
+
+  /* Billing table */
+  .billing-table th,
+  .billing-table td {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Billing/process buttons */
+  .btn-primary {
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    margin-top: 8px !important;
+  }
+
+  .btn-slip {
+    padding: 7px 12px !important;
+    font-size: 11px !important;
+    margin-top: 6px !important;
+  }
+
+  /* Receipt/modal safety */
+  .receipt-modal,
+  .modal-overlay .modal {
+    max-height: 94vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Corner decorations: hide in very short screens */
+  .corner {
+    width: 70px !important;
+    height: 70px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   CASHIER-LOGIN.HTML RESPONSIVE
+   ═══════════════════════════════════════════════ */
+
+/* Tablets */
+@media (min-width: 481px) and (max-width: 768px) {
+  .card {
+    max-width: 400px !important;
+    border-radius: 18px !important;
+  }
+
+  .card-header {
+    padding: 28px 32px 24px !important;
+  }
+
+  .card-title {
+    font-size: 36px !important;
+  }
+
+  .card-body {
+    padding: 24px 32px 30px !important;
+  }
+}
+
+/* Phone portrait — covers up to 480px (login card) */
+@media (max-width: 480px) {
+  .page {
+    padding: 16px 12px !important;
+    align-items: flex-start !important;
+    padding-top: 32px !important;
+  }
+
+  .card {
+    border-radius: 16px !important;
+    max-width: 100% !important;
+  }
+
+  .card-header {
+    padding: 22px 20px 18px !important;
+  }
+
+  .card-header::after {
+    right: 18px !important;
+    top: 20px !important;
+    font-size: 26px !important;
+  }
+
+  .card-title {
+    font-size: 30px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .card-subtitle {
+    font-size: 12px !important;
+  }
+
+  .role-badge {
+    font-size: 9px !important;
+    padding: 4px 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .card-body {
+    padding: 18px 20px 22px !important;
+  }
+
+  .form-group {
+    margin-bottom: 14px !important;
+  }
+
+  input {
+    padding: 11px 14px !important;
+    font-size: 14px !important;
+  }
+
+  .btn-login {
+    padding: 13px !important;
+    font-size: 13px !important;
+  }
+
+  .card-footer {
+    margin-top: 18px !important;
+    padding-top: 14px !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  /* Toast: full width strip */
+  .toast {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 14px !important;
+    transform: translateX(0) translateY(80px) !important;
+    border-radius: 12px !important;
+    justify-content: center !important;
+  }
+
+  .toast.show {
+    transform: translateX(0) translateY(0) !important;
+  }
+
+  /* Corner decorations smaller */
+  .corner {
+    width: 80px !important;
+    height: 80px !important;
+  }
+}
+
+/* Very narrow login */
+@media (max-width: 360px) {
+  .card-title {
+    font-size: 26px !important;
+  }
+
+  .card-header {
+    padding: 18px 16px 14px !important;
+  }
+
+  .card-body {
+    padding: 14px 16px 18px !important;
+  }
+
+  input {
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .btn-login {
+    padding: 11px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* Phone landscape — login */
+@media (max-height: 520px) {
+  /* Login page in landscape: side-by-side header/body or compact stacked */
+  .page {
+    padding: 10px 12px !important;
+    align-items: center !important;
+  }
+
+  .card {
+    max-width: 480px !important;
+    border-radius: 14px !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow: hidden !important;
+  }
+
+  .card-strip {
+    display: none !important;
+  }
+
+  .card-header {
+    padding: 16px 20px !important;
+    border-bottom: none !important;
+    border-right: 1px solid var(--border) !important;
+    flex: 0 0 180px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+
+  .card-header::after {
+    display: none !important;
+  }
+
+  .role-badge {
+    font-size: 9px !important;
+    padding: 3px 8px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .card-title {
+    font-size: 22px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .card-subtitle {
+    font-size: 11px !important;
+  }
+
+  .card-body {
+    padding: 14px 18px !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+  }
+
+  .form-group {
+    margin-bottom: 8px !important;
+  }
+
+  label {
+    margin-bottom: 3px !important;
+    font-size: 10px !important;
+  }
+
+  input {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .btn-login {
+    padding: 10px !important;
+    font-size: 12px !important;
+    margin-top: 4px !important;
+  }
+
+  .card-footer {
+    margin-top: 10px !important;
+    padding-top: 8px !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+  }
+
+  .corner {
+    width: 50px !important;
+    height: 50px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel,
+  .nav-sidebar,
+  .sidebar-overlay {
+    transition: none !important;
+  }
+
+  .order-card,
+  .history-item {
+    animation: none !important;
+  }
+
+  .order-card:hover {
+    transform: none !important;
+  }
+
+  .order-card.selected {
+    animation: none !important;
+  }
+
+  .page-loader-spinner::before,
+  .page-loader-spinner::after {
+    animation: none !important;
+  }
+
+  /* Login */
+  .card {
+    animation: none !important;
+  }
+
+  .role-badge span {
+    animation: none !important;
+  }
+
+  .btn-login {
+    transition: none !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   PRINT
+   ═══════════════════════════════════════════════ */
+@media print {
+  .header,
+  .nav-sidebar,
+  .view-header,
+  .hamburger-btn,
+  .sidebar-overlay,
+  .detail-close,
+  .toast,
+  .bg,
+  .bg-dots,
+  .corner,
+  .discount-options,
+  .payment-methods,
+  .cash-input-section,
+  .btn-primary,
+  .btn-slip {
+    display: none !important;
+  }
+
+  .main {
+    position: static !important;
+  }
+
+  .detail-panel {
+    position: static !important;
+    transform: none !important;
+    width: 100% !important;
+    border: none !important;
+  }
+
+  .view-body {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .billing-table-wrap {
+    overflow: visible !important;
+  }
+
+  .financial-breakdown {
+    background: transparent !important;
+    border: 1px solid #ccc !important;
+  }
+}

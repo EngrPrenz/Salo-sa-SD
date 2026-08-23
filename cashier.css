@@ -202,6 +202,9 @@ html, body {
 /* ── Header Left: Branding ── */
 .header-left {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .brand {
@@ -1741,10 +1744,10 @@ html, body {
     padding: 8px 12px;
   }
   
-  /* Hide Navigation on Mobile */
-  .nav-sidebar {
-    display: none;
-  }
+  /* Navigation is already off-canvas via the 960px block above.
+     Do NOT set display:none here — that would prevent the drawer from
+     ever showing when .open is toggled. The sidebar is hidden by
+     transform: translateX(-100%) and only revealed when .open is added. */
   
   .view-header {
     padding: 20px 16px;
@@ -1788,7 +1791,7 @@ html, body {
   /* Detail Panel Full Screen on Mobile */
   .detail-panel {
     width: 100%;
-    top: 0;
+    top: var(--header-height);
     z-index: 300;
   }
   
@@ -1948,12 +1951,14 @@ html, body {
 }
 
 .sidebar-overlay {
+.sidebar-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--header-height);
+  left: 260px;
+  right: 0;
+  bottom: 0;
   z-index: 150;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.55);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1983,6 +1988,9 @@ html, body {
 
 /* ── 2. TABLET PORTRAIT & MEDIUM TABLET (<= 960px) ── */
 @media (max-width: 960px) {
+  :root {
+    --header-height: 58px;
+  }
   .hamburger-btn {
     display: inline-flex;
   }
@@ -2003,8 +2011,10 @@ html, body {
 
   /* Nav Sidebar transforms to off-canvas slide-out drawer */
   .nav-sidebar {
+    display: flex;
+    flex-direction: column;
     position: fixed;
-    top: 0;
+    top: var(--header-height);
     left: 0;
     bottom: 0;
     z-index: 200;
@@ -2012,17 +2022,17 @@ html, body {
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
     box-shadow: none;
-    padding-top: 24px;
+    padding-top: 16px;
   }
   .nav-sidebar.open {
     transform: translateX(0);
-    box-shadow: 0 0 60px rgba(0,0,0,0.85);
+    box-shadow: 4px 0 40px rgba(0,0,0,0.6);
   }
 
   /* Detail Panel transforms to slide-over drawer */
   .detail-panel {
     position: fixed;
-    top: 0;
+    top: var(--header-height);
     right: 0;
     bottom: 0;
     z-index: 200;
