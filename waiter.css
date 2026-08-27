@@ -68,7 +68,7 @@
 :root {
   --black: #0a0a0a; --black-card: #141414; --black-mid: #1c1c1c; --black-light: #242424;
   --border: #2a2a2a; --gold: #c9973a; --gold-light: #e8c07a; --gold-dim: rgba(201,151,58,0.12);
-  --white: #ffffff; --text-muted: #ffffff;
+  --white: #ffffff; --text-muted: #a0a0a0;
   --red: #c0392b; --red-dim: rgba(192,57,43,0.15);
   --green: #27ae60; --green-dim: rgba(39,174,96,0.15);
   --blue: #2980b9; --blue-dim: rgba(41,128,185,0.15);
@@ -452,9 +452,9 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .ci-name { font-size: 13px; font-weight: 600; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ci-price { font-size: 11px; color: var(--text-muted); }
 .ci-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.qty-btn { width: 24px; height: 24px; border-radius: 50%; background: var(--black-light); border: 1px solid var(--border); color: var(--white); font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.qty-btn { width: 32px; height: 32px; min-width: 32px; border-radius: 50%; background: var(--black-light); border: 1px solid var(--border); color: var(--white); font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; touch-action: manipulation; }
 .qty-btn:hover { border-color: var(--gold); color: var(--gold); }
-.qty-num { font-size: 13px; font-weight: 700; color: var(--white); min-width: 18px; text-align: center; }
+.qty-num { font-size: 14px; font-weight: 700; color: var(--white); min-width: 22px; text-align: center; }
 .cart-note-section { padding: 0 14px 14px; }
 .cart-note-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
 .cart-note { width: 100%; background: var(--black-mid); border: 1px solid var(--border); border-radius: 8px; color: var(--white); font-family: 'Outfit', sans-serif; font-size: 13px; padding: 9px 12px; outline: none; resize: none; transition: border-color 0.15s; }
@@ -555,49 +555,6 @@ html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--
 .walkin-btn-icon { font-size: 24px; flex-shrink: 0; }
 .walkin-action-btn span:nth-child(2) { font-size: 14px; font-weight: 600; flex: 1; }
 .walkin-btn-sub { font-size: 11px; color: var(--text-muted); display: block; }
-
-/* ── RESERVED TABLE TILE ── */
-.table-tile.reserved { border-color: rgba(41,128,185,0.4); background: rgba(41,128,185,0.04); cursor: pointer; }
-.table-tile:hover.reserved { border-color: rgba(41,128,185,0.7); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-.table-status-badge.reserved { color: var(--blue); background: var(--blue-dim); }
-
-/* ── RESERVED MODAL INFO CARD ── */
-.reserved-info-card {
-  background: var(--black-mid); border: 1px solid var(--border);
-  border-radius: 12px; padding: 16px 20px;
-  display: flex; flex-direction: column; gap: 12px;
-}
-.reserved-info-row { display: flex; align-items: center; justify-content: space-between; }
-.reserved-info-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
-.reserved-info-val { font-size: 15px; font-weight: 700; color: var(--white); }
-
-/* ── CONFIRM ARRIVAL BUTTON ── */
-.btn-confirm-arrival {
-  flex: 2; padding: 12px;
-  background: linear-gradient(135deg, var(--blue), #1a6ea8);
-  color: var(--white); border: none; border-radius: 8px;
-  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.08em;
-  cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
-}
-.btn-confirm-arrival:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(41,128,185,0.35); }
-.btn-confirm-arrival:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-.btn-confirm-arrival.loading .btn-conf-text { display: none; }
-.btn-confirm-arrival.loading .btn-conf-spin { display: block; }
-
-.btn-secondary {
-  flex: 1.5; padding: 12px;
-  background: rgba(94,94,94,0.2);
-  color: var(--text-muted); border: 1px solid rgba(94,94,94,0.3); border-radius: 8px;
-  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.08em;
-  cursor: pointer; transition: all 0.2s;
-}
-.btn-secondary:hover { 
-  background: rgba(94,94,94,0.3); 
-  border-color: rgba(94,94,94,0.5);
-  transform: translateY(-1px); 
-}
 .btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
 /* ── SUCCESS FLASH ── */

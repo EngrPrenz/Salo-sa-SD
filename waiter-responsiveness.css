@@ -631,6 +631,7 @@
   }
   .brand {
     gap: 6px;
+    flex-shrink: 0;
   }
   .brand-name {
     display: none !important;
@@ -643,6 +644,7 @@
   .order-type-switch {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
   }
   .ots-tab {
     padding: 6px 10px;
@@ -653,20 +655,26 @@
   .topbar-right {
     gap: 6px;
     margin-left: 0;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
   }
   .theme-toggle {
     width: 32px;
     height: 32px;
+    flex-shrink: 0;
   }
   .waiter-avatar {
     width: 30px;
     height: 30px;
     font-size: 12px;
+    flex-shrink: 0;
   }
   .logout-btn {
     padding: 6px 8px;
     font-size: 11px;
     gap: 4px;
+    flex-shrink: 0;
   }
 
   /* Main layout: vertical split on mobile portrait */
@@ -1000,7 +1008,9 @@
   }
   .cart-sheet-backdrop[hidden] { display: none; }
   .cart-items { flex: 1; overflow-y: auto; padding: 6px 10px; gap: 4px; }
-  .cart-item { padding: 5px 8px; border-radius: 8px; font-size: 12px; }
+  .cart-item { padding: 6px 8px; border-radius: 8px; font-size: 12px; }
+  .ci-controls { gap: 6px; }
+  .qty-btn { width: 32px !important; height: 32px !important; min-width: 32px !important; font-size: 15px !important; touch-action: manipulation; }
   .ci-name { font-size: 12px; }
   .ci-price { font-size: 11px; }
   .cart-footer { padding: 6px 10px; flex-shrink: 0; }
@@ -1008,12 +1018,28 @@
   .btn-submit { padding: 8px 12px; font-size: 13px; min-height: 38px; }
 }
 
+/* ── 2.5 COMPACT PHONES (<= 560px) ── */
+@media (max-width: 560px) {
+  .slip-drawer-toggle .slip-drawer-toggle-label { display: none !important; }
+  .slip-drawer-toggle { padding: 0 10px !important; gap: 4px !important; }
+  .logout-btn span { display: none !important; }
+  .logout-btn { padding: 6px 10px !important; }
+  .ots-tab { padding: 6px 8px !important; font-size: 11px !important; }
+  .topbar { padding: 0 8px !important; gap: 6px !important; }
+  .topbar-right { gap: 5px !important; }
+}
+
 /* ── 3. VERY NARROW PHONES (<= 400px) ── */
 @media (max-width: 400px) {
-  .topbar { padding: 0 6px; gap: 4px; }
-  .ots-tab { padding: 5px 6px; font-size: 11px; gap: 3px; }
-  .logout-btn { padding: 5px 6px; }
-  .logout-btn span { display: none; }
+  .topbar { padding: 0 4px !important; gap: 3px !important; }
+  .topbar-right { gap: 3px !important; }
+  .ots-tab { padding: 5px 6px !important; font-size: 10px !important; gap: 2px !important; }
+  .brand-logo { width: 28px !important; height: 28px !important; }
+  .theme-toggle { width: 28px !important; height: 28px !important; }
+  .waiter-avatar { width: 26px !important; height: 26px !important; font-size: 11px !important; }
+  .slip-drawer-toggle { width: 30px !important; height: 30px !important; padding: 0 !important; justify-content: center !important; }
+  .logout-btn { width: 28px !important; height: 28px !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+  .logout-btn span { display: none !important; }
 
   .entry-title { font-size: 20px; }
   .entry-subtitle { font-size: 11px; }
