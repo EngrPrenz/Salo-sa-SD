@@ -308,12 +308,19 @@ onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), snap =
 
 function calculateMenuOrderCounts() {
   menuOrderCounts = {};
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   allOrders.filter(o => {
     if (!['pending', 'preparing', 'served_unpaid', 'paid_unserved', 'served_paid'].includes(o.status)) return false;
-    const orderDate = o.createdAt?.toDate
-      ? o.createdAt.toDate().toISOString().slice(0, 10)
-      : null;
+    let orderDate = null;
+    if (o.createdAt?.toDate) {
+      const d = o.createdAt.toDate();
+      orderDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    } else if (o.createdAt instanceof Date) {
+      orderDate = `${o.createdAt.getFullYear()}-${String(o.createdAt.getMonth() + 1).padStart(2, '0')}-${String(o.createdAt.getDate()).padStart(2, '0')}`;
+    } else if (!o.createdAt) {
+      orderDate = todayStr;
+    }
     return orderDate === todayStr;
   }).forEach(o => {
     (o.items || []).forEach(item => {
@@ -322,14 +329,6 @@ function calculateMenuOrderCounts() {
       menuOrderCounts[key].served += Number(item.qty) || 0;
     });
   });
-}
-
-function getReservationMinutes(timeStr) {
-  const match = timeStr?.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!match) return null;
-  let hour = parseInt(match[1]) % 12;
-  if (match[3].toUpperCase() === 'PM') hour += 12;
-  return hour * 60 + parseInt(match[2]);
 }
 
 // ── TABLE RENDERING ──
@@ -361,7 +360,6 @@ function renderTables() {
     const tableDoc          = tablesData[n];
     const isWalkIn          = !orderInfo && tableDoc && tableDoc.status === 'walk-in';
     const isWalkInYours     = isWalkIn && tableDoc.waiterId === waiterId;
-    const isReserved        = !orderInfo && tableDoc && tableDoc.status === 'reserved';
     const isOccupiedNoOrder = !orderInfo && tableDoc && tableDoc.status === 'occupied';
     const isOccupiedYours   = isOccupiedNoOrder && tableDoc.waiterId === waiterId;
     const isYours           = orderInfo && orderInfo.waiterId === waiterId;
@@ -373,15 +371,6 @@ function renderTables() {
     const tilePaid          = tileServed && getActiveTableOrders(n).every(isPaid);
 
     const displayLabel = entry.name ? entry.name : `Table ${n}`;
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const pendingReservations = tableDoc?.reservations || [];
-    const nextReservation = pendingReservations
-      .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
-      .filter(r => r.mins !== null)
-      .sort((a, b) => a.mins - b.mins)[0];
-    const minsUntilNext = nextReservation ? nextReservation.mins - nowMins : null;
-    const hasSoonReservation = minsUntilNext !== null && minsUntilNext <= 31 && minsUntilNext > 0;
     const capInfo = entry.capacity ? `<div class="table-cap">${entry.capacity} seats</div>` : '';
 
     let stClass, badge, badgeLbl, meta, icon;
@@ -395,11 +384,6 @@ function renderTables() {
         stClass = 'yours'; badge = 'yours'; badgeLbl = '✦ Your Table';
         icon = '🍽️'; meta = 'Active order';
       }
-    } else if (isReserved) {
-      stClass = 'reserved'; badge = 'reserved'; badgeLbl = '📅 Reserved';
-      icon = '📅';
-      const res = (tableDoc?.reservations?.[0]) || tableDoc?.reservation || {};
-      meta = `${res.guestName || 'Guest'} · ${res.time || ''}`;
     } else if (isTakenOrder) {
       stClass = 'occupied'; badge = 'occupied'; badgeLbl = 'Occupied';
       icon = '🚫'; meta = orderInfo.waiterName || 'Another waiter';
@@ -416,14 +400,7 @@ function renderTables() {
     } else {
       stClass = 'free'; badge = 'free'; badgeLbl = 'Available';
       icon = '🪑';
-      if (hasSoonReservation) {
-        const urgency = minsUntilNext <= 30 ? '⚠️' : '🕐';
-        meta = `${urgency} Reserved in ${minsUntilNext}m for ${nextReservation.guestName}`;
-      } else if (nextReservation) {
-        meta = `🗓️ Reserved at ${nextReservation.time} · Tap to seat`;
-      } else {
-        meta = 'Tap to seat guests';
-      }
+      meta = 'Tap to seat guests';
     }
 
     return `<div class="table-tile ${stClass}" onclick="window._selectTable(${n}, '${stClass}', ${isWalkIn}, ${tileServed})">
@@ -436,7 +413,7 @@ function renderTables() {
   }).join('');
 }
 
-// ── MARK OCCUPIED ──
+// ── SEAT TABLE / MARK OCCUPIED ──
 window._openOccupyModal = (num) => {
   pendingOccupyTable = num;
   $('occupiedTableBadge').textContent = `Table ${num}`;
@@ -448,19 +425,41 @@ $('occupiedModalClose').onclick = $('occupiedModalCancel').onclick = () => {
   pendingOccupyTable = null;
 };
 
+// Option 1: Direct start taking order from free table
+const startOrderDirectBtn = $('startOrderDirectBtn');
+if (startOrderDirectBtn) {
+  startOrderDirectBtn.onclick = async () => {
+    if (!pendingOccupyTable) return;
+    const num = pendingOccupyTable;
+    const tableDoc = tablesData[num];
+    if (tableDoc) {
+      try {
+        await updateDoc(doc(db, 'tables', tableDoc.docId), {
+          status: 'occupied', waiterId, waiterName, lastUpdated: serverTimestamp()
+        });
+      } catch(e) { console.warn('Non-blocking table status update:', e); }
+    }
+    $('occupiedModal').classList.remove('show');
+    pendingOccupyTable = null;
+    goToOrder(num);
+  };
+}
+
+// Option 2: Mark as walk-in guests only
 $('confirmMarkOccupied').onclick = async () => {
   if (!pendingOccupyTable) return;
+  const num = pendingOccupyTable;
   const btn = $('confirmMarkOccupied');
-  btn.disabled = true; btn.classList.add('loading');
+  btn.disabled = true;
   try {
-    const tableDoc = tablesData[pendingOccupyTable];
-    const ref = doc(db, 'tables', tableDoc ? tableDoc.docId : `table_${pendingOccupyTable}`);
+    const tableDoc = tablesData[num];
+    const ref = doc(db, 'tables', tableDoc ? tableDoc.docId : `table_${num}`);
     await updateDoc(ref, {
       status: 'walk-in', waiterId, waiterName, lastUpdated: serverTimestamp()
     });
     $('occupiedModal').classList.remove('show');
     const os = $('occupiedSuccess');
-    $('occupiedSuccessSub').textContent = `Table ${pendingOccupyTable} marked as occupied.`;
+    $('occupiedSuccessSub').textContent = `Table ${num} marked as walk-in.`;
     os.classList.add('show');
     setTimeout(() => os.classList.remove('show'), 2000);
     pendingOccupyTable = null;
@@ -468,14 +467,13 @@ $('confirmMarkOccupied').onclick = async () => {
     console.error(e);
     showToast('❌ Failed to mark table. Please retry.');
   } finally {
-    btn.disabled = false; btn.classList.remove('loading');
+    btn.disabled = false;
   }
 };
 
 // ── WALK-IN OPTIONS MODAL ──
 window._selectTable = (num, stClass, isWalkIn, isServed) => {
   if (stClass === 'occupied') { showToast('⚠ This table has an active order from another waiter.'); return; }
-  if (stClass === 'reserved') { window._openReservedModal(num); return; }
 
   // If this is YOUR table with SERVED status, open served modal
   if (isServed && stClass === 'yours') {
@@ -496,27 +494,7 @@ window._selectTable = (num, stClass, isWalkIn, isServed) => {
 
   if (stClass === 'yours') { goToOrder(num); return; }
 
-  // Free table — check if there's a reservation within 30 mins
-  const tableDoc = tablesData[num];
-  const reservations = tableDoc?.reservations || [];
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const next = reservations
-    .map(r => ({ ...r, mins: getReservationMinutes(r.time) }))
-    .filter(r => r.mins !== null)
-    .sort((a, b) => a.mins - b.mins)[0];
-
-  if (next) {
-    const minsUntil = next.mins - nowMins;
-    if (minsUntil <= 30 && minsUntil > 0) {
-      showToast(`⚠️ Table ${num} is reserved for ${next.guestName} in ${minsUntil} mins. Cannot seat now.`);
-      return;
-    }
-    if (minsUntil <= 60 && minsUntil > 31) {
-      showToast(`🕐 Heads up: Table ${num} has a reservation in ${minsUntil} mins for ${next.guestName}.`);
-    }
-  }
-
+  // Free table — open seat modal
   window._openOccupyModal(num);
 };
 
@@ -546,7 +524,7 @@ $('freeTableBtn').onclick = async () => {
   if (tableDoc) {
     try {
       await updateDoc(doc(db, 'tables', tableDoc.docId), {
-        status: 'available', waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
+        status: 'free', waiterId: null, waiterName: null, lastUpdated: serverTimestamp()
       });
       $('freeTableModal').classList.remove('show');
       showToast(`✅ Table ${pendingWalkinTable} marked as free.`);
@@ -555,42 +533,6 @@ $('freeTableBtn').onclick = async () => {
       console.error(e);
       showToast('❌ Failed to update table. Please retry.');
     }
-  }
-};
-
-// ── RESERVED TABLE MODAL ──
-window._openReservedModal = (num) => {
-  const tableDoc = tablesData[num];
-  const res = tableDoc?.reservation || {};
-  $('reservedTableBadge').textContent = `Table ${num}`;
-  $('reservedGuestName').textContent = res.guestName || '—';
-  $('reservedTime').textContent = res.time || '—';
-  $('reservedModal').dataset.table = num;
-  $('reservedModal').classList.add('show');
-};
-
-$('reservedModalClose').onclick = $('reservedModalCancel').onclick = () => {
-  $('reservedModal').classList.remove('show');
-};
-
-$('confirmArrivalBtn').onclick = async () => {
-  const num = parseInt($('reservedModal').dataset.table);
-  if (!num) return;
-  const btn = $('confirmArrivalBtn');
-  btn.disabled = true; btn.classList.add('loading');
-  try {
-    const tableDoc = tablesData[num];
-    if (!tableDoc?.docId) { showToast('❌ Table document not found.'); return; }
-    await updateDoc(doc(db, 'tables', tableDoc.docId), {
-      status: 'occupied', waiterId, waiterName, lastUpdated: serverTimestamp()
-    });
-    $('reservedModal').classList.remove('show');
-    goToOrder(num);
-  } catch(e) {
-    console.error(e);
-    showToast('❌ Failed to confirm arrival. Please retry.');
-  } finally {
-    btn.disabled = false; btn.classList.remove('loading');
   }
 };
 
@@ -1269,6 +1211,21 @@ $('confirmOrderBtn').onclick = async () => {
     return;
   }
 
+  // Dine-in table conflict check: ensure another waiter hasn't taken this table while ordering
+  if (currentOrderType === 'dine-in' && selectedTable) {
+    const conflictOrder = allOrders.find(o =>
+      o.tableNumber === selectedTable &&
+      o.waiterId !== waiterId &&
+      o.status !== 'completed' &&
+      o.status !== 'cancelled'
+    );
+    if (conflictOrder) {
+      showToast(`⚠️ Table ${selectedTable} was just taken by ${conflictOrder.waiterName || 'another waiter'}.`);
+      btn.disabled = false; btn.classList.remove('loading');
+      return;
+    }
+  }
+
   // Frontend qty guard
   const overLimit = newItems.filter(i => i.qty > 20 || i.qty < 1);
   if (overLimit.length) {
@@ -1367,6 +1324,22 @@ $('confirmOrderBtn').onclick = async () => {
     };
 
     await addDoc(collection(db,'orders'), orderData);
+
+    // Sync table status in Firestore tables collection so Admin Tables portal updates
+    if (currentOrderType === 'dine-in' && selectedTable) {
+      const tableDoc = tablesData[selectedTable];
+      const ref = doc(db, 'tables', tableDoc ? tableDoc.docId : `table_${selectedTable}`);
+      try {
+        await updateDoc(ref, {
+          status: 'occupied',
+          waiterId,
+          waiterName,
+          lastUpdated: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn('Non-blocking table status sync warning:', err);
+      }
+    }
 
     $('confirmModal').classList.remove('show');
     const os = $('orderSuccess');
@@ -1684,10 +1657,7 @@ window._printSlip = (id) => {
     </tr>
   `).join('');
 
-  const printWindow = window.open('', '_blank', 'width=380,height=600');
-  if (!printWindow) { showToast('❌ Allow popups to print order slips.'); return; }
-
-  printWindow.document.write(`<!DOCTYPE html>
+  const slipHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8"/>
@@ -1737,9 +1707,44 @@ window._printSlip = (id) => {
   <table><tbody>${itemsRows}</tbody></table>
   <div class="ft">— End of Order —</div>
 </body>
-</html>`);
+</html>`;
 
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 250);
+  try {
+    const printWindow = window.open('', '_blank', 'width=380,height=600');
+    if (printWindow) {
+      printWindow.document.write(slipHtml);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 250);
+      return;
+    }
+  } catch(err) {
+    console.warn('Popup window print blocked, falling back to iframe print:', err);
+  }
+
+  // Fallback to hidden iframe for mobile Safari / popup-blocked browsers
+  let iframe = document.getElementById('slipPrintFrame');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'slipPrintFrame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+  }
+  const frameDoc = iframe.contentWindow?.document || iframe.contentDocument;
+  if (frameDoc) {
+    frameDoc.open();
+    frameDoc.write(slipHtml);
+    frameDoc.close();
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      try { iframe.contentWindow?.print(); } catch(e) { console.error(e); }
+    }, 250);
+  } else {
+    showToast('❌ Unable to open print view.');
+  }
 };
